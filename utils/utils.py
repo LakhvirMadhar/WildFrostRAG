@@ -28,7 +28,7 @@ def generate_directories():
     """
     Generate the directories needed to run the program
     """
-    dirs = ['data/html_output']
+    dirs = ['data/raw_htmls']
 
     for dir in dirs:
         os.makedirs(dir, exist_ok=True)

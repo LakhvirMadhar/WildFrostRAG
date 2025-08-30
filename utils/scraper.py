@@ -81,7 +81,6 @@ def process_sitemap_urls(sitemap_urls: List[Dict[str, Any]]) -> List[str]:
     return urls
 
 
-
 async def scrape_single_link(session: aiohttp.ClientSession, semaphore: Semaphore, url: str) -> Optional[str]:
     """
     Scrapes a single URL asynchronously with semaphore-based concurrency control.
@@ -144,13 +143,13 @@ async def scrape_multiple_links(urls:List[str], max_concurrent: int = 5) -> List
         return results
     
 
-def process_html_output(html_output: str) -> Optional[str]:
+def process_raw_html_output(html_output: str, sub_directory: str='raw_htmls') -> Optional[str]:
     """
     Processes HTML content by cleaning it and saving it to a file.
     
     Args:
         html_output (str): Raw HTML content to process.
-    
+        sub_directory (str):
     Returns:
         Optional[str]: The filename where the HTML was saved, or None if processing failed.
     """
@@ -168,25 +167,24 @@ def process_html_output(html_output: str) -> Optional[str]:
     if not sanitized_title:
         sanitized_title = "output"
 
-    filename = f"data/html_output/{sanitized_title}.html"
+    filename = f"data/{sub_directory}/{sanitized_title}.html"
     # save the html
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(soup.prettify())
 
 
-def save_html_outputs(html_outputs: List[Optional[str]]) -> None:
+def save_raw_html_outputs(html_outputs: List[Optional[str]], sub_directory: str) -> None:
     """
     Processes and saves multiple HTML outputs to individual files.
     
     Args:
-        html_outputs: List of HTML content strings from 
-            scraping results
-    
+        html_outputs: List of HTML content strings from scraping results
+        sub_directory: 
     Returns:
         None: This function performs file I/O operations but doesn't return a value.
     """
     logger.info(f"Starting to process {len(html_outputs)} HTML outputs")
     for html_output in html_outputs:
-        process_html_output(html_output)
+        process_raw_html_output(html_output, sub_directory)
     
 

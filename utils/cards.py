@@ -1,0 +1,159 @@
+import os
+import re
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional
+from pathlib import Path
+from bs4 import BeautifulSoup, Comment
+import logging
+
+logger = logging.getLogger(__name__)
+
+class CardType(Enum):
+    """
+    What type is the card
+    """
+    LEADER = 'leaders'
+    PETS = 'pets'
+    COMPANIONS = 'companions'
+    SHADES = 'shades'
+    CLUNKERS = 'clunkers'
+    ITEMS = 'items'
+    ENEMIES = 'enemies'
+    ENEMY_CLUNKERS = 'enemy_clunkers'
+    MINIBOSSES = 'minibosses'
+    BOSSES = 'bosses'
+
+@dataclass
+class CardInfo:
+    card_name: str
+    card_type: CardType
+    card_url: str
+    card_html: Optional[str] = None
+
+    # Card Stats
+    card_description: Optional[str] = None
+    health: Optional[int] = None
+    attack: Optional[int] = None
+    scrap: Optional[int] = None  # Alternative to Heatlh
+    counter: Optional[int] = None
+    other_stats: Optional[str] = None
+  
+    
+    def sanitized_name(self) -> str:
+        """Get sanitized card name safe for filenames"""
+        return re.sub(r'[\\/:*?"<>|]', '', self.card_name)
+
+
+    def save_path(self) -> str:
+        """Generate the save path for this card's HTML"""
+        return  f'data/structured_outputs/{self.card_type.value}/{self.sanitized_name()}.html'
+
+
+    def save_html(self) -> bool:
+        """
+        Save the card's HTML to file with proper directory creation and cleaning
+        
+        Returns:
+            bool: True is saved sucessfully, False otherwise
+        """
+
+        if self.card_html is None:
+            logger.warning(f"No HTML content to save for {self.card_name}")
+            return False
+        
+        try:
+            # Create directory if it doesn't exist
+            save_path = Path(self.save_path())
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Get HTML file
+            soup = BeautifulSoup(self.card_html, 'html.parser')
+
+            # Remove comments in HTML
+            comments = soup.find_all(string=lambda text: isinstance(text, Comment))
+            for comment in comments:
+                comment.extract()
+
+            with open(save_path, 'w', encoding='utf-8') as f:
+                f.write(soup.prettify())
+
+        except Exception as e:
+            logger.error(f'Failed to save HTML for {self.card_name}: {e}')
+
+
+    def parse_html(self) -> bool:
+        """
+        Parse the HTML and populate the card stats fields
+        
+        Returns:
+            bool: True if parsing succeeded, False otherwise
+        """
+        if not self.card_html:
+            logger.warning(f"No HTML content to parse for {self.card_name}")
+            return False
+        
+        try:
+            soup = BeautifulSoup(self.card_html, 'html.parser')
+            
+            # Extract description
+            description_tag = soup.find("meta", attrs={'name': 'description'})
+            if description_tag:
+                self.card_description = description_tag.get("content", "")
+            
+            # Extract stats from infobox
+            infobox = soup.find('table', {'id': 'infobox'})
+            if infobox:
+                rows = infobox.find_all('tr')
+                if len(rows) >= 4:
+                    # Stats are in rows 2 and 3
+                    stats_headers = [th.text.strip() for th in rows[2].find_all('th')]
+                    stats_values = [td.text.strip() for td in rows[3].find_all('td')]
+                    
+                    stats = dict(zip(stats_headers, stats_values))
+                    
+                    # Dynamically populate matching fields
+                    for stat_name, value in stats.items():
+                        attr_name = stat_name.lower()
+                        
+                        if hasattr(self, attr_name):
+                            if value.strip() == "":
+                                setattr(self, attr_name, None)
+                            elif value.isdigit():
+                                setattr(self, attr_name, int(value))
+                            else:
+                                setattr(self, attr_name, value)
+                    
+                    # Look for "Other Stats" section (effects)
+                    for i, row in enumerate(rows):
+                        th = row.find('th')
+                        if th and th.text.strip() == "Other Stats":
+                            if i + 1 < len(rows):
+                                other_stats_row = rows[i + 1]
+                                td = other_stats_row.find('td')
+                                if td:
+                                    other_stats_text = td.get_text(strip=True)
+                                    self.other_stats = other_stats_text if other_stats_text else None
+                            break
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to parse HTML for {self.card_name}: {e}")
+            return False
+    
+    def __str__(self) -> str:
+        """String representation of the card"""
+        lines = [
+            f"Card Name: {self.card_name}",
+            f"Card Description: {self.card_description}",
+            f"Card Type: {self.card_type.value}",
+            f"Health: {self.health}",
+            f"Attack: {self.attack}",
+            f"Scrap: {self.scrap}",
+            f"Counter: {self.counter}",
+            f"Other Stats: {self.other_stats}",
+            f"Generic Ability: **TODO**",
+            f"Specific Ability: **TODO**"
+        ]
+        return "\n".join(lines)
