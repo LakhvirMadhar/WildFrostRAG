@@ -13,16 +13,29 @@ class CardType(Enum):
     """
     What type is the card
     """
-    LEADER = 'leaders'
-    PETS = 'pets'
-    COMPANIONS = 'companions'
-    SHADES = 'shades'
-    CLUNKERS = 'clunkers'
-    ITEMS = 'items'
-    ENEMIES = 'enemies'
-    ENEMY_CLUNKERS = 'enemy_clunkers'
-    MINIBOSSES = 'minibosses'
-    BOSSES = 'bosses'
+    LEADER = ('leaders', [])
+    PETS = ('pets', ['companions'])  # pets are a subtype of companions
+    COMPANIONS = ('companions', [])
+    SHADES = ('shades', [])
+    CLUNKERS = ('clunkers', [])
+    ITEMS = ('items', [])
+    ENEMIES = ('enemies', [])
+    ENEMY_CLUNKERS = ('enemy_clunkers', ['enemies', 'clunkers'])  # inherits from both
+    MINIBOSSES = ('minibosses', ['enemies'])  # minibosses are a subtype of enemies
+    BOSSES = ('bosses', ['enemies'])  # bosses are a subtype of enemies
+    
+
+    def __new__(cls, value, parents=None):
+        obj = object.__new__(cls)
+        obj._value_ = value
+        obj.parents = parents or []
+        return obj
+    
+    @property
+    def has_parents(self) -> bool:
+        """Check if this card type has parent types"""
+        return len(self.parents) > 0
+
 
 @dataclass
 class CardInfo:
@@ -38,7 +51,9 @@ class CardInfo:
     scrap: Optional[int] = None  # Alternative to Heatlh
     counter: Optional[int] = None
     other_stats: Optional[str] = None
-  
+    abilities_normalized: Optional[str] = None
+    abilities_specific: Optional[str] = None
+    
     
     def sanitized_name(self) -> str:
         """Get sanitized card name safe for filenames"""
@@ -142,6 +157,7 @@ class CardInfo:
             logger.error(f"Failed to parse HTML for {self.card_name}: {e}")
             return False
     
+    
     def __str__(self) -> str:
         """String representation of the card"""
         lines = [
@@ -157,3 +173,21 @@ class CardInfo:
             f"Specific Ability: **TODO**"
         ]
         return "\n".join(lines)
+
+
+    def to_dict(self) -> dict:
+        """
+        Dictionary representation excluding None values and card_html, for neo4j consumption.
+        Handles CardType(Enum), which neo4j can't do on it's own
+        """
+        result = {}
+        for k, v in self.__dict__.items():
+            if v is None or k == "card_html":
+                continue
+            # Convert enum to its value
+            if isinstance(v, Enum):
+                result[k] = v.value
+            else:
+                result[k] = v
+        return result
+
