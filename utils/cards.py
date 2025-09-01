@@ -37,6 +37,39 @@ class CardType(Enum):
         return len(self.parents) > 0
 
 
+
+class TribeExclusivity(Enum):
+    """
+    Defins which tribe(s) a card belongs to
+    """
+    SNOWDWELLERS = 'Snowdwellers'
+    SHADMANCERS = 'Shademancers'
+    CLUNKMASTERS = 'Clunkmasters'
+    ALL_TRIBES = 'All' # Card belongs to all three tribes
+
+
+    @property
+    def is_exclusive(self) -> bool:
+        """Check if this card is exclusive to a single tribe"""
+        return self != TribeExclusivity.ALL_TRIBES
+    
+    
+    @property
+    def is_universal(self) -> bool:
+        return self == TribeExclusivity.ALL_TRIBES
+    
+
+    def get_tribes(self) -> list[str]:
+        """
+        Get list of tribe names this exclusivity represents
+        """
+
+        if self.is_universal:
+            return [tribe.value for tribe in TribeExclusivity if tribe.is_exclusive]
+        else:
+            return self.value
+
+
 @dataclass
 class CardInfo:
     card_name: str
@@ -54,7 +87,10 @@ class CardInfo:
     abilities_normalized: Optional[str] = None
     abilities_specific: Optional[str] = None
     
-    
+    # Tribe Exclusivity
+    tribe_exclusivity: Optional[TribeExclusivity] = None
+
+
     def sanitized_name(self) -> str:
         """Get sanitized card name safe for filenames"""
         return re.sub(r'[\\/:*?"<>|]', '', self.card_name)
@@ -97,6 +133,7 @@ class CardInfo:
             logger.error(f'Failed to save HTML for {self.card_name}: {e}')
 
 
+    # This really is for the card_type, we'd have to do another function for the tribe exclusiviy
     def parse_html(self) -> bool:
         """
         Parse the HTML and populate the card stats fields
@@ -157,21 +194,11 @@ class CardInfo:
             logger.error(f"Failed to parse HTML for {self.card_name}: {e}")
             return False
     
-    
+
     def __str__(self) -> str:
-        """String representation of the card"""
-        lines = [
-            f"Card Name: {self.card_name}",
-            f"Card Description: {self.card_description}",
-            f"Card Type: {self.card_type.value}",
-            f"Health: {self.health}",
-            f"Attack: {self.attack}",
-            f"Scrap: {self.scrap}",
-            f"Counter: {self.counter}",
-            f"Other Stats: {self.other_stats}",
-            f"Generic Ability: **TODO**",
-            f"Specific Ability: **TODO**"
-        ]
+        """String representation of the card based on to_dict"""
+        card_data = self.to_dict()
+        lines = [f"{key.replace('_', ' ').title()}: {value}" for key, value in card_data.items()]
         return "\n".join(lines)
 
 
