@@ -67,7 +67,7 @@ class TribeExclusivity(Enum):
         if self.is_universal:
             return [tribe.value for tribe in TribeExclusivity if tribe.is_exclusive]
         else:
-            return self.value
+            return [self.value]
 
 
 @dataclass
