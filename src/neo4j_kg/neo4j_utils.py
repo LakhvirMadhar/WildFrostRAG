@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 from typing import List, Dict, Any
-from utils.cards import CardType, TribeExclusivity
+from src.data_processing.cards import CardType, TribeExclusivity
 load_dotenv()
 
 

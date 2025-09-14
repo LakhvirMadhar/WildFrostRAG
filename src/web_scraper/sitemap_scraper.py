@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup, Comment
 import aiohttp
 import requests
 from typing import List, Dict, Any, Optional
-from .logger import logger
+from src.utils.logger import logger
 
 def scrape_sitemap(sitemap_url: str) -> List[Dict[str, Any]]:
     """
