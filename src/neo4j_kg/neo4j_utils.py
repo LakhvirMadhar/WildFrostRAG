@@ -1,9 +1,10 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 from typing import List, Dict, Any
 from src.data_processing.cards import CardType, TribeExclusivity
-load_dotenv()
+load_dotenv(dotenv_path="configs/.env")
 
 
 def create_cards(tx, cards_data):
