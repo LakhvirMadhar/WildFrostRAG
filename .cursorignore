@@ -1,0 +1,36 @@
+# Ignore dependency folders
+node_modules/
+vendor/
+bower_components/
+
+# Ignore build output
+dist/
+build/
+out/
+target/
+
+# Ignore sensitive files
+configs/
+.env
+*.pem
+*.key
+secrets.json
+credentials.*
+
+# Ignore log files
+*.log
+logs/
+
+# Ignore IDE/editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore large assets if not needed for context
+assets/videos/
+large_dataset.csv
