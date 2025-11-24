@@ -76,7 +76,6 @@ logs/
 logging/
 
 # Data files (adjust based on your needs)
-*.csv
 *.json
 data/
 *.db
