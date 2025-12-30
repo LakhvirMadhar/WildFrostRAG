@@ -1,7 +1,7 @@
-from langchain.text_splitter import HTMLHeaderTextSplitter
+from langchain_text_splitters.html import HTMLHeaderTextSplitter
 from bs4 import BeautifulSoup
 from typing import List
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 
 
 def process_html_files(filepaths: List[str]) -> List[Document]:
