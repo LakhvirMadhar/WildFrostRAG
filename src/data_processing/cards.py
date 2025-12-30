@@ -216,5 +216,9 @@ class CardInfo:
                 result[k] = v.value
             else:
                 result[k] = v
+        
+        # Add derived fields useful for Neo4j
+        result['filename'] = f"{self.sanitized_name()}.html"
+        
         return result
 

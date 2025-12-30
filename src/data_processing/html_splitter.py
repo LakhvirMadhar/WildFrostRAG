@@ -3,20 +3,18 @@ from bs4 import BeautifulSoup
 from typing import List
 from langchain_core.documents import Document
 
+from tqdm import tqdm
 
-def process_html_files(filepaths: List[str]) -> List[Document]:
+def process_html_files(filepaths: List[str], split_text: bool = True) -> List[Document]:
     """
-    Parses and chunks HTML content from a list of files.
-
-    This function preprocesses HTML to remove a specific navbox element
-    before using LangChain's HTMLHeaderTextSplitter to create structured text chunks.
+    Parses and optionally chunks HTML content from a list of files.
 
     Args:
         filepaths: A list of string paths to the HTML files to be processed.
+        split_text: If True, splits text by headers. If False, returns full content.
 
     Returns:
-        A list of LangChain Document objects, where each document is a chunk
-        of the original HTML content.
+        A list of LangChain Document objects.
     """
     all_chunks = []
 
@@ -30,7 +28,8 @@ def process_html_files(filepaths: List[str]) -> List[Document]:
     # Create the HTMLHeaderTextSplitter instance once.
     html_splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
 
-    for filepath in filepaths:
+    # Use tqdm for progress bar
+    for filepath in tqdm(filepaths, desc="Processing HTML files", unit="file"):
         try:
             # Load the raw HTML content from the file.
             with open(filepath, 'r', encoding='utf-8') as f:
@@ -57,16 +56,24 @@ def process_html_files(filepaths: List[str]) -> List[Document]:
             # Convert the modified BeautifulSoup object back to a string for the splitter.
             cleaned_html = str(soup)
 
-            # Split the cleaned document based on the headers and add to the list.
-            text_chunks = html_splitter.split_text(cleaned_html)
+            if split_text:
+                # Split the cleaned document based on the headers and add to the list.
+                text_chunks = html_splitter.split_text(cleaned_html)
+            else:
+                # Create a single document for the whole file
+                text_chunks = [Document(page_content=cleaned_html)]
+            
+            # Add source filepath to metadata for each chunk
+            for chunk in text_chunks:
+                chunk.metadata['source'] = filepath
+            
             all_chunks.extend(text_chunks)
             
-            print(f"Processed '{filepath}': {len(text_chunks)} chunks created.")
 
         except FileNotFoundError:
-            print(f"Error: The file '{filepath}' was not found.")
+            tqdm.write(f"Error: The file '{filepath}' was not found.")
         except Exception as e:
-            print(f"An error occurred while processing '{filepath}': {e}")
+            tqdm.write(f"An error occurred while processing '{filepath}': {e}")
 
     return all_chunks
 

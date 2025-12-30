@@ -72,7 +72,7 @@ def create_card_tribe_relationships(tx, cards_data):
                 
                 # Use the get_tribes() method to get the list of tribe names
                 tribes_to_link = exclusivity_enum_member.get_tribes()
-                
+
                 # Debug for first few cards
                 if total_cards_with_tribes <= 5:
                     print(f"Card: {card_dict['card_name']}")
@@ -208,10 +208,6 @@ def create_neo4j_data(cards_data):
         print('Connected to Neo4j!')
 
         with driver.session() as session:
-            # TEMP - Clear the database as I'm still creating this
-            session.execute_write(clear_database)
-            print("Database cleared")
-
             # Create tribes first
             tribes_created = session.execute_write(create_tribes)
             print(f"Created {tribes_created} tribes")
