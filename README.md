@@ -107,9 +107,11 @@ Given the above retrieval techniques, we need to setup the retrieval metrics
 1.  **Chunking**
     *   Currently have a chunking option and no chunking option. No chunking is fine as is, it caputres the entire document.
     *   The HTML splitter needs some work, as it splits headers but some headers are just the name of the card, therefore it becomes an irrelevant chunk during retrieval
+    *   There's also some junk at the end of the HTML that I need to parse out as it's redunant text
 
 2.  **Bugs**
-    *   BUG: When processing the html
+    *   BUG: When processing the html, sometimes words are missing (FIXED)
+        - Also should remove the completely irrelevant info that shows up at the end that has no informatoin related to the cards itself?
     *   BUG: For cards like Infernoko that have multiple phases, we are not capturing the data for phases (should add the relation, Card -> has other phase(or something) -> Card)
 
 3.  **Missing Features/Pages to Still Scrape**
@@ -127,6 +129,7 @@ Given the above retrieval techniques, we need to setup the retrieval metrics
     *   I need to scrape the difficulty bells, as you need 10 bells to even do the final fight in Map Events.
     *   Hm, probably need something for how fights themselves play out (1 card is played OR player hits their sun bell, then enemy turn progresses). A lot I have to do here.
     *   I'm not saving the card image anywhere, unsure if needed atm.
+    *   Need to update the to_dict method to capture more information I'm missing
 
 ### Overall Theme
 *   The `rag_eval_demo.ipynb` will be for any scraping and neo4j ingestion testing the user deems necessary.

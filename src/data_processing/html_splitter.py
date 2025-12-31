@@ -5,6 +5,21 @@ from langchain_core.documents import Document
 
 from tqdm import tqdm
 
+# Elements to remove from HTML before processing
+UNWANTED_SELECTORS = [
+    'navbox',          # Custom navboxes
+    'printfooter',     # "Retrieved from..."
+    'catlinks',        # "Categories: ..."
+    'mw-navigation',   # "Navigation menu", "Personal tools", etc.
+    'mw-head',         # Top header/search
+    'mw-panel',        # Side panel
+    'footer',          # "Privacy policy", "About", etc.
+    'mw-editsection',  # "Edit" links
+    'toc',             # Table of Contents
+    'script',          # JavaScript blocks
+]
+
+
 def process_html_files(filepaths: List[str], split_text: bool = True) -> List[Document]:
     """
     Parses and optionally chunks HTML content from a list of files.
@@ -38,19 +53,18 @@ def process_html_files(filepaths: List[str], split_text: bool = True) -> List[Do
             # Use BeautifulSoup for preprocessing to remove noise.
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            # Define a list of classes for unwanted tables or divs.
-            unwanted_classes = ['']
-            
             # --- Preprocessing Step: Remove Unwanted Elements ---
             
-            # First, find and remove the element with the specific ID.
-            navbox_table = soup.find(id='navbox')
-            if navbox_table:
-                navbox_table.decompose()
-                
-            # Then, iterate over the list of unwanted classes and remove those elements.
-            for unwanted_class in unwanted_classes:
-                for element in soup.find_all(class_=unwanted_class):
+            # Remove by class, id, or tag name
+            for selector in UNWANTED_SELECTORS:
+                # Remove by class
+                for element in soup.find_all(class_=selector):
+                    element.decompose()
+                # Remove by ID
+                for element in soup.find_all(id=selector):
+                    element.decompose()
+                # Remove by tag name (e.g. footer)
+                for element in soup.find_all(selector):
                     element.decompose()
 
             # Convert the modified BeautifulSoup object back to a string for the splitter.
@@ -60,8 +74,10 @@ def process_html_files(filepaths: List[str], split_text: bool = True) -> List[Do
                 # Split the cleaned document based on the headers and add to the list.
                 text_chunks = html_splitter.split_text(cleaned_html)
             else:
-                # Create a single document for the whole file
-                text_chunks = [Document(page_content=cleaned_html)]
+                # Create a single document for the whole file, but extract text first
+                # using get_text with a separator to preserve some structure
+                full_text = soup.get_text(separator='\n\n', strip=True)
+                text_chunks = [Document(page_content=full_text)]
             
             # Add source filepath to metadata for each chunk
             for chunk in text_chunks:
