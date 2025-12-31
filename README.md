@@ -111,7 +111,7 @@ Given the above retrieval techniques, we need to setup the retrieval metrics
 
 2.  **Bugs**
     *   BUG: When processing the html, sometimes words are missing (FIXED)
-        - Also should remove the completely irrelevant info that shows up at the end that has no informatoin related to the cards itself?
+        - Also should remove the completely irrelevant info that shows up at the end that has no informatoin related to the cards itself? (FIXED)
     *   BUG: For cards like Infernoko that have multiple phases, we are not capturing the data for phases (should add the relation, Card -> has other phase(or something) -> Card)
 
 3.  **Missing Features/Pages to Still Scrape**
@@ -130,6 +130,10 @@ Given the above retrieval techniques, we need to setup the retrieval metrics
     *   Hm, probably need something for how fights themselves play out (1 card is played OR player hits their sun bell, then enemy turn progresses). A lot I have to do here.
     *   I'm not saving the card image anywhere, unsure if needed atm.
     *   Need to update the to_dict method to capture more information I'm missing
+    *   **Important**: I need to make sure the to_dict method is expanded to make a very cleaned format of the HTML.
+    *   **Important**: Logger is saving all to one file, we need to make it several files. Also need to fix print statements or tqdm write statements to instead be logger.
+    *   
+
 
 ### Overall Theme
 *   The `rag_eval_demo.ipynb` will be for any scraping and neo4j ingestion testing the user deems necessary.
