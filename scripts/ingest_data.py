@@ -59,34 +59,34 @@ def clean_name_for_url(name: str) -> str:
 async def stage_1_scrape_cards() -> List[CardInfo]:
     """
     Stage 1: Web Scraping
-    
+
     Scrapes card data from the Wildfrost wiki and saves HTML files.
-    
+
     Returns:
         List of CardInfo objects with HTML content populated
     """
     logger.info("=" * 60)
     logger.info("STAGE 1: WEB SCRAPING")
     logger.info("=" * 60)
-    
+
     # Generate card type schema
     logger.info("Generating card type schema...")
     card_type_schema = generate_card_type_html_schema()
-    
+
     # Save schema to file
     schema_path = settings.schemas_dir / 'card_type_schema.json'
     settings.schemas_dir.mkdir(parents=True, exist_ok=True)
     with open(schema_path, 'w', encoding='utf-8') as f:
         json.dump(card_type_schema, f, indent=4)
     logger.info(f"Schema saved to {schema_path}")
-    
+
     # Create CardInfo objects for all cards
     card_infos = []
     for card_type, cards in card_type_schema.items():
         if card_type == 'leaders':
             # Skip leaders for now (they need special handling)
             continue
-        
+
         for card_name in cards:
             cleaned_name = clean_name_for_url(card_name)
             card_info = CardInfo(
@@ -95,18 +95,18 @@ async def stage_1_scrape_cards() -> List[CardInfo]:
                 card_url=f'{settings.wildfrost_wiki_base_url}/{cleaned_name}'
             )
             card_infos.append(card_info)
-    
+
     logger.info(f"Created {len(card_infos)} CardInfo objects")
-    
+
     # Scrape all card pages
     urls = [card.card_url for card in card_infos]
     logger.info(f"Scraping {len(urls)} card pages...")
-    
+
     html_outputs = await scrape_multiple_links(
         urls,
         max_concurrent=settings.max_concurrent_requests
     )
-    
+
     # Attach HTML to CardInfo objects and save
     successful_count = 0
     # logger.info("Parsing and saving HTML content...") # Using tqdm desc instead
@@ -116,25 +116,25 @@ async def stage_1_scrape_cards() -> List[CardInfo]:
             card_info.save_html()
             card_info.parse_html()
             successful_count += 1
-    
+
     logger.info(f"Successfully scraped and parsed {successful_count}/{len(card_infos)} cards")
-    
+
     return card_infos
 
 
 def stage_2_enrich_data(card_infos: List[CardInfo]) -> None:
     """
     Stage 2: Data Enrichment
-    
+
     Enriches card data with tribe exclusivity information.
-    
+
     Args:
         card_infos: List of CardInfo objects to enrich (modified in-place)
     """
     logger.info("=" * 60)
     logger.info("STAGE 2: DATA ENRICHMENT")
     logger.info("=" * 60)
-    
+
     enrich_cards_with_tribes(
         card_infos=card_infos,
         companions_url=settings.companions_page_url,
@@ -145,20 +145,20 @@ def stage_2_enrich_data(card_infos: List[CardInfo]) -> None:
 def stage_3_populate_graph(card_infos: List[CardInfo]) -> None:
     """
     Stage 3: Neo4j Graph Population
-    
+
     Creates nodes and relationships in Neo4j knowledge graph.
-    
+
     Args:
         card_infos: List of CardInfo objects to ingest
     """
     logger.info("=" * 60)
     logger.info("STAGE 3: NEO4J GRAPH POPULATION")
     logger.info("=" * 60)
-    
+
     # Convert CardInfo objects to dictionaries
     cards_dict_data = [card.to_dict() for card in card_infos]
     logger.info(f"Ingesting {len(cards_dict_data)} cards into Neo4j graph...")
-    
+
     create_neo4j_data(cards_dict_data)
     logger.info("Graph population complete")
 
@@ -166,9 +166,9 @@ def stage_3_populate_graph(card_infos: List[CardInfo]) -> None:
 def stage_4_vector_ingestion(card_infos: List[CardInfo], split_text: bool = True) -> None:
     """
     Stage 4: Vector Store Ingestion
-    
+
     Chunks HTML documents, generates embeddings, and ingests into Neo4j vector store.
-    
+
     Args:
         card_infos: List of CardInfo objects (used to find HTML files)
         split_text: If True, splits documents into chunks. If False, ingests full documents.
@@ -178,7 +178,7 @@ def stage_4_vector_ingestion(card_infos: List[CardInfo], split_text: bool = True
     if not split_text:
         logger.info("(Full Document Mode: No Chunking)")
     logger.info("=" * 60)
-    
+
     # Collect all HTML file paths
     logger.info("Collecting HTML files...")
     all_html_filepaths = []
@@ -187,14 +187,14 @@ def stage_4_vector_ingestion(card_infos: List[CardInfo], split_text: bool = True
             if file.endswith('.html'):
                 filepath = os.path.join(root, file)
                 all_html_filepaths.append(filepath)
-    
+
     logger.info(f"Found {len(all_html_filepaths)} HTML files to process")
-    
+
     # Chunk the HTML documents
     logger.info(f"Processing HTML documents (split_text={split_text})...")
     all_document_chunks = process_html_files(all_html_filepaths, split_text=split_text)
     logger.info(f"Created {len(all_document_chunks)} document objects")
-    
+
     # Generate embeddings
     logger.info("Generating embeddings...")
     embedding_generator = EmbeddingGenerator(
@@ -202,40 +202,30 @@ def stage_4_vector_ingestion(card_infos: List[CardInfo], split_text: bool = True
     )
     embeddings = embedding_generator.generate_embeddings(all_document_chunks)
     logger.info(f"Generated embeddings with shape: {embeddings.shape}")
-    
+
     # Ingest into Neo4j
     logger.info("Ingesting embeddings into Neo4j...")
     ingest_embeddings_into_neo4j(
-        uri=settings.neo4j_uri,
-        user=settings.neo4j_username,
-        password=settings.neo4j_password,
         document_chunks=all_document_chunks,
         embeddings=embeddings
     )
-    
+
     # Create vector index
     logger.info("Creating vector index...")
     create_vector_index(
-        uri=settings.neo4j_uri,
-        user=settings.neo4j_username,
-        password=settings.neo4j_password,
         index_name=settings.vector_index_name,
         embedding_dimension=settings.embedding_dimension,
         similarity_function=settings.similarity_function
     )
-    
+
     # Wait for index to populate
     wait_for_index_population(seconds=5)
-    
+
     # Link Document nodes to Card nodes in the knowledge graph
     logger.info("Linking documents to cards in knowledge graph...")
-    link_count = link_documents_to_cards(
-        uri=settings.neo4j_uri,
-        user=settings.neo4j_username,
-        password=settings.neo4j_password
-    )
+    link_count = link_documents_to_cards()
     logger.info(f"Linked {link_count} documents to cards")
-    
+
     logger.info("Vector store ingestion complete")
 
 
@@ -270,17 +260,17 @@ async def main():
         help="Skip HTML splitting (ingest full documents as single nodes)"
     )
     args = parser.parse_args()
-    
+
     logger.info("Starting WildFrostRAG data ingestion pipeline")
     logger.info(f"Configuration: {settings.model_dump()}")
-    
+
     # Clear database if requested
     if args.clear_db:
         logger.warning("⚠️  CLEARING ENTIRE NEO4J DATABASE ⚠️")
         from neo4j import GraphDatabase
         driver = GraphDatabase.driver(
             settings.neo4j_uri,
-            auth=(settings.neo4j_username, settings.neo4j_password)
+            auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
         )
         try:
             with driver.session() as session:
@@ -288,10 +278,10 @@ async def main():
             logger.info("✅ Database cleared successfully")
         finally:
             driver.close()
-    
+
     # Ensure directories exist
     settings.create_directories()
-    
+
     # Stage 1: Scrape (or load existing data)
     if args.skip_scrape:
         logger.info("Skipping web scraping (--skip-scrape flag set)")
@@ -301,16 +291,16 @@ async def main():
         card_infos = await stage_1_scrape_cards()
     else:
         card_infos = await stage_1_scrape_cards()
-    
+
     # Stage 2: Enrich
     stage_2_enrich_data(card_infos)
-    
+
     # Stage 3: Graph
     if not args.skip_graph:
         stage_3_populate_graph(card_infos)
     else:
         logger.info("Skipping graph population (--skip-graph flag set)")
-    
+
     # Stage 4: Vectors
     if not args.skip_vectors:
         # If --no-chunking is passed, split_text should be False
@@ -318,7 +308,7 @@ async def main():
         stage_4_vector_ingestion(card_infos, split_text=split_text)
     else:
         logger.info("Skipping vector ingestion (--skip-vectors flag set)")
-    
+
     logger.info("=" * 60)
     logger.info("PIPELINE COMPLETE")
     logger.info("=" * 60)

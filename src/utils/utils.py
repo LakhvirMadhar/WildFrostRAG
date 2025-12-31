@@ -13,15 +13,34 @@ def save_to_json(filename_path: str, data: Dict[str, Any]):
         data (Dict[str, Any]): The dictionary to be saved.
     """
 
-    # os.makedirs(filename_path, exist_ok=True)
-    # logger.info(f"Directory created or already exists: {filename_path}")
+    # Sanitize the filename path to prevent directory traversal
+    safe_path = os.path.normpath(filename_path)
+
+    # Ensure the filename is within the expected directory structure
+    # Prevent paths that go outside the current directory
+    if os.path.isabs(filename_path):
+        # If it's an absolute path, reject it
+        logger.error(f"Absolute path not allowed: {filename_path}")
+        return
+
+    # Check if the resolved path goes outside the intended directory
+    full_path = os.path.abspath(safe_path)
+    expected_prefix = os.path.abspath('.')
+    if not full_path.startswith(expected_prefix):
+        logger.error(f"Invalid path detected: {filename_path}")
+        return
+
+    # Create directory if it doesn't exist
+    directory = os.path.dirname(safe_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
 
     try:
-        with open(filename_path, 'w', encoding='utf-8') as f:
+        with open(safe_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4)
-            logger.info(f"Saved data to: {filename_path}")
+            logger.info(f"Saved data to: {safe_path}")
     except IOError as e:
-        logger.error(f"Error: Unable to save data to {filename_path}. Error: {e}")
+        logger.error(f"Error: Unable to save data to {safe_path}. Error: {e}")
 
 
 def generate_directories():

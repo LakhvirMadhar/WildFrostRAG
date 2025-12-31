@@ -5,9 +5,9 @@ This module uses Pydantic Settings to manage all configuration values,
 eliminating magic strings and providing type safety.
 """
 
-import os
 from pathlib import Path
 from typing import Optional
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,9 +20,9 @@ class Settings(BaseSettings):
     """
 
     # ===== Neo4j Configuration =====
-    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_uri: str
     neo4j_username: str
-    neo4j_password: str
+    neo4j_password: SecretStr
 
     # ===== Embedding Configuration =====
     embedding_model_name: str = "all-MiniLM-L6-v2"
@@ -49,11 +49,9 @@ class Settings(BaseSettings):
     raw_htmls_dir: Path = data_dir / "raw_htmls"
     schemas_dir: Path = data_dir / "schemas"
 
-    # Config directory
-    configs_dir: Path = project_root / "configs"
 
     # ===== OpenAI Configuration (for evaluation) =====
-    openai_api_key: Optional[str] = None
+    openai_api_key: Optional[SecretStr] = None
     openai_model_name: str = "gpt-4o-mini"  # Default model for generation
     openai_temperature: float = 0.0  # For deterministic responses
     openai_seed: int = 42  # Random seed for reproducibility
@@ -64,7 +62,7 @@ class Settings(BaseSettings):
     default_overwrite: bool = False  # Whether to overwrite existing responses by default
 
     model_config = SettingsConfigDict(
-        env_file="configs/.env",
+        env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"
@@ -82,7 +80,6 @@ class Settings(BaseSettings):
             self.structured_outputs_dir,
             self.raw_htmls_dir,
             self.schemas_dir,
-            self.configs_dir,
         ]
 
         for directory in directories:

@@ -29,7 +29,7 @@ class Neo4jVectorSearch:
         """
         self.uri = settings.neo4j_uri
         self.username = settings.neo4j_username
-        self.password = settings.neo4j_password
+        self.password = settings.neo4j_password.get_secret_value()
         self.index_name = settings.vector_index_name
 
     @classmethod

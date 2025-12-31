@@ -1,10 +1,9 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 from neo4j import GraphDatabase
 from typing import List, Dict, Any
 from src.data_processing.cards import CardType, TribeExclusivity
-load_dotenv(dotenv_path="configs/.env")
+from src.utils.config import settings
 
 
 def create_cards(tx, cards_data):
@@ -29,7 +28,7 @@ def create_tribes(tx):
     """
     # Get the names of the exclusive tribes directly from the enum
     exclusive_tribe_names = [t.value for t in TribeExclusivity if t.is_exclusive]
-    
+
     query = """
     UNWIND $tribe_names AS name
     MERGE (t:Tribe {name: name})
@@ -50,9 +49,9 @@ def create_card_tribe_relationships(tx, cards_data):
     MERGE (c)-[:BELONGS_TO_TRIBE]->(t)
     RETURN count(DISTINCT c) AS processedCards
     """
-    
+
     card_tribes = []
-    
+
     # Debug counters
     total_cards_with_tribes = 0
     cards_by_exclusivity = {}
@@ -62,14 +61,14 @@ def create_card_tribe_relationships(tx, cards_data):
         if 'tribe_exclusivity' in card_dict and card_dict['tribe_exclusivity'] is not None:
             total_cards_with_tribes += 1
             exclusivity_value = card_dict['tribe_exclusivity']
-            
+
             # Count by exclusivity type
             cards_by_exclusivity[exclusivity_value] = cards_by_exclusivity.get(exclusivity_value, 0) + 1
-            
+
             # Recreate the enum member from its value
             try:
                 exclusivity_enum_member = next(t for t in TribeExclusivity if t.value == exclusivity_value)
-                
+
                 # Use the get_tribes() method to get the list of tribe names
                 tribes_to_link = exclusivity_enum_member.get_tribes()
 
@@ -84,22 +83,22 @@ def create_card_tribe_relationships(tx, cards_data):
                 # Handle both string and list returns from get_tribes()
                 if isinstance(tribes_to_link, str):
                     tribes_to_link = [tribes_to_link]
-                
+
                 for tribe_name in tribes_to_link:
                     card_tribes.append({
                         'card_name': card_dict['card_name'],
                         'tribe_name': tribe_name
                     })
-                    
+
             except StopIteration:
                 print(f"ERROR: Could not find enum member for value: {exclusivity_value}")
                 continue
-    
+
     print(f"\n=== TRIBE RELATIONSHIP SUMMARY ===")
     print(f"Total cards with tribe data: {total_cards_with_tribes}")
     print(f"Cards by exclusivity: {cards_by_exclusivity}")
     print(f"Total card-tribe relationships to create: {len(card_tribes)}")
-    
+
     # Show sample relationships
     if card_tribes:
         print(f"Sample relationships:")
@@ -107,7 +106,7 @@ def create_card_tribe_relationships(tx, cards_data):
             print(f"  {rel['card_name']} -> {rel['tribe_name']}")
         if len(card_tribes) > 10:
             print(f"  ... and {len(card_tribes) - 10} more")
-    
+
     if card_tribes:
         result = tx.run(query, card_tribes=card_tribes)
         return result.single()["processedCards"]
@@ -124,7 +123,7 @@ def create_card_type_hierarchy(tx):
     MATCH (parent:CardType {name: hierarchy.parent})
     MERGE (child)-[:SUBTYPE_OF]->(parent)
     """
-    
+
     # Build hierarchy data from enum
     hierarchies = []
     for card_type in CardType:
@@ -133,7 +132,7 @@ def create_card_type_hierarchy(tx):
                 'child': card_type.value,
                 'parent': parent
             })
-    
+
     if hierarchies:
         tx.run(query, hierarchies=hierarchies)
     return len(hierarchies)
@@ -146,16 +145,16 @@ def create_card_stats_flexible(tx, cards_data):
     query = """
     UNWIND $card_stats AS card_stat
     MATCH (c:Card {card_name: card_stat.card_name})
-    
+
     MERGE (stat:Stat {name: card_stat.stat_name, category: card_stat.category})
     MERGE (c)-[:HAS_STAT {
-        value: card_stat.value, 
+        value: card_stat.value,
         category: card_stat.category
     }]->(stat)
-    
+
     RETURN count(DISTINCT c) AS processedCards
     """
-    
+
     # Build card-stat combinations only for stats that exist
     card_stats = []
     stat_definitions = [
@@ -164,7 +163,7 @@ def create_card_stats_flexible(tx, cards_data):
         {'field_name': 'scrap', 'stat_name': 'Scrap', 'category': 'primary'},
         {'field_name': 'counter', 'stat_name': 'Counter', 'category': 'primary'},
     ]
-    
+
     for card in cards_data:
         for stat_def in stat_definitions:
             field_name = stat_def['field_name']
@@ -176,7 +175,7 @@ def create_card_stats_flexible(tx, cards_data):
                     'category': stat_def['category'],
                     'value': card[field_name]
                 })
-    
+
     result = tx.run(query, card_stats=card_stats)
     return result.single()["processedCards"]
 
@@ -195,13 +194,13 @@ def create_neo4j_data(cards_data):
 
     cards_data = List of cardInfo objects containing the cards to import
     """
-        
-    # Define the URI and authentication
-    uri = "neo4j://127.0.0.1:7687"              # Adjust if using a remote server or different port
-    username = os.getenv('NEO4J_USERNAME')      # Your Neo4j username
-    password = os.getenv('NEO4J_PASSWORD')      # Your Neo4j password
 
-    driver = GraphDatabase.driver(uri, auth=(username,password))
+    # Define the URI and authentication
+    uri = settings.neo4j_uri              # Use URI from config
+    username = settings.neo4j_username    # Your Neo4j username from config
+    password = settings.neo4j_password.get_secret_value()    # Your Neo4j password from config
+
+    driver = GraphDatabase.driver(uri, auth=(username, password))
 
     try:
         driver.verify_authentication()

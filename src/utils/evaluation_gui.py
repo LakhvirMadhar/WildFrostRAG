@@ -432,8 +432,9 @@ class QueryAnnotationGUI:
             return metrics_container
 
         except Exception as e:
-            import traceback
-            return widgets.HTML(value=f'<div style="padding: 10px; color: red; background-color: #ffebee; border-radius: 5px;">Error parsing metrics: {str(e)}<br><pre style="margin-top: 10px; font-size: 11px;">{traceback.format_exc()}</pre></div>')
+            from .logger import logger
+            logger.error(f"Error parsing metrics: {str(e)}")
+            return widgets.HTML(value=f'<div style="padding: 10px; color: red; background-color: #ffebee; border-radius: 5px;">Error parsing metrics. Please check the logs for details.</div>')
 
     def update_display(self):
         """Update all display widgets based on current selection"""

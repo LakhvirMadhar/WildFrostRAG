@@ -63,7 +63,7 @@ async def generate_taxonomy(open_codes: list[str], model: str = "gpt-4o-mini") -
 Please create axial codes that group these open codes into higher-level categories. Reference the open codes by their numbers."""
 
     # Initialize OpenAI client
-    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
 
     try:
         response = await client.chat.completions.create(

@@ -44,7 +44,7 @@ class LLMGenerator:
         """
         Initialize the LLM Generator.
         """
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self.client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
         self.default_model = settings.openai_model_name
         self.default_seed = settings.openai_seed
         self.default_temperature = settings.openai_temperature
