@@ -47,7 +47,7 @@ def ingest_embeddings_into_neo4j(
         f"Ingesting {len(document_chunks)} document chunks into Neo4j database"
     )
 
-    driver = GraphDatabase.driver(settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
 
     try:
         driver.verify_connectivity()
@@ -105,7 +105,7 @@ def create_vector_index(
     """
     logger.info(f"Creating vector index '{index_name}' in Neo4j")
 
-    driver = GraphDatabase.driver(settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
 
     try:
         with driver.session() as session:
@@ -167,7 +167,7 @@ def get_retrieved_chunks(
     # Generate query embedding
     query_embedding = embedding_model.encode(query).tolist()
 
-    driver = GraphDatabase.driver(settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
 
     try:
         with driver.session() as session:
@@ -242,7 +242,7 @@ def link_documents_to_cards() -> int:
     """
     logger.info("Linking Document nodes to Card nodes...")
 
-    driver = GraphDatabase.driver(settings.neo4j_uri, auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
 
     try:
         with driver.session() as session:

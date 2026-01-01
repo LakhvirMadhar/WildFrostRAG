@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     """
 
     # ===== Neo4j Configuration =====
-    neo4j_uri: str
+    neo4j_uri: SecretStr
     neo4j_username: str
     neo4j_password: SecretStr
 

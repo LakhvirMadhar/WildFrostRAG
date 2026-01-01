@@ -269,7 +269,7 @@ async def main():
         logger.warning("⚠️  CLEARING ENTIRE NEO4J DATABASE ⚠️")
         from neo4j import GraphDatabase
         driver = GraphDatabase.driver(
-            settings.neo4j_uri,
+            settings.neo4j_uri.get_secret_value(),
             auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
         )
         try:

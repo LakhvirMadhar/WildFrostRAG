@@ -196,7 +196,7 @@ def create_neo4j_data(cards_data):
     """
 
     # Define the URI and authentication
-    uri = settings.neo4j_uri              # Use URI from config
+    uri = settings.neo4j_uri.get_secret_value()              # Use URI from config
     username = settings.neo4j_username    # Your Neo4j username from config
     password = settings.neo4j_password.get_secret_value()    # Your Neo4j password from config
 

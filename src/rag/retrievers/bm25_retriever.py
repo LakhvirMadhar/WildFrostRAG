@@ -24,7 +24,7 @@ class BM25Retriever:
         """
         Initialize the BM25 retriever.
         """
-        self.uri = settings.neo4j_uri
+        self.uri = settings.neo4j_uri.get_secret_value()
         self.username = settings.neo4j_username
         self.password = settings.neo4j_password.get_secret_value()
         self.index_name = settings.bm25_index_name

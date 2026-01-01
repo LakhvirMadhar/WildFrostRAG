@@ -14,23 +14,23 @@ class BaseNeo4jRetriever:
     Base class for Neo4j-based retrievers.
     Provides common functionality for connecting to Neo4j.
     """
-    
+
     def __init__(self):
         """
         Initialize the base Neo4j retriever.
         """
-        self.uri = settings.neo4j_uri
+        self.uri = settings.neo4j_uri.get_secret_value()
         self.username = settings.neo4j_username
         self.password = settings.neo4j_password.get_secret_value()
 
     def _execute_query(self, query: str, params: dict) -> List[Dict[str, Any]]:
         """
         Execute a Neo4j query and return results.
-        
+
         Args:
             query: Cypher query to execute
             params: Parameters for the query
-            
+
         Returns:
             List of dictionaries containing query results
         """
@@ -38,7 +38,7 @@ class BaseNeo4jRetriever:
         try:
             with driver.session() as session:
                 results = session.run(query, params)
-                
+
                 retrieved_chunks = []
                 for record in results:
                     node = record["node"]
