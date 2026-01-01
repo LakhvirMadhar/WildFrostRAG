@@ -62,10 +62,7 @@ def ingest_embeddings_into_neo4j(
             }})
             ON CREATE SET
                 d.{embedding_property} = item.embedding,
-                d.source_file = item.source_file,
-                d.header1 = item.header1,
-                d.header2 = item.header2,
-                d.header3 = item.header3
+                d.source_file = item.source_file
             """
 
             # Prepare data for ingestion
@@ -73,10 +70,7 @@ def ingest_embeddings_into_neo4j(
                 {
                     "text": chunk.page_content,
                     "embedding": embedding.tolist(),
-                    "source_file": chunk.metadata.get('source', 'unknown'),
-                    "header1": chunk.metadata.get('Header 1', ''),
-                    "header2": chunk.metadata.get('Header 2', ''),
-                    "header3": chunk.metadata.get('Header 3', '')
+                    "source_file": chunk.metadata.get('source', 'unknown')
                 }
                 for chunk, embedding in zip(document_chunks, embeddings)
             ]
@@ -156,7 +150,7 @@ def get_retrieved_chunks(
         k: Number of results to return
 
     Returns:
-        List of dictionaries containing 'text' and 'score' for each result
+        List of dictionaries containing retrieved chunks with their metadata and scores
 
     Example:
         >>> model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -181,7 +175,7 @@ def get_retrieved_chunks(
             search_query = f"""
             CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
             YIELD node, score
-            RETURN node.text AS text, score
+            RETURN node, score
             ORDER BY score DESC
             """
 
@@ -193,10 +187,20 @@ def get_retrieved_chunks(
             )
 
             # Extract results
-            retrieved_chunks = [
-                {"text": record["text"], "score": record["score"]}
-                for record in results
-            ]
+            retrieved_chunks = []
+            for record in results:
+                node = record["node"]
+                # Start with score
+                chunk_dict = {
+                    "score": record["score"],
+                }
+                # Flatten all node properties into the dict
+                # This includes 'text', 'source_file', etc.
+                for key, value in node.items():
+                    if key != "embedding": # Exclude the large vector
+                        chunk_dict[key] = value
+
+                retrieved_chunks.append(chunk_dict)
 
             logger.info(f"Retrieved {len(retrieved_chunks)} chunks")
             return retrieved_chunks

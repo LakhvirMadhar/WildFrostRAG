@@ -10,9 +10,10 @@ from typing import List, Dict, Any, Optional
 from neo4j import GraphDatabase
 from sentence_transformers import SentenceTransformer
 from src.utils.config import settings
+from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
-class Neo4jVectorSearch:
+class Neo4jVectorSearch(BaseNeo4jRetriever):
     """
     Implements semantic similarity retrieval using Neo4j vector indexes.
     This corresponds to the 'Cosine Similarity' approach in the research goals.
@@ -27,9 +28,7 @@ class Neo4jVectorSearch:
 
         Sets up connection parameters and prepares the embedding model.
         """
-        self.uri = settings.neo4j_uri
-        self.username = settings.neo4j_username
-        self.password = settings.neo4j_password.get_secret_value()
+        super().__init__()
         self.index_name = settings.vector_index_name
 
     @classmethod
@@ -63,40 +62,18 @@ class Neo4jVectorSearch:
         model = self.get_embedding_model()
         query_embedding = model.encode(query).tolist()
 
-        driver = GraphDatabase.driver(self.uri, auth=(self.username, self.password))
-        try:
-            with driver.session() as session:
-                # Step 2: Perform vector similarity search
-                search_query = f"""
-                CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
-                YIELD node, score
-                RETURN node, score
-                ORDER BY score DESC
-                """
+        # Step 2: Perform vector similarity search
+        search_query = f"""
+        CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
+        YIELD node, score
+        RETURN node, score
+        ORDER BY score DESC
+        """
 
-                results = session.run(
-                    search_query,
-                    index_name=self.index_name,
-                    query_embedding=query_embedding,
-                    k=k
-                )
+        params = {
+            "index_name": self.index_name,
+            "query_embedding": query_embedding,
+            "k": k
+        }
 
-                # Step 3: Extract properties
-                retrieved_chunks = []
-                for record in results:
-                    node = record["node"]
-                    # Start with score
-                    chunk_dict = {
-                        "score": record["score"],
-                    }
-                    # Flatten all node properties into the dict
-                    # This includes 'text', 'source_file', 'header1', etc.
-                    for key, value in node.items():
-                        if key != "embedding": # Exclude the large vector
-                            chunk_dict[key] = value
-
-                    retrieved_chunks.append(chunk_dict)
-
-            return retrieved_chunks
-        finally:
-            driver.close()
+        return self._execute_query(search_query, params)

@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     vector_index_name: str = "document-embeddings"
     similarity_function: str = "cosine"
 
+    # ===== Retrieval Configuration =====
+    fulltext_index_name: str = "document-fulltext"
+    bm25_index_name: str = "Document"
+    rrf_k1: int = 60  # Smoothing parameter for Reciprocal Rank Fusion
+
     # ===== Web Scraping Configuration =====
     wildfrost_wiki_base_url: str = "https://wildfrostwiki.com"
     sitemap_url: str = "https://wildfrostwiki.com/sitemap.xml"
