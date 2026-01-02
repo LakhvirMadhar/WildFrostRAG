@@ -38,20 +38,18 @@ class Text2CypherRetriever:
         Returns:
             Dictionary containing the database schema
         """
-        # Get node labels and their properties
+        # Get all node properties schema
         node_query = """
-        CALL db.labels() YIELD label
-        WITH label
-        CALL db.schema.nodeTypeProperties(label) YIELD nodeType, propertyName, propertyTypes, mandatory
-        RETURN label, collect({propertyName: propertyName, propertyTypes: propertyTypes, mandatory: mandatory}) as properties
+        CALL db.schema.nodeTypeProperties() YIELD nodeType, propertyName, propertyTypes, mandatory
+        RETURN nodeType, collect({propertyName: propertyName, propertyTypes: propertyTypes, mandatory: mandatory}) as properties
         """
 
         nodes_result = session.run(node_query)
         nodes = {}
         for record in nodes_result:
-            label = record["label"]
+            node_type = record["nodeType"]
             properties = record["properties"]
-            nodes[label] = [prop["propertyName"] for prop in properties]
+            nodes[node_type] = [prop["propertyName"] for prop in properties]
 
         # Get relationship types
         rel_query = """

@@ -41,14 +41,3 @@ def save_to_json(filename_path: str, data: Dict[str, Any]):
             logger.info(f"Saved data to: {safe_path}")
     except IOError as e:
         logger.error(f"Error: Unable to save data to {safe_path}. Error: {e}")
-
-
-def generate_directories():
-    """
-    Generate the directories needed to run the program
-    """
-    dirs = ['data/raw_htmls']
-
-    for dir in dirs:
-        os.makedirs(dir, exist_ok=True)
-        logger.info(f"Created or directory already exists: {dir}")

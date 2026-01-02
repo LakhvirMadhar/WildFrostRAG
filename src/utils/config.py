@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     # Base directories
     project_root: Path = Path(__file__).parent.parent.parent
     data_dir: Path = project_root / "data"
+    outputs_dir: Path = project_root / "outputs"
+    retriever_outputs_dir: Path = project_root / "outputs" / "retrievers"
+    generation_outputs_dir: Path = project_root / "outputs" / "generation"
 
     # Data subdirectories
     structured_outputs_dir: Path = data_dir / "structured_outputs"
@@ -57,14 +60,13 @@ class Settings(BaseSettings):
 
     # ===== OpenAI Configuration (for evaluation) =====
     openai_api_key: Optional[SecretStr] = None
-    openai_model_name: str = "gpt-4o-mini"  # Default model for generation
-    openai_temperature: float = 0.0  # For deterministic responses
-    openai_seed: int = 42  # Random seed for reproducibility
+    openai_model_name: str = "gpt-4.1-nano"     # Default model for generation
+    openai_temperature: float = 0.0             # For deterministic responses
+    openai_seed: int = 42                       # Random seed for reproducibility
 
     # ===== Generation Pipeline Configuration =====
     default_k: int = 5  # Default number of chunks to retrieve
     default_batch_size: int = 25  # Default batch size for processing
-    default_overwrite: bool = False  # Whether to overwrite existing responses by default
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -85,6 +87,9 @@ class Settings(BaseSettings):
             self.structured_outputs_dir,
             self.raw_htmls_dir,
             self.schemas_dir,
+            self.outputs_dir,
+            self.retriever_outputs_dir,
+            self.generation_outputs_dir,
         ]
 
         for directory in directories:

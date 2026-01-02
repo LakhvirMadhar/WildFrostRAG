@@ -164,8 +164,7 @@ class GenerationPipeline:
         df: pd.DataFrame,
         target_column: str,
         retriever: Optional[Retriever] = None,  # If None, uses zero-shot, otherwise, use retrieval method
-        batch_size: int = settings.default_batch_size,
-        overwrite: bool = False
+        batch_size: int = settings.default_batch_size
     ) -> pd.DataFrame:
         """
         Process a batch of queries from a DataFrame.
@@ -175,32 +174,26 @@ class GenerationPipeline:
             target_column: Column name to store the results in
             retriever: Retriever instance to use for retrieval (if None, uses zero-shot)
             batch_size: Number of queries to process in each batch (uses default if None)
-            overwrite: Whether to overwrite existing responses and clear open & axial coding for new response
 
         Returns:
             Updated DataFrame with generated responses
         """
-        # Filter rows that need processing
-        # If overwrite is True, we process all valid queries regardless of existing response
+        # Filter rows that need processing - only process queries that don't have responses yet
         query_exists_mask = df['query'].notna() & (df['query'] != '')
-
-        if overwrite:
-            valid_mask = query_exists_mask
-        else:
-            valid_mask = query_exists_mask & (df[target_column].isna() | (df[target_column] == ''))
+        valid_mask = query_exists_mask & (df[target_column].isna() | (df[target_column] == ''))
 
         valid_indices = df[valid_mask].index.tolist()
         queries = df.loc[valid_mask, 'query'].tolist()
 
         if not queries:
-            logger.info(f"No queries to process for target column {target_column} (Overwrite={overwrite})")
+            logger.info(f"No queries to process for target column {target_column}")
             return df
 
         # Determine the processing approach based on whether retriever is provided
         if retriever is None:
-            logger.info(f"Starting zero-shot generation for {len(queries)} queries (Overwrite={overwrite})...")
+            logger.info(f"Starting zero-shot generation for {len(queries)} queries...")
         else:
-            logger.info(f"Starting generation for {len(queries)} queries (Overwrite={overwrite})...")
+            logger.info(f"Starting generation for {len(queries)} queries...")
 
         results = []
         chunks_list = []  # For storing retrieved chunks (empty for zero-shot)
@@ -251,18 +244,5 @@ class GenerationPipeline:
             df.loc[valid_indices, 'retrieved_chunks'] = [
                 json.dumps(c) if c is not None else '' for c in chunks_list
             ]
-
-        # If overwriting, clear the associated annotation columns
-        if overwrite:
-            # Define columns to clear based on target column
-            cols_to_clear = [
-                f"{target_column}_validation",
-                f"{target_column} Open Coding",
-                f"{target_column} Axial Coding"
-            ]
-
-            for col in cols_to_clear:
-                if col in df.columns:
-                    df.loc[valid_indices, col] = ""  # Reset to empty string
 
         return df
