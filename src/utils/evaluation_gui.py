@@ -6,11 +6,13 @@ RAG responses. It allows users to validate responses, perform qualitative coding
 and assess retrieval results through a Jupyter notebook interface.
 """
 
+import json
 import pandas as pd
 import ipywidgets as widgets
 from IPython.display import display, HTML
 from dataclasses import dataclass
 import time
+from .logger import logger
 
 @dataclass
 class DisplayConfig:
@@ -206,7 +208,6 @@ class QueryAnnotationGUI:
         # Load existing relevance dict
         existing_relevance = self.df.loc[row_idx, relevance_col] if pd.notna(self.df.loc[row_idx, relevance_col]) else '{}'
         try:
-            import json
             relevance_dict = json.loads(existing_relevance) if existing_relevance else {}
         except:
             relevance_dict = {}
@@ -276,7 +277,6 @@ class QueryAnnotationGUI:
             return widgets.HTML(value='<div style="padding: 10px 0;"><i>No retrieval data available</i></div>')
 
         try:
-            import json
             chunks = json.loads(chunks_json)
 
             if not chunks:
@@ -432,7 +432,7 @@ class QueryAnnotationGUI:
             return metrics_container
 
         except Exception as e:
-            from .logger import logger
+
             logger.error(f"Error parsing metrics: {str(e)}")
             return widgets.HTML(value=f'<div style="padding: 10px; color: red; background-color: #ffebee; border-radius: 5px;">Error parsing metrics. Please check the logs for details.</div>')
 

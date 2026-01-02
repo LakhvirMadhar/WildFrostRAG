@@ -19,7 +19,7 @@ Usage:
     python -m scripts.ingest_data --no-chunking      # Ingest full documents (no splitting)
     python -m scripts.ingest_data --clear-db         # Clear database before running
 """
-
+import re
 import argparse
 import asyncio
 import os
@@ -27,13 +27,10 @@ import json
 from pathlib import Path
 from typing import List
 from tqdm import tqdm
+from neo4j import GraphDatabase
 
 # Import from src modules
-from src.web_scraper.sitemap_scraper import (
-    scrape_sitemap,
-    process_sitemap_urls,
-    scrape_multiple_links
-)
+from src.web_scraper.sitemap_scraper import scrape_multiple_links
 from src.data_processing.cards import CardInfo, CardType
 from src.data_processing.generate_schemas import generate_card_type_html_schema
 from src.data_processing.enrichment import enrich_cards_with_tribes
@@ -52,7 +49,6 @@ from src.utils.logger import logger
 
 def clean_name_for_url(name: str) -> str:
     """Clean card name for use in URLs by replacing spaces with underscores."""
-    import re
     return re.sub(r'\s+', '_', name)
 
 
@@ -267,7 +263,7 @@ async def main():
     # Clear database if requested
     if args.clear_db:
         logger.warning("⚠️  CLEARING ENTIRE NEO4J DATABASE ⚠️")
-        from neo4j import GraphDatabase
+
         driver = GraphDatabase.driver(
             settings.neo4j_uri.get_secret_value(),
             auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
