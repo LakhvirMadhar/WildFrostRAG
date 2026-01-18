@@ -8,6 +8,7 @@ capabilities, which are based on Apache Lucene.
 from typing import List, Dict, Any, Optional
 from neo4j import Driver
 from src.utils.config import settings
+from src.utils.logger import logger
 from .base_neo4j_retriever import BaseNeo4jRetriever
 
 
@@ -29,56 +30,15 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
         super().__init__(driver, neo4j_database)
         self.index_name = settings.fulltext_index_name
 
-    def _ensure_fulltext_index_exists(self):
-        """
-        Ensure the fulltext index exists, create it if it doesn't.
-        """
-        with self.driver.session(database=self.neo4j_database) as session:
-                # Check if the index exists
-                check_query = """
-                CALL db.indexes() YIELD name, type, state, populationProgress, uniqueness, entityCount, labelsOrTypes, properties
-                WHERE name = $index_name
-                RETURN count(*) AS indexCount
-                """
-
-                result = session.run(check_query, index_name=self.index_name)
-                index_exists = result.single()["indexCount"] > 0
-
-                if not index_exists:
-                    # Create the fulltext index
-                    create_query = f"""
-                    CALL db.index.fulltext.createNodeIndex(
-                        $index_name,
-                        ['Document'],  // Label to index
-                        ['text']       // Properties to index
-                    )
-                    """
-                    session.run(create_query, index_name=self.index_name)
-
-                    # Wait for index to be populated
-                    wait_query = f"""
-                    CALL db.indexes() YIELD name, state
-                    WHERE name = $index_name AND state = 'ONLINE'
-                    RETURN count(*) AS readyCount
-                    """
-
-                    # Wait until the index is ready
-                    import time
-                    max_wait_time = 30  # seconds
-                    wait_time = 0
-                    while wait_time < max_wait_time:
-                        result = session.run(wait_query, index_name=self.index_name)
-                        if result.single()["readyCount"] > 0:
-                            break
-                        time.sleep(1)
-                        wait_time += 1
-
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """
         Retrieve the top-k most relevant document chunks from Neo4j based on lexical similarity.
 
         This method performs full-text search using Neo4j's built-in full-text indexing
         capabilities, which implements Lucene-based search algorithms.
+
+        Note: The fulltext index must already exist (created during pipeline setup).
+              If index doesn't exist, Neo4j will raise an error.
 
         Args:
             query: Input query string to search for
@@ -87,10 +47,7 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
         Returns:
             List of dictionaries containing retrieved chunks with their metadata and scores
         """
-        # Ensure the fulltext index exists
-        self._ensure_fulltext_index_exists()
-
-        # Perform full-text search
+        # Perform full-text search (index must already exist)
         search_query = f"""
         CALL db.index.fulltext.queryNodes($index_name, $query)
         YIELD node, score
@@ -105,5 +62,13 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
             "k": k
         }
 
-        results = self._execute_query(search_query, params)
-        return self._add_metadata(results, 'fulltext')
+        try:
+            results = self._execute_query(search_query, params)
+            return self._add_metadata(results, 'fulltext')
+        except Exception as e:
+            logger.error(
+                f"Fulltext search failed. Index '{self.index_name}' may not exist. "
+                f"Run 'python -m scripts.ingest_data --no-chunking' to create it. "
+                f"Error: {e}"
+            )
+            raise

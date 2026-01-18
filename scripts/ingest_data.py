@@ -38,9 +38,12 @@ from src.data_processing.html_splitter import process_html_files
 from src.neo4j_kg.neo4j_utils import create_neo4j_data, clear_database
 from src.neo4j_kg.vector_store import (
     ingest_embeddings_into_neo4j,
-    create_vector_index,
-    wait_for_index_population,
     link_documents_to_cards
+)
+from src.neo4j_kg.neo4j_indexes import (
+    create_vector_index,
+    create_fulltext_index,
+    wait_for_index_population
 )
 from src.embeddings.generator import EmbeddingGenerator
 from src.utils.config import settings
@@ -164,6 +167,7 @@ def stage_4_vector_ingestion(card_infos: List[CardInfo], split_text: bool = True
     Stage 4: Vector Store Ingestion
 
     Chunks HTML documents, generates embeddings, and ingests into Neo4j vector store.
+    Also creates vector and full-text search indices.
 
     Args:
         card_infos: List of CardInfo objects (used to find HTML files)
@@ -212,6 +216,14 @@ def stage_4_vector_ingestion(card_infos: List[CardInfo], split_text: bool = True
         index_name=settings.vector_index_name,
         embedding_dimension=settings.embedding_dimension,
         similarity_function=settings.similarity_function
+    )
+
+    # Create full-text search index
+    logger.info("Creating full-text search index...")
+    create_fulltext_index(
+        index_name=settings.fulltext_index_name,
+        node_label="Document",
+        text_property="text"
     )
 
     # Wait for index to populate

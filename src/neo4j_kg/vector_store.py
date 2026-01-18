@@ -1,13 +1,12 @@
 """
 Neo4j vector store operations for WildFrostRAG.
 
-This module handles ingestion of embeddings into Neo4j, creation of vector
-indices, and vector similarity search operations.
+This module handles ingestion of document embeddings into Neo4j and
+vector similarity search operations.
 """
 
-import time
 import numpy as np
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from neo4j import GraphDatabase
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
@@ -77,58 +76,6 @@ def ingest_embeddings_into_neo4j(
 
             session.run(cypher_query, parameters={"data": data_to_ingest})
             logger.info("Data ingestion complete")
-
-    finally:
-        driver.close()
-
-
-def create_vector_index(
-    index_name: str,
-    embedding_dimension: int,
-    node_label: str = "Document",
-    embedding_property: str = "embedding",
-    similarity_function: str = "cosine"
-) -> None:
-    """
-    Create a vector index in Neo4j for similarity search.
-
-    Args:
-        index_name: Name for the vector index
-        embedding_dimension: Dimensionality of embedding vectors
-        node_label: Node label to index (default: "Document")
-        embedding_property: Property containing embeddings (default: "embedding")
-        similarity_function: Similarity metric to use (default: "cosine")
-
-    Note:
-        If the index already exists, this function will skip creation
-        and log a message.
-    """
-    logger.info(f"Creating vector index '{index_name}' in Neo4j")
-
-    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
-
-    try:
-        with driver.session() as session:
-            # Check if index already exists
-            index_exists_query = "SHOW INDEXES YIELD name WHERE name = $name"
-            if session.run(index_exists_query, name=index_name).single():
-                logger.info(f"Vector index '{index_name}' already exists. Skipping creation.")
-                return
-
-            # Create the vector index
-            create_query = f"""
-            CREATE VECTOR INDEX `{index_name}` IF NOT EXISTS
-            FOR (d:{node_label}) ON (d.{embedding_property})
-            OPTIONS {{
-              indexConfig: {{
-                `vector.dimensions`: {embedding_dimension},
-                `vector.similarity_function`: "{similarity_function}"
-              }}
-            }}
-            """
-
-            session.run(create_query)
-            logger.info(f"Vector index '{index_name}' successfully created")
 
     finally:
         driver.close()
@@ -207,21 +154,6 @@ def get_retrieved_chunks(
 
     finally:
         driver.close()
-
-
-def wait_for_index_population(seconds: int = 5) -> None:
-    """
-    Wait for Neo4j vector index to be fully populated.
-
-    After creating a vector index, Neo4j needs time to populate it.
-    This is a simple helper to add a delay.
-
-    Args:
-        seconds: Number of seconds to wait (default: 5)
-    """
-    logger.info(f"Waiting {seconds} seconds for index to be fully populated...")
-    time.sleep(seconds)
-    logger.info("Wait complete")
 
 
 def link_documents_to_cards() -> int:
