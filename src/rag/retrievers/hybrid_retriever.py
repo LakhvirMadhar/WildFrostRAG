@@ -5,7 +5,8 @@ This module implements hybrid retrieval by combining multiple retrieval methods
 using Reciprocal Rank Fusion to produce a single ranked result list.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from neo4j import Driver
 from src.rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
 from src.rag.retrievers.bm25_retriever import BM25Retriever
 from src.rag.retrievers.neo4j_fulltext_search import Neo4jFullTextSearch
@@ -141,12 +142,16 @@ class BM25VectorHybridRetriever(HybridRetriever):
     A specific hybrid retriever that combines BM25 search and vector search.
     """
 
-    def __init__(self):
+    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
         """
         Initialize the BM25 and vector hybrid retriever.
+
+        Args:
+            driver: Neo4j driver instance (created externally, managed by application)
+            neo4j_database: Optional database name (default: None uses default database)
         """
-        bm25_retriever = BM25Retriever()
-        vector_retriever = Neo4jVectorSearch()
+        bm25_retriever = BM25Retriever(driver, neo4j_database)
+        vector_retriever = Neo4jVectorSearch(driver, neo4j_database)
         # Use the vector index name from config
         vector_retriever.index_name = settings.vector_index_name
 
@@ -163,12 +168,16 @@ class FulltextVectorHybridRetriever(HybridRetriever):
     A specific hybrid retriever that combines fulltext search and vector search.
     """
 
-    def __init__(self):
+    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
         """
         Initialize the fulltext and vector hybrid retriever.
+
+        Args:
+            driver: Neo4j driver instance (created externally, managed by application)
+            neo4j_database: Optional database name (default: None uses default database)
         """
-        fulltext_retriever = Neo4jFullTextSearch()
-        vector_retriever = Neo4jVectorSearch()
+        fulltext_retriever = Neo4jFullTextSearch(driver, neo4j_database)
+        vector_retriever = Neo4jVectorSearch(driver, neo4j_database)
         # Use the vector index name from config
         vector_retriever.index_name = settings.vector_index_name
 
@@ -185,13 +194,17 @@ class BM25FulltextVectorHybridRetriever(HybridRetriever):
     A specific hybrid retriever that combines BM25, fulltext, and vector search.
     """
 
-    def __init__(self):
+    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
         """
         Initialize the BM25, fulltext, and vector hybrid retriever.
+
+        Args:
+            driver: Neo4j driver instance (created externally, managed by application)
+            neo4j_database: Optional database name (default: None uses default database)
         """
-        bm25_retriever = BM25Retriever()
-        fulltext_retriever = Neo4jFullTextSearch()
-        vector_retriever = Neo4jVectorSearch()
+        bm25_retriever = BM25Retriever(driver, neo4j_database)
+        fulltext_retriever = Neo4jFullTextSearch(driver, neo4j_database)
+        vector_retriever = Neo4jVectorSearch(driver, neo4j_database)
         # Use the vector index name from config
         vector_retriever.index_name = settings.vector_index_name
 

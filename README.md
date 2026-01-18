@@ -35,9 +35,152 @@ The project follows a rigorous evaluation style inspired by **Hamel Husain’s f
 ### 3. Model Integrations
 *   **OpenAI:** Used for baseline zero-shot and RAG comparisons.
 
+## Program Flow Diagram
+
+The following Mermaid sequence diagram illustrates the flow of operations in the WildFrostRAG project, showing how different components interact during key processes:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant IngestScript as scripts/ingest_data.py
+    participant WikiScraper as src/web_scraper/sitemap_scraper.py
+    participant Cards as src/data_processing/cards.py
+    participant Enrichment as src/data_processing/enrichment.py
+    participant HTMLSplitter as src/data_processing/html_splitter.py
+    participant EmbedGen as src/embeddings/generator.py
+    participant Neo4jUtils as src/neo4j_kg/neo4j_utils.py
+    participant VectorStore as src/neo4j_kg/vector_store.py
+    participant Retriever as src/rag/retrievers/*
+    participant LLMGen as src/rag/augmented_generation/call_llm_generation.py
+    participant Eval as src/rag/evaluation/*
+    participant Config as src/utils/config.py
+    participant Logger as src/utils/logger.py
+
+    Note over User,Logger: Data Ingestion Process
+    User->>IngestScript: 1. Run ingestion script
+    IngestScript->>Config: 2. Load configuration
+    IngestScript->>WikiScraper: 3. Scrape Wildfrost Wiki
+    WikiScraper-->>IngestScript: 4. Return card data
+    IngestScript->>Cards: 5. Process card data
+    Cards->>HTMLSplitter: 6. Split HTML content
+    HTMLSplitter-->>Cards: 7. Return processed content
+    Cards->>Enrichment: 8. Enrich with additional data
+    Enrichment-->>Cards: 9. Return enriched data
+    IngestScript->>EmbedGen: 10. Generate embeddings
+    EmbedGen-->>IngestScript: 11. Return embeddings
+    IngestScript->>Neo4jUtils: 12. Create graph nodes
+    Neo4jUtils-->>IngestScript: 13. Nodes created
+    IngestScript->>VectorStore: 14. Store embeddings in vector index
+    VectorStore-->>IngestScript: 15. Embeddings stored
+    IngestScript->>Logger: 16. Log process completion
+
+    Note over User,Logger: Query Answering Process
+    User->>Retriever: 1. Submit query
+    Retriever->>Config: 2. Load configuration
+    Retriever->>VectorStore: 3. Search vector index
+    VectorStore-->>Retriever: 4. Return relevant chunks
+    Retriever->>LLMGen: 5. Generate response with context
+    LLMGen-->>User: 6. Return generated response
+    LLMGen->>Logger: 7. Log query and response
+
+    Note over User,Logger: Retrieval Evaluation Process
+    User->>Eval: 1. Run evaluation
+    Eval->>Retriever: 2. Test retrieval methods
+    Retriever-->>Eval: 3. Return results
+    Eval->>LLMGen: 4. Evaluate generation quality
+    LLMGen-->>Eval: 5. Return quality metrics
+    Eval->>Logger: 6. Log evaluation results
+```
+
+## Key Process Flows
+
+The diagram shows the following key operational sequences:
+
+1. **Data Ingestion Process**: How data flows from web scraping through processing, enrichment, embedding generation, and storage in the knowledge graph.
+
+2. **Query Answering Process**: How user queries are handled by the retrieval system and passed to the LLM generation component.
+
+3. **Retrieval Evaluation Process**: How the system evaluates the quality of retrieval and generation components.
+
+## Detailed Process Diagrams
+
+For more detailed views of each process, see the individual diagrams below:
+
+### Data Ingestion Process
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant IngestScript as scripts/ingest_data.py
+    participant WikiScraper as src/web_scraper/sitemap_scraper.py
+    participant Cards as src/data_processing/cards.py
+    participant Enrichment as src/data_processing/enrichment.py
+    participant HTMLSplitter as src/data_processing/html_splitter.py
+    participant EmbedGen as src/embeddings/generator.py
+    participant Neo4jUtils as src/neo4j_kg/neo4j_utils.py
+    participant VectorStore as src/neo4j_kg/vector_store.py
+    participant Config as src/utils/config.py
+    participant Logger as src/utils/logger.py
+
+    User->>IngestScript: 1. Run ingestion script
+    IngestScript->>Config: 2. Load configuration
+    IngestScript->>WikiScraper: 3. Scrape Wildfrost Wiki
+    WikiScraper-->>IngestScript: 4. Return card data
+    IngestScript->>Cards: 5. Process card data
+    Cards->>HTMLSplitter: 6. Split HTML content
+    HTMLSplitter-->>Cards: 7. Return processed content
+    Cards->>Enrichment: 8. Enrich with additional data
+    Enrichment-->>Cards: 9. Return enriched data
+    IngestScript->>EmbedGen: 10. Generate embeddings
+    EmbedGen-->>IngestScript: 11. Return embeddings
+    IngestScript->>Neo4jUtils: 12. Create graph nodes
+    Neo4jUtils-->>IngestScript: 13. Nodes created
+    IngestScript->>VectorStore: 14. Store embeddings in vector index
+    VectorStore-->>IngestScript: 15. Embeddings stored
+    IngestScript->>Logger: 16. Log process completion
+```
+
+### Query Answering Process
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Retriever as src/rag/retrievers/*
+    participant Config as src/utils/config.py
+    participant VectorStore as src/neo4j_kg/vector_store.py
+    participant LLMGen as src/rag/augmented_generation/call_llm_generation.py
+    participant Logger as src/utils/logger.py
+
+    User->>Retriever: 1. Submit query
+    Retriever->>Config: 2. Load configuration
+    Retriever->>VectorStore: 3. Search vector index
+    VectorStore-->>Retriever: 4. Return relevant chunks
+    Retriever->>LLMGen: 5. Generate response with context
+    LLMGen-->>User: 6. Return generated response
+    LLMGen->>Logger: 7. Log query and response
+```
+
+### Retrieval Evaluation Process
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Eval as src/rag/evaluation/*
+    participant Retriever as src/rag/retrievers/*
+    participant LLMGen as src/rag/augmented_generation/call_llm_generation.py
+    participant Logger as src/utils/logger.py
+
+    User->>Eval: 1. Run evaluation
+    Eval->>Retriever: 2. Test retrieval methods
+    Retriever-->>Eval: 3. Return results
+    Eval->>LLMGen: 4. Evaluate generation quality
+    LLMGen-->>Eval: 5. Return quality metrics
+    Eval->>Logger: 6. Log evaluation results
+```
+
 ## Planned Further Steps & Roadmap
 
-### 1. Notebook Cleanup
+### 1. Notebook Cleanup (COMPLETE)
 *   **`rag_eval_demo.ipynb`:** Currently acts as a scratchpad. Needs to be stripped of scraped logic, hardcoded paths, and unused imports. It should solely focus on *demonstrating* the pipeline, calling functions from the `src` directory.
 *   **`query_generation.ipynb`:** Contains a massive `QueryAnnotationGUI` class and mixed logic for generation and evaluation. The GUI code should be moved to a module, and the notebook should focus on the interactive analysis loop.
 
@@ -57,36 +200,21 @@ The project follows a rigorous evaluation style inspired by **Hamel Husain’s f
 
 ##  Current Plan of Action
 
-The immediate goal is to decompose the monolithic `rag_eval_demo.ipynb` into a robust, repeatable pipeline.
-
-### Phase 1: Separation of Concerns
-The "Setup" phase in `rag_eval_demo.ipynb` will be extracted into a standalone Python script (`scripts/ingest_data.py`) with two distinct stages:
-
-1.  **Web Scraping & Processing:**
-    *   **Orchestration:** Scrape sitemaps and download raw HTML.
-    *   **Specific Logic:** Handle special cases like "Leaders", "Companions" (parsing tribe tables), and "Items" (parsing exclusivity tables).
-    *   **Enrichment:** Fill missing data gaps identified in the HTML.
-
-2.  **Neo4j Ingestion & Indexing:**
-    *   **Graph Population:** Ingest `CardInfo` objects into Neo4j nodes (`Card`, `Tribe`, `Stat`).
-    *   **Vector Indexing:** Chunk the raw HTML, generate embeddings (using `sentence-transformers`), and populate the Neo4j Vector Index.
-    *   **Cleanup:** Remove the Ollama/Local LLM generation steps from the ingestion pipeline (these belong in the evaluation phase).
-
-
-### Phase 2: Setting up other vector searches + adding in manual retrieval metrics
+### Setting up other vector searches + adding in manual retrieval metrics
 1.  **BM25**
-    *   Figure out a way to setup BM25 with this Neo4j setup
+    *   Setup rankbm25 library for articles (COMPLETE)
+    *   Setup Neo4j's Lucene 
 
-2.  **Cosine Similarity**
-    *   I did this, but my evals was based on chunked documents, need to redo the manual eval on not chunked documents
+2.  **Cosine Similarity** (DOUBLE CHECK IF COMPLETE)
+    *   Use cosine similarity for 
 
-3.  **Hybrid Similarity**
+3.  **Hybrid Similarity** (COMPLETE I THINK)
     *   Given the lexical and semanitc search, figure out a way to 
 
-4.  **Neo4j's text2Cypher library**
+4.  **Neo4j's text2Cypher library** (WIP)
     *   Use Neo4j's text2Cypher library 
 
-5.  **Knowledge Graph**
+5.  **Knowledge Graph** (NO IDEA)
     *   Idk how a knowledge graph is supposed to work, but this is the goal. Is a knowledge graph "better" than the other methods?
 
 Given the above retrieval techniques, we need to setup the retrieval metrics
@@ -107,33 +235,96 @@ Given the above retrieval techniques, we need to setup the retrieval metrics
 1.  **Chunking**
     *   Currently have a chunking option and no chunking option. No chunking is fine as is, it caputres the entire document.
     *   The HTML splitter needs some work, as it splits headers but some headers are just the name of the card, therefore it becomes an irrelevant chunk during retrieval
-    *   There's also some junk at the end of the HTML that I need to parse out as it's redunant text
 
-2.  **Bugs**
-    *   BUG: When processing the html, sometimes words are missing (FIXED)
-        - Also should remove the completely irrelevant info that shows up at the end that has no informatoin related to the cards itself? (FIXED)
-    *   BUG: For cards like Infernoko that have multiple phases, we are not capturing the data for phases (should add the relation, Card -> has other phase(or something) -> Card)
+2.  **Missing Features/Pages to Still Scrape**
+    In this section, there are many pages I still need to scrape to capture the complete wiki. If it was just scraping the full site, that'd be easy. The problem is mapping the ontology considering there are many other things that make this very complicated.
 
-3.  **Missing Features/Pages to Still Scrape**
-    *   To card nodes, need to add:
-            a. Other Stats field  (Resist Snow, Frenzy, etc. This is the Stats page, which needs scraping and processing: https://wildfrostwiki.com/Stats)
-            b. Card Description field (flavor text vs ability)
-    *   For abilities, there's the listed ability itself, and the canonical ability that the in the excel sheet.
-        -   "Increase attack by 2" & "Increase attack by 1" is actually "Increase attack by <n>"
-        -   Probably need to do a keyword or ability node: https://wildfrostwiki.com/Keywords
-    *   Need to add logic to scrape the Leaders page. For relations, it should link them to the tribe and to a leader node (there can only be one leader) (should also link the leader page to a leader node)
-    *   Pets should also get a pet node (there can only be one pet)
-    *   Map has it's own ontology too actually: https://wildfrostwiki.com/Map. The map contains Zones. Zones contains fights and map events (the inbetween after each fight, depending on the zone.) Map Events has an ontology I can refer to
-    *   Each fight has their own data. Enemies show up in these fights. Fights are made up of waves (waves add these enemies to the field, granted if there is space on the field).
-    *   I'm not saving the village unlocks, but its a low priority atm.
-    *   I need to scrape the difficulty bells, as you need 10 bells to even do the final fight in Map Events.
-    *   Hm, probably need something for how fights themselves play out (1 card is played OR player hits their sun bell, then enemy turn progresses). A lot I have to do here.
-    *   I'm not saving the card image anywhere, unsure if needed atm.
-    *   Need to update the to_dict method to capture more information I'm missing
-    *   **Important**: I need to make sure the to_dict method is expanded to make a very cleaned format of the HTML.
-    *   **Important**: Logger is saving all to one file, we need to make it several files. Also need to fix print statements or tqdm write statements to instead be logger.
-    *   
+    a. Cards with multiple phases or states (like Infernoko or Naked Gnome) or not properly being scraped atm
+        
+        - For cards with phases, we can have the following possible relationship: card -> has phase -> phase
+    
+    b. Adding fields to card nodes
+        
+        - Other Stats field  (Resist Snow, Frenzy, etc. This is the Stats page, which needs scraping and processing: https://wildfrostwiki.com/Stats)
+        
+        - flavor text (either null or str)
+        
+        - abilities, which are broken into two: The listed ability and the canonical ability to scrape from the excel sheet
+            -   Example: "Increase attack by 2" & "Increase attack by 1" is actually "Increase attack by <n>"
+    
+    c. Probably need to do a keyword or ability node as this can get complicated. Certain keywords are part of an ability: https://wildfrostwiki.com/Keywords
+        
+        - Example: "Apply 3 <keyword> Snow </keyword>." We would have to link abilities to keywords.
+            -- Card -> has ability -> ability
+            -- Ability -> has keyword -> keyword
+  
+    d. Need to add logic to scrape the Leaders page. 
+    
+        - For relations, it should link them to the tribe and to a leader node (there can only be one leader) 
+        - I should probably make a leader node.
+            -- Tribe -> has leader -> Leader
+            -- Leader -> has permanent crown -> Crown
+            -- if the leader dies, the run dies (whatever this would look like)
+            -- Leader -> belongs to tribe -> Tribe (each tribe has leaders)
+            -- Card -> has subtype -> Leader
+            -- Somehow figure out how to make the leader cards, they are a little different from a normal card
+            -- You can only have one leader
 
+    e. Pets should also get a pet node 
+        
+        - There can only be one pet chosen per run
+        - Pets are chosen to be part of the starting deck
+
+    f. I should add a starting deck
+        
+        - Leader -> starts in -> Player deck
+        - Pets -> starts in -> Player deck
+        - Starting item cards -> starts in -> Player deck (we'd also need to add the quantity)
+    
+    g. Crowns. They are a thing and I need to include them into my data
+
+    h. Maps have it's own ontology: https://wildfrostwiki.com/Map. 
+        
+        - Map -> contains -> zones
+        - Zones -> contains -> fights
+        - Zones -> contains -> map events (the inbetween after each fight, depending on the zone.) 
+        - Map Events -> contains -> events (the specific events?) what's different with the one above is it's the order of fights and events. 1st fight -> event-> etc. I want to capture the individual events as well and when they show up???
+    
+    i. Fights have their own kind of ontology too 
+        
+        - Enemies -> appear in -> fights 
+        - Fights -> has -> enemies
+        - Fights -> has -> waves
+        - Enemies -> appears in -> waves
+        - waves -> has -> enemies
+        - Need to somehow relate to this the playing field itself too and the bell system. Not fun
+    
+    j. Speaking of playing field, probably need to map this as well.
+        
+        - Hm, probably need something for how fights themselves play out (1 card is played OR player hits their sun bell, then enemy turn progresses). A lot I have to do here.
+
+    i. I need to add the bell system as they relate to everything as well.
+        
+        - You need to select the 10 bell difficulty to even do the final fight in map events. 
+        - Need to also scrape the pages as well
+
+    k. I'm not saving the card image anywhere, unsure if needed atm.
+    
+    l.   Need to update the to_dict method to capture more information I'm missing
+        
+        - *Important**: I need to make sure the to_dict method is expanded to make a very cleaned format of the HTML.
+    
+### 4. **Important**: Logger needs updating
+    
+    -   It's currently saving all to one file, we need to make it several files. Also need to fix print statements or tqdm write statements to instead be logger.
+    
+### 5. Support for multiple Embeddings
+    
+    -   Adding the ability to have multiple embeddings from different providers and testing that.
+
+### 6. Setting up the retrievers
+    
+    - Continue the work with setting up the retrievers
 
 ### Overall Theme
 *   The `rag_eval_demo.ipynb` will be for any scraping and neo4j ingestion testing the user deems necessary.
@@ -144,7 +335,7 @@ Given the above retrieval techniques, we need to setup the retrieval metrics
 ### Prerequisites
 *   Python 3.12+ (managed by Poetry).
 *   Neo4j instance (Local Bolt: `bolt://localhost:7687`).
-*   Environment variables in `configs/.env`: `OPENAI_API_KEY`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`.
+*   Environment variables in `.env`: `OPENAI_API_KEY`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`.
 
 ### Key Workflows
 *   **Data Prep:** Use `rag_eval_demo.ipynb` to test scraping and parsing of data, and ingest data into Neo4j.

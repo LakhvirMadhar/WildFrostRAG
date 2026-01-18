@@ -5,28 +5,31 @@ This module implements lexical retrieval using the rank_bm25 library for true BM
 It retrieves documents from Neo4j, processes them with BM25, and returns ranked results.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from neo4j import GraphDatabase
+from neo4j import Driver
 from rank_bm25 import BM25Okapi
 from src.utils.config import settings
+from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
-class BM25Retriever:
+class BM25Retriever(BaseNeo4jRetriever):
     """
     Implements lexical similarity retrieval using true BM25 scoring.
     This corresponds to the 'BM25' approach in the research goals.
     """
 
-    def __init__(self):
+    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
         """
         Initialize the BM25 retriever.
+
+        Args:
+            driver: Neo4j driver instance (created externally, managed by application)
+            neo4j_database: Optional database name (default: None uses default database)
         """
-        self.uri = settings.neo4j_uri.get_secret_value()
-        self.username = settings.neo4j_username
-        self.password = settings.neo4j_password.get_secret_value()
+        super().__init__(driver, neo4j_database)
         self.index_name = settings.bm25_index_name
         self.bm25_model = None
         self.documents = []
@@ -69,9 +72,7 @@ class BM25Retriever:
         """
         Load all documents from Neo4j to build the BM25 index.
         """
-        driver = GraphDatabase.driver(self.uri, auth=(self.username, self.password))
-        try:
-            with driver.session() as session:
+        with self.driver.session(database=self.neo4j_database) as session:
                 # Query all documents
                 query = f"""
                 MATCH (d:{self.index_name})
@@ -102,9 +103,6 @@ class BM25Retriever:
                 # Initialize the BM25 model with the documents
                 self.bm25_model = BM25Okapi(self.documents)
 
-        finally:
-            driver.close()
-
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """
         Retrieve the top-k most relevant document chunks using BM25 scoring.
@@ -132,10 +130,9 @@ class BM25Retriever:
         # Build the results
         results = []
         for idx in top_indices:
-            score = scores[idx]
+            score = float(scores[idx])  # Convert np.float64 to Python float
             node_data = self.node_data[idx].copy()
             node_data["score"] = score
-            node_data["search_type"] = "bm25"
             results.append(node_data)
 
-        return results
+        return self._add_metadata(results, 'bm25')

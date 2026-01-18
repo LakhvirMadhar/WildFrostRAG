@@ -5,8 +5,8 @@ This module implements lexical retrieval using Neo4j's built-in full-text search
 capabilities, which are based on Apache Lucene.
 """
 
-from typing import List, Dict, Any
-from neo4j import GraphDatabase
+from typing import List, Dict, Any, Optional
+from neo4j import Driver
 from src.utils.config import settings
 from .base_neo4j_retriever import BaseNeo4jRetriever
 
@@ -18,20 +18,22 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
     using Neo4j's Lucene-based full-text search as a proxy.
     """
 
-    def __init__(self):
+    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
         """
         Initialize the Neo4j full-text search retriever.
+
+        Args:
+            driver: Neo4j driver instance (created externally, managed by application)
+            neo4j_database: Optional database name (default: None uses default database)
         """
-        super().__init__()
+        super().__init__(driver, neo4j_database)
         self.index_name = settings.fulltext_index_name
 
     def _ensure_fulltext_index_exists(self):
         """
         Ensure the fulltext index exists, create it if it doesn't.
         """
-        driver = GraphDatabase.driver(self.uri, auth=(self.username, self.password))
-        try:
-            with driver.session() as session:
+        with self.driver.session(database=self.neo4j_database) as session:
                 # Check if the index exists
                 check_query = """
                 CALL db.indexes() YIELD name, type, state, populationProgress, uniqueness, entityCount, labelsOrTypes, properties
@@ -70,8 +72,6 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
                             break
                         time.sleep(1)
                         wait_time += 1
-        finally:
-            driver.close()
 
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """
@@ -106,9 +106,4 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
         }
 
         results = self._execute_query(search_query, params)
-
-        # Add search type to distinguish from other retrieval methods
-        for result in results:
-            result["search_type"] = "fulltext"
-
-        return results
+        return self._add_metadata(results, 'fulltext')

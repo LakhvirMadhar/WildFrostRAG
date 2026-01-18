@@ -21,6 +21,7 @@ Usage:
 import sys
 from pathlib import Path
 import argparse
+from neo4j import GraphDatabase
 
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -34,14 +35,16 @@ from src.rag.retrievers import (
     BM25FulltextVectorHybridRetriever,
     Text2CypherRetriever
 )
+from src.utils.config import settings
 from src.utils.logger import logger
 
-def get_retriever(retriever_type: str):
+def get_retriever(retriever_type: str, driver):
     """
     Factory function to create the appropriate retriever based on type.
 
     Args:
         retriever_type: Type of retriever to create
+        driver: Neo4j driver instance to pass to the retriever
 
     Returns:
         An instance of the specified retriever
@@ -59,7 +62,7 @@ def get_retriever(retriever_type: str):
     if retriever_type not in retrievers:
         raise ValueError(f"Unknown retriever type: {retriever_type}. Available types: {list(retrievers.keys())}")
 
-    return retrievers[retriever_type]()
+    return retrievers[retriever_type](driver)
 
 def main():
     parser = argparse.ArgumentParser(description="Test retrieval for a single query")
@@ -73,12 +76,20 @@ def main():
 
     logger.info(f"Searching for: '{args.query}' using {args.retriever} retriever (k={args.k})")
 
+    # Create driver once at the start (efficient pattern)
+    uri = settings.neo4j_uri.get_secret_value()
+    username = settings.neo4j_username
+    password = settings.neo4j_password.get_secret_value()
+    driver = GraphDatabase.driver(uri, auth=(username, password))
+
     try:
-        retriever = get_retriever(args.retriever)
+        retriever = get_retriever(args.retriever, driver)
         results = retriever.search(args.query, k=args.k)
 
         # Check if this is a hybrid result and display individual retriever results first
-        if results and 'individual_results' in results[0]:
+        is_hybrid = results and 'individual_results' in results[0]
+
+        if is_hybrid:
             logger.info("Individual retriever results before fusion:\n")
             individual_results = results[0]['individual_results']
             for retriever_name, retriever_results in individual_results.items():
@@ -86,30 +97,43 @@ def main():
                 for j, chunk in enumerate(retriever_results[:args.k]):  # Show top k from each retriever
                     score = chunk.get('score', 0)
                     source = chunk.get('source_file', 'unknown')
+                    search_type = chunk.get('search_type', 'unknown')
                     text = chunk.get('text', '')[:200].replace('\n', ' ') + "..."
-                    logger.info(f"  [{j+1}] Score: {score:.4f} | Source: {source}")
+                    logger.info(f"  [{j+1}] Score: {score:.4f} | Source: {source} | Search Type: {search_type}")
                     logger.info(f"      Text: {text}")
                 logger.info("")  # Empty line after each retriever's results
 
-        logger.info(f"Final fused hybrid results ({len(results)} total):\n")
+        # Display results differently for hybrid vs non-hybrid
+        if is_hybrid:
+            logger.info(f"Final fused hybrid results ({len(results)} total):\n")
+        else:
+            logger.info(f"Retrieval results ({len(results)} total):\n")
 
         for i, chunk in enumerate(results):
             score = chunk.get('score', 0)
-            rrf_score = chunk.get('rrf_score', 0)  # The RRF score
             source = chunk.get('source_file', 'unknown')
             search_type = chunk.get('search_type', 'unknown')
-            source_retriever = chunk.get('source_retriever', '')  # For hybrid results
-            retriever_scores = chunk.get('retriever_scores', {})  # Original scores from each retriever
             text = chunk.get('text', '')[:200].replace('\n', ' ') + "..."
 
-            logger.info(f"[{i+1}] RRF Score: {rrf_score:.4f} | Original Scores: {retriever_scores} | Source: {source} | Search Type: {search_type}")
-            if source_retriever:
-                logger.info(f"    Source Retriever: {source_retriever}")
+            if is_hybrid:
+                rrf_score = chunk.get('rrf_score', 0)
+                source_retriever = chunk.get('source_retriever', '')
+                retriever_scores = chunk.get('retriever_scores', {})
+                logger.info(f"[{i+1}] RRF Score: {rrf_score:.4f} | Original Scores: {retriever_scores} | Source: {source} | Search Type: {search_type}")
+                if source_retriever:
+                    logger.info(f"    Source Retriever: {source_retriever}")
+            else:
+                logger.info(f"[{i+1}] Score: {score:.4f} | Source: {source} | Search Type: {search_type}")
+
             logger.info(f"    Text: {text}\n")
 
     except Exception as e:
         logger.error(f"Error during retrieval: {e}")
         logger.error(f"Error: {e}")
+    finally:
+        # Close driver at the end (only closed once for entire script)
+        driver.close()
+        logger.info("Neo4j driver closed")
 
 if __name__ == "__main__":
     main()

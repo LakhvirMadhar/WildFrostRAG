@@ -7,7 +7,7 @@ This module provides various retrieval strategies using Neo4j:
 """
 
 from typing import List, Dict, Any, Optional
-from neo4j import GraphDatabase
+from neo4j import Driver
 from sentence_transformers import SentenceTransformer
 from src.utils.config import settings
 from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
@@ -22,13 +22,15 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
     _instance = None
     _embedding_model = None
 
-    def __init__(self):
+    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
         """
         Initialize the Neo4j vector search retriever.
 
-        Sets up connection parameters and prepares the embedding model.
+        Args:
+            driver: Neo4j driver instance (created externally, managed by application)
+            neo4j_database: Optional database name (default: None uses default database)
         """
-        super().__init__()
+        super().__init__(driver, neo4j_database)
         self.index_name = settings.vector_index_name
 
     @classmethod
@@ -76,4 +78,5 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
             "k": k
         }
 
-        return self._execute_query(search_query, params)
+        results = self._execute_query(search_query, params)
+        return self._add_metadata(results, 'vector')
