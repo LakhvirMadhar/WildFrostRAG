@@ -1,0 +1,60 @@
+# Experiment configuration for batch retrieval runner
+# This file defines which retrievers to test in a single batch run
+
+run_num: 1
+chunking: false  # Lock to false for now (chunking still needs testing)
+
+# Define retrievers to test
+retrievers:
+  # Non-vector retrievers (no embedder needed)
+  - type: bm25
+    description: "BM25 baseline keyword search"
+
+  # Vector retrievers (requires embedder)
+  - type: vector
+    embedder: "hf"
+    description: "Vector search with HuggingFace embeddings"
+
+  # Hybrid retrievers (requires embedder for vector component)
+  - type: bm25_vector
+    embedder: "hf"
+    description: "BM25 + Vector hybrid with HuggingFace"
+
+# ===== Examples for Multi-Embedder Testing =====
+
+# To test multiple embedders:
+#  - type: vector
+#    embedder: "openai"
+#    description: "Vector search with OpenAI embeddings"
+#
+#  - type: bm25_vector
+#    embedder: "openai"
+#    description: "BM25 + Vector hybrid with OpenAI"
+
+# ===== Examples for Other Retrievers =====
+
+# Fulltext retriever:
+#  - type: fulltext
+#    description: "Neo4j Lucene full-text search"
+
+# Fulltext + Vector hybrid:
+#  - type: fulltext_vector
+#    embedder: "hf"
+#    description: "Fulltext + Vector hybrid with HuggingFace"
+
+# BM25 + Fulltext + Vector hybrid:
+#  - type: bm25_fulltext_vector
+#    embedder: "hf"
+#    description: "BM25 + Fulltext + Vector hybrid"
+
+# Text2Cypher (LLM-based):
+#  - type: text2cypher
+#    prompt: "TEXT2CYPHER_PROMPT_V1"
+#    description: "Cypher query generation with V1 prompt"
+
+# ===== Notes =====
+# - Deterministic retrievers (bm25, vector, fulltext, hybrids) will skip if already exists
+# - LLM-based retrievers (text2cypher) always create new experiments
+# - Vector-based retrievers require embeddings to be added first:
+#     poetry run python -m scripts.add_embeddings --embedder hf
+#     poetry run python -m scripts.add_embeddings --embedder openai

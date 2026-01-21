@@ -32,150 +32,179 @@ from datetime import datetime
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.augmented_generation import LLMGenerator, GenerationPipeline
-from src.rag.retrievers import (
-    Neo4jVectorSearch,
-    Neo4jFullTextSearch,
-    BM25Retriever,
-    BM25VectorHybridRetriever,
-    Text2CypherRetriever
-)
 from src.utils.logger import logger
 from src.utils.config import settings
+from src.utils.experiment_utils import (
+    get_next_experiment_id,
+    create_generation_config,
+    save_config,
+    save_results,
+    load_config,
+    load_results,
+    validate_retrieval_reference,
+    list_available_retrievals
+)
+from src.experiment_tracker import ExperimentRegistry
+from src.rag.augmented_generation.call_llm_generation import LLMGenerator
+from src.utils.prompt_utils import format_prompt_tuple
+import importlib
 
-def get_retriever(retriever_type: str):
-    """
-    Factory function to create the appropriate retriever based on type.
-
-    Args:
-        retriever_type: Type of retriever to create
-
-    Returns:
-        An instance of the specified retriever
-    """
-    retrievers = {
-        'vector': Neo4jVectorSearch,
-        'fulltext': Neo4jFullTextSearch,
-        'bm25': BM25Retriever,
-        'hybrid': BM25VectorHybridRetriever,
-        'text2cypher': Text2CypherRetriever,
-    }
-
-    if retriever_type not in retrievers:
-        raise ValueError(f"Unknown retriever type: {retriever_type}. Available types: {list(retrievers.keys())}")
-
-    return retrievers[retriever_type]()
-
-def create_generation_experiment_directory(outputs_dir: Path, run_num: int, retriever_type: str, model_name: str) -> Path:
-    """
-    Create the directory structure for a generation experiment run.
-
-    Args:
-        outputs_dir: The base generation outputs directory
-        run_num: The run number
-        retriever_type: The type of retriever being used
-        model_name: The model name being used
-
-    Returns:
-        Path to the created experiment directory
-    """
-    # Create directory structure: outputs/generation/{run_num}/{retriever_type}_{model_name}
-    run_dir = outputs_dir / f"run_{run_num}"
-    experiment_dir = run_dir / f"{retriever_type}_{model_name}"
-
-    experiment_dir.mkdir(parents=True, exist_ok=True)
-
-    return experiment_dir
 
 async def main():
     parser = argparse.ArgumentParser(description="Run LLM Generation Pipeline")
-    parser.add_argument("--run-num", type=int, required=True, help="Experiment run number")
-    parser.add_argument("--mode", type=str, choices=["zero_shot", "rag"], default="zero_shot", help="Mode to run: zero_shot or rag")
-    parser.add_argument("--retriever", type=str, choices=["vector", "fulltext", "bm25", "hybrid", "text2cypher"],
-                       default="vector", help="Retriever to use in RAG mode (default: vector)")
-    parser.add_argument("--file", type=str, default="queries/simple_reference_based_queries.csv", help="Path to input CSV file")
+    parser.add_argument("--run-num", type=int, default=1, help="Experiment run number (default: 1)")
+    parser.add_argument("--retrieval-reference", type=str, required=True,
+                       help="Retrieval experiment to use (e.g., 'bm25/001', 'vector/002')")
+    parser.add_argument("--system-prompt", type=str, required=True,
+                       help="System prompt name (e.g., SYSTEM_PROMPT_V1)")
+    parser.add_argument("--rag-prompt", type=str, required=True,
+                       help="RAG prompt name for user message formatting (e.g., RAG_PROMPT_V1)")
+    parser.add_argument("--description", type=str, default="",
+                       help="Human-readable description of this experiment")
     parser.add_argument("--batch-size", type=int, default=10, help="Batch size for processing")
+    parser.add_argument("--query-ids", type=str, help="Comma-separated query IDs to include (e.g., '1,5,10')")
+    parser.add_argument("--exclude-query-ids", type=str, help="Comma-separated query IDs to exclude")
 
     args = parser.parse_args()
 
     # Ensure directories exist
     settings.create_directories()
 
-    # Check if file exists
-    if not os.path.exists(args.file):
-        logger.error(f"File {args.file} not found.")
+    # Validate retrieval reference exists
+    if not validate_retrieval_reference(args.run_num, args.retrieval_reference):
+        logger.error(f"Retrieval reference not found: {args.retrieval_reference}")
+        logger.info(f"Available retrievals for run {args.run_num}:")
+        available = list_available_retrievals(args.run_num)
+        if available:
+            for ref in available:
+                logger.info(f"  - {ref}")
+        else:
+            logger.info(f"  No retrievals found for run {args.run_num}")
         exit(1)
 
-    logger.info(f"Loading data from {args.file}...")
-    df = pd.read_csv(args.file)
-    logger.info(f"Loaded {len(df)} rows.")
+    # Load retrieval config and results
+    retrieval_path = settings.outputs_dir / f"run_{args.run_num}" / "retrievals" / args.retrieval_reference
+    retrieval_config = load_config(retrieval_path / "config.json")
+    retrieval_results = load_results(retrieval_path / "results.json")
 
-    # Determine model name and retriever type for directory naming
-    model_name = settings.openai_model_name.replace("-", "_")
-    retriever_type = args.retriever if args.mode == 'rag' else 'zero_shot'
+    logger.info(f"Loaded retrieval results from: {args.retrieval_reference}")
+    logger.info(f"Retriever type: {retrieval_config['retriever_type']}")
+    logger.info(f"Total retrieved queries: {len(retrieval_results)}")
 
-    # Create experiment directory
-    experiment_dir = create_generation_experiment_directory(
-        settings.generation_outputs_dir,
-        args.run_num,
-        retriever_type,
-        model_name
-    )
+    # Filter by query IDs if specified
+    if args.query_ids:
+        query_ids = [int(qid.strip()) for qid in args.query_ids.split(',')]
+        retrieval_results = [r for r in retrieval_results if r['query_id'] in query_ids]
+        logger.info(f"Filtered to {len(retrieval_results)} queries with IDs: {query_ids}")
 
-    logger.info(f"Experiment directory: {experiment_dir}")
+    # Exclude query IDs if specified
+    if args.exclude_query_ids:
+        exclude_ids = [int(qid.strip()) for qid in args.exclude_query_ids.split(',')]
+        retrieval_results = [r for r in retrieval_results if r['query_id'] not in exclude_ids]
+        logger.info(f"Excluded {len(exclude_ids)} queries. Remaining: {len(retrieval_results)} queries")
 
-    # Check if experiment directory already contains results and prevent overwriting
-    results_file = experiment_dir / "results.json"
-    if results_file.exists():
-        logger.error(f"Results already exist at {results_file}. Please delete the directory manually or use a different run number.")
+    if len(retrieval_results) == 0:
+        logger.error("No queries to process after filtering!")
         exit(1)
 
-    # Initialize the LLM generator and pipeline
-    llm_generator = LLMGenerator()
-    pipeline = GenerationPipeline(llm_generator)
+    # Dynamically load system and RAG prompts
+    try:
+        prompts_module = importlib.import_module("prompts.system_prompts")
+        system_prompt = getattr(prompts_module, args.system_prompt)
+        rag_prompt = getattr(prompts_module, args.rag_prompt)
+    except (ImportError, AttributeError) as e:
+        logger.error(f"Failed to load prompts: {e}")
+        exit(1)
 
-    logger.info(f"Running {args.mode} pipeline with {args.retriever} retriever (Run #{args.run_num})...")
+    # Generate generation experiment ID
+    base_path = settings.outputs_dir / f"run_{args.run_num}" / "generation"
+    generation_id = get_next_experiment_id(base_path)
+    experiment_dir = base_path / generation_id
+    experiment_dir.mkdir(parents=True, exist_ok=True)
 
-    # Determine target column and retriever based on mode
-    target_column = 'openAI_RAG_response' if args.mode == 'rag' else 'openAI_zero_shot'
+    logger.info(f"Generation experiment directory: {experiment_dir}")
+    logger.info(f"Generation ID: gen/{generation_id}")
 
-    if args.mode == 'rag':
-        retriever = get_retriever(args.retriever)
-        logger.info(f"Using {args.retriever} retriever")
-    else:
-        retriever = None
+    # Initialize LLM generator with system prompt
+    llm_generator = LLMGenerator(system_prompt=system_prompt)
 
-    # Run pipeline
-    new_df = await pipeline.process_batch(
-        df,
-        target_column=target_column,
-        retriever=retriever,
+    logger.info(f"Running generation pipeline with {args.retrieval_reference}...")
+    logger.info(f"Using system prompt: {system_prompt.prompt_version_name}")
+    logger.info(f"Using RAG prompt: {rag_prompt.prompt_version_name}")
+
+    # Run generation with retrieval results
+    results = []
+    successful_queries = 0
+    failed_queries = 0
+
+    for retrieval_result in retrieval_results:
+        query = retrieval_result['query']
+        retrieved_chunks = retrieval_result['retrieved_chunks']
+
+        logger.info(f"Generating response for query: {query}")
+
+        # Generate response using LLM with retrieved context
+        try:
+            # Build context from retrieved chunks
+            if not retrieved_chunks:
+                response = "ERROR: No retrieved chunks available"
+                failed_queries += 1
+            else:
+                # Extract text from chunks
+                context_texts = []
+                for chunk in retrieved_chunks:
+                    if 'text' in chunk:
+                        context_texts.append(chunk['text'])
+
+                context = "\n\n".join(context_texts)
+
+                # Generate response using LLMGenerator with RAG prompt
+                response = await llm_generator.generate_rag_response(
+                    query=query,
+                    context=context,
+                    rag_prompt=rag_prompt
+                )
+                successful_queries += 1
+
+        except Exception as e:
+            logger.error(f"Failed to generate response for query {query}: {e}")
+            response = f"ERROR: {str(e)}"
+            failed_queries += 1
+
+        results.append({
+            'query_id': retrieval_result['query_id'],
+            'query': query,
+            'response': response,
+            'retrieved_chunks': retrieved_chunks
+        })
+
+    # Build config
+    config = create_generation_config(
+        run_num=args.run_num,
+        generation_id=f"gen/{generation_id}",
+        retrieval_reference=args.retrieval_reference,
+        system_prompt_version=system_prompt.prompt_version_name,
+        rag_prompt_version=rag_prompt.prompt_version_name,
+        total_queries=len(retrieval_results),
+        successful_queries=successful_queries,
+        failed_queries=failed_queries,
+        description=args.description,
         batch_size=args.batch_size
     )
 
-    # Prepare experiment metadata
-    experiment_metadata = {
-        "run_number": args.run_num,
-        "timestamp": datetime.now().isoformat(),
-        "model_name": settings.openai_model_name,
-        "mode": args.mode,
-        "retriever": args.retriever if args.mode == 'rag' else 'zero_shot',
-        "batch_size": args.batch_size,
-        "input_file": args.file,
-        "total_queries": len(df),
-        "successful_queries": len(new_df[new_df[target_column].notna()]),
-    }
+    # Save config
+    save_config(config, experiment_dir)
 
-    # Save results to the experiment directory
-    results_data = {
-        "metadata": experiment_metadata,
-        "results": new_df.to_dict('records')
-    }
+    # Register in experiment registry
+    registry = ExperimentRegistry()
+    registry.register_generation(args.run_num, generation_id, config)
 
-    with open(results_file, 'w', encoding='utf-8') as f:
-        json.dump(results_data, f, indent=4, default=str)
+    # Save results
+    save_results(results, experiment_dir / "results.json")
 
-    logger.info(f"Results saved to {results_file}")
+    logger.info(f"Experiment completed successfully!")
+    logger.info(f"Generation ID: gen/{generation_id}")
+    logger.info(f"Results saved to {experiment_dir}")
     logger.info("Done!")
 
 if __name__ == "__main__":

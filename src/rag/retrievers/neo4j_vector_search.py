@@ -22,16 +22,22 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
     _instance = None
     _embedding_model = None
 
-    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
+    def __init__(
+        self,
+        driver: Driver,
+        neo4j_database: Optional[str] = None,
+        index_name: Optional[str] = None
+    ):
         """
         Initialize the Neo4j vector search retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
             neo4j_database: Optional database name (default: None uses default database)
+            index_name: Optional vector index name (default: uses settings.vector_index_name)
         """
         super().__init__(driver, neo4j_database)
-        self.index_name = settings.vector_index_name
+        self.index_name = index_name or settings.vector_index_name
 
     @classmethod
     def get_embedding_model(cls):

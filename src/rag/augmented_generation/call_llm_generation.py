@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional, Tuple, Protocol
 from openai import AsyncOpenAI
 from src.utils.config import settings
 from src.utils.logger import logger
-from prompts.system_prompt import SYSTEM_PROMPT, RAG_PROMPT
+from src.utils.prompt_utils import VersionedPrompt, format_prompt_tuple
 
 
 class Retriever(Protocol):
@@ -40,14 +40,18 @@ class LLMGenerator:
     Handles LLM generation using OpenAI API.
     """
 
-    def __init__(self):
+    def __init__(self, system_prompt: VersionedPrompt):
         """
         Initialize the LLM Generator.
+
+        Args:
+            system_prompt: VersionedPrompt containing the system prompt
         """
         self.client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
         self.default_model = settings.openai_model_name
         self.default_seed = settings.openai_seed
         self.default_temperature = settings.openai_temperature
+        self.system_prompt = system_prompt
 
 
     async def _make_openai_call(
@@ -66,9 +70,8 @@ class LLMGenerator:
         try:
             response = await self.client.chat.completions.create(
                 model=self.default_model,
-                # Using the same system prompt through all retrieval methods for consistency
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": self.system_prompt.prompt_tuple[0]},
                     {"role": "user", "content": user_message}
                 ],
                 temperature=self.default_temperature,
@@ -99,7 +102,8 @@ class LLMGenerator:
     async def generate_rag_response(
         self,
         query: str,
-        context: str
+        context: str,
+        rag_prompt: VersionedPrompt
     ) -> str:
         """
         Generate a RAG response using provided context.
@@ -107,12 +111,17 @@ class LLMGenerator:
         Args:
             query: The input query to process
             context: The retrieved context to use
+            rag_prompt: VersionedPrompt containing the RAG prompt template
 
         Returns:
             The generated response text
         """
-        rag_prompt = RAG_PROMPT[0].format(query=query, context=context)
-        return await self._make_openai_call(rag_prompt)
+        user_message = format_prompt_tuple(
+            rag_prompt.prompt_tuple,
+            query=query,
+            context=context
+        )
+        return await self._make_openai_call(user_message)
 
 
 class GenerationPipeline:
@@ -121,14 +130,16 @@ class GenerationPipeline:
     Supports zero-shot and various RAG strategies through dependency injection.
     """
 
-    def __init__(self, llm_generator: LLMGenerator):
+    def __init__(self, llm_generator: LLMGenerator, rag_prompt: VersionedPrompt):
         """
         Initialize the Generation Pipeline.
 
         Args:
             llm_generator: Instance of LLMGenerator to handle API calls
+            rag_prompt: VersionedPrompt for RAG user message formatting
         """
         self.llm_generator = llm_generator
+        self.rag_prompt = rag_prompt
 
 
     async def generate_response(
@@ -154,7 +165,7 @@ class GenerationPipeline:
 
         context = "\n\n".join([chunk['text'] for chunk in retrieved_chunks])
         response = await self.llm_generator.generate_rag_response(
-            query, context
+            query, context, self.rag_prompt
         )
         return response, retrieved_chunks
 

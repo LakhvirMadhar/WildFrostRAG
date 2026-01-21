@@ -8,14 +8,15 @@ This script orchestrates the complete ETL pipeline:
 3. Data enrichment (tribe exclusivity)
 4. Neo4j graph population
 5. Document chunking
-6. Embedding generation
-7. Vector store ingestion
+6. Document ingestion into Neo4j (text + metadata only, NO embeddings)
+
+Note: Embeddings are added separately using scripts/add_embeddings.py
 
 Usage:
     python -m scripts.ingest_data                    # Run full pipeline
     python -m scripts.ingest_data --skip-scrape      # Skip web scraping
     python -m scripts.ingest_data --skip-graph       # Skip graph creation
-    python -m scripts.ingest_data --skip-vectors     # Skip vector ingestion
+    python -m scripts.ingest_data --skip-vectors     # Skip document ingestion
     python -m scripts.ingest_data --no-chunking      # Ingest full documents (no splitting)
     python -m scripts.ingest_data --clear-db         # Clear database before running
 """
@@ -37,7 +38,7 @@ from src.data_processing.enrichment import enrich_cards_with_tribes
 from src.data_processing.html_splitter import process_html_files
 from src.neo4j_kg.neo4j_utils import create_neo4j_data, clear_database
 from src.neo4j_kg.vector_store import (
-    ingest_embeddings_into_neo4j,
+    ingest_documents_into_neo4j,
     link_documents_to_cards
 )
 from src.neo4j_kg.neo4j_indexes import (
@@ -162,19 +163,20 @@ def stage_3_populate_graph(card_infos: List[CardInfo]) -> None:
     logger.info("Graph population complete")
 
 
-def stage_4_vector_ingestion(card_infos: List[CardInfo], split_text: bool = True) -> None:
+def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = True) -> None:
     """
-    Stage 4: Vector Store Ingestion
+    Stage 4: Document Ingestion
 
-    Chunks HTML documents, generates embeddings, and ingests into Neo4j vector store.
-    Also creates vector and full-text search indices.
+    Chunks HTML documents and ingests into Neo4j as Document nodes.
+    Creates full-text search index. Does NOT generate embeddings.
+    Use add_embeddings.py separately to add embeddings.
 
     Args:
         card_infos: List of CardInfo objects (used to find HTML files)
         split_text: If True, splits documents into chunks. If False, ingests full documents.
     """
     logger.info("=" * 60)
-    logger.info("STAGE 4: VECTOR STORE INGESTION")
+    logger.info("STAGE 4: DOCUMENT INGESTION")
     if not split_text:
         logger.info("(Full Document Mode: No Chunking)")
     logger.info("=" * 60)
@@ -195,27 +197,10 @@ def stage_4_vector_ingestion(card_infos: List[CardInfo], split_text: bool = True
     all_document_chunks = process_html_files(all_html_filepaths, split_text=split_text)
     logger.info(f"Created {len(all_document_chunks)} document objects")
 
-    # Generate embeddings
-    logger.info("Generating embeddings...")
-    embedding_generator = EmbeddingGenerator(
-        model_name=settings.embedding_model_name
-    )
-    embeddings = embedding_generator.generate_embeddings(all_document_chunks)
-    logger.info(f"Generated embeddings with shape: {embeddings.shape}")
-
-    # Ingest into Neo4j
-    logger.info("Ingesting embeddings into Neo4j...")
-    ingest_embeddings_into_neo4j(
-        document_chunks=all_document_chunks,
-        embeddings=embeddings
-    )
-
-    # Create vector index
-    logger.info("Creating vector index...")
-    create_vector_index(
-        index_name=settings.vector_index_name,
-        embedding_dimension=settings.embedding_dimension,
-        similarity_function=settings.similarity_function
+    # Ingest into Neo4j (no embeddings)
+    logger.info("Ingesting documents into Neo4j...")
+    ingest_documents_into_neo4j(
+        document_chunks=all_document_chunks
     )
 
     # Create full-text search index
@@ -234,7 +219,7 @@ def stage_4_vector_ingestion(card_infos: List[CardInfo], split_text: bool = True
     link_count = link_documents_to_cards()
     logger.info(f"Linked {link_count} documents to cards")
 
-    logger.info("Vector store ingestion complete")
+    logger.info("Document ingestion complete")
 
 
 async def main():
@@ -309,13 +294,13 @@ async def main():
     else:
         logger.info("Skipping graph population (--skip-graph flag set)")
 
-    # Stage 4: Vectors
+    # Stage 4: Documents
     if not args.skip_vectors:
         # If --no-chunking is passed, split_text should be False
         split_text = not args.no_chunking
-        stage_4_vector_ingestion(card_infos, split_text=split_text)
+        stage_4_document_ingestion(card_infos, split_text=split_text)
     else:
-        logger.info("Skipping vector ingestion (--skip-vectors flag set)")
+        logger.info("Skipping document ingestion (--skip-vectors flag set)")
 
     logger.info("=" * 60)
     logger.info("PIPELINE COMPLETE")

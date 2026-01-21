@@ -10,9 +10,8 @@ from neo4j import Driver
 from openai import OpenAI
 from src.utils.config import settings
 from src.utils.logger import logger
-from src.utils.utils import format_prompt_tuple
+from src.utils.prompt_utils import format_prompt_tuple, VersionedPrompt
 from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
-from prompts.text2cypher_prompts import TEXT2CYPHER_PROMPT_V1
 
 
 class Text2CypherRetriever(BaseNeo4jRetriever):
@@ -22,17 +21,27 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
     and generate appropriate Cypher queries.
     """
 
-    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
+    def __init__(
+        self,
+        driver: Driver,
+        text2cypher_prompt: VersionedPrompt,
+        neo4j_database: Optional[str] = None
+    ):
         """
         Initialize the Text2Cypher retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
+            text2cypher_prompt: VersionedPrompt containing the prompt template and version name
             neo4j_database: Optional database name (default: None uses default database)
         """
         super().__init__(driver, neo4j_database)
         self.client = OpenAI(api_key=settings.openai_api_key.get_secret_value())
         self.model = settings.openai_model_name
+        self.llm_response = None  # Track LLM response for experiment tracking
+
+        self.prompt_version = text2cypher_prompt.prompt_version_name
+        self.prompt_template = text2cypher_prompt.prompt_tuple
 
     def _get_schema(self, session) -> Dict[str, Any]:
         """
@@ -119,7 +128,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
 
         # Use versioned prompt template with utility function
         prompt = format_prompt_tuple(
-            TEXT2CYPHER_PROMPT_V1,
+            self.prompt_template,
             schema=schema_str,
             query=natural_query
         )
@@ -141,6 +150,9 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             if lines[-1].strip().startswith('```'):
                 lines = lines[:-1]
             cypher_query = '\n'.join(lines).strip()
+
+        # Store LLM response for experiment tracking
+        self.llm_response = cypher_query
 
         return cypher_query
 

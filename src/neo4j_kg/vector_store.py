@@ -14,34 +14,23 @@ from src.utils.config import settings
 from src.utils.logger import logger
 
 
-def ingest_embeddings_into_neo4j(
+def ingest_documents_into_neo4j(
     document_chunks: List[Document],
-    embeddings: np.ndarray,
     chunk_label: str = "Document",
-    text_property: str = "text",
-    embedding_property: str = "embedding"
+    text_property: str = "text"
 ) -> None:
     """
-    Ingest document chunks and their embeddings into Neo4j.
+    Ingest document chunks into Neo4j as Document nodes.
 
-    This function creates Document nodes with text content, embeddings,
-    and metadata from the chunks. Uses MERGE to avoid duplicates.
+    This function creates Document nodes with text content and metadata only.
+    No embeddings are included - use add_embeddings.py to add embeddings later.
+    Uses MERGE to avoid duplicates.
 
     Args:
         document_chunks: List of LangChain Document objects
-        embeddings: NumPy array of embeddings matching the chunks
         chunk_label: Node label to use in Neo4j (default: "Document")
         text_property: Property name for text content (default: "text")
-        embedding_property: Property name for embedding vector (default: "embedding")
-
-    Raises:
-        ValueError: If the number of chunks and embeddings don't match
     """
-    if len(document_chunks) != len(embeddings):
-        raise ValueError(
-            f"Mismatch: {len(document_chunks)} chunks but {len(embeddings)} embeddings"
-        )
-
     logger.info(
         f"Ingesting {len(document_chunks)} document chunks into Neo4j database"
     )
@@ -53,29 +42,82 @@ def ingest_embeddings_into_neo4j(
         logger.info("Connection to Neo4j successful")
 
         with driver.session() as session:
-            # Cypher query with MERGE to avoid duplicates
+            # Cypher query - just text and metadata, no embeddings
             cypher_query = f"""
             UNWIND $data AS item
             MERGE (d:{chunk_label} {{
                 {text_property}: item.text
             }})
             ON CREATE SET
-                d.{embedding_property} = item.embedding,
                 d.source_file = item.source_file
             """
 
-            # Prepare data for ingestion
+            # Prepare data without embeddings
             data_to_ingest = [
                 {
                     "text": chunk.page_content,
-                    "embedding": embedding.tolist(),
                     "source_file": chunk.metadata.get('source', 'unknown')
                 }
-                for chunk, embedding in zip(document_chunks, embeddings)
+                for chunk in document_chunks
             ]
 
             session.run(cypher_query, parameters={"data": data_to_ingest})
             logger.info("Data ingestion complete")
+
+    finally:
+        driver.close()
+
+
+def create_embedding_index(
+    property_name: str,
+    index_name: str,
+    dimension: int
+) -> None:
+    """
+    Create a vector index for a specific embedding property.
+
+    This allows storing multiple embedding providers' vectors on the same
+    Document nodes and querying each provider's index independently.
+
+    Args:
+        property_name: Property name on Document nodes (e.g., "hf_embedding", "openai_embedding")
+        index_name: Name for the vector index (e.g., "document-embeddings-hf")
+        dimension: Vector dimensionality (e.g., 384 for HF, 1536 for OpenAI)
+
+    Example:
+        >>> create_embedding_index(
+        ...     property_name="openai_embedding",
+        ...     index_name="document-embeddings-openai",
+        ...     dimension=1536
+        ... )
+    """
+    logger.info(f"Creating vector index '{index_name}' for property '{property_name}' (dim={dimension})")
+
+    driver = GraphDatabase.driver(
+        settings.neo4j_uri.get_secret_value(),
+        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
+    )
+
+    try:
+        driver.verify_connectivity()
+        logger.info("Connection to Neo4j successful")
+
+        with driver.session() as session:
+            # Create vector index using Neo4j 5.x syntax
+            create_index_query = f"""
+            CREATE VECTOR INDEX `{index_name}` IF NOT EXISTS
+            FOR (n:Document)
+            ON n.{property_name}
+            OPTIONS {{
+                indexConfig: {{
+                    `vector.dimensions`: {dimension},
+                    `vector.similarity_function`: 'cosine'
+                }}
+            }}
+            """
+
+            session.run(create_index_query)
+            logger.info(f"Vector index '{index_name}' created successfully")
 
     finally:
         driver.close()

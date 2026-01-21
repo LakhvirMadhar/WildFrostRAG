@@ -6,7 +6,7 @@ eliminating magic strings and providing type safety.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -30,6 +30,28 @@ class Settings(BaseSettings):
     vector_index_name: str = "document-embeddings"
     similarity_function: str = "cosine"
 
+    # Multi-embedder support: maps embedder name -> configuration
+    embedding_configs: Dict[str, Dict[str, Any]] = {
+        "hf": {
+            "model": "all-MiniLM-L6-v2",
+            "dimension": 384,
+            "property_name": "hf_embedding",
+            "index_name": "document-embeddings-hf"
+        },
+        "openai": {
+            "model": "text-embedding-3-small",
+            "dimension": 1536,
+            "property_name": "openai_embedding",
+            "index_name": "document-embeddings-openai"
+        },
+        "gemma": {
+            "model": "embeddinggemma",
+            "dimension": 768,
+            "property_name": "gemma_embedding",
+            "index_name": "document-embeddings-gemma"
+        }
+    }
+
     # ===== Retrieval Configuration =====
     fulltext_index_name: str = "document-fulltext"
     bm25_index_name: str = "Document"
@@ -49,8 +71,6 @@ class Settings(BaseSettings):
     project_root: Path = Path(__file__).parent.parent.parent
     data_dir: Path = project_root / "data"
     outputs_dir: Path = project_root / "outputs"
-    retriever_outputs_dir: Path = project_root / "outputs" / "retrievers"
-    generation_outputs_dir: Path = project_root / "outputs" / "generation"
 
     # Data subdirectories
     structured_outputs_dir: Path = data_dir / "structured_outputs"
@@ -88,12 +108,39 @@ class Settings(BaseSettings):
             self.raw_htmls_dir,
             self.schemas_dir,
             self.outputs_dir,
-            self.retriever_outputs_dir,
-            self.generation_outputs_dir,
         ]
 
         for directory in directories:
             directory.mkdir(parents=True, exist_ok=True)
+
+    def get_retrieval_output_dir(self, run_num: int, retriever_type: str, experiment_id: str) -> Path:
+        """
+        Get path for retrieval experiment output directory.
+
+        Args:
+            run_num: Run number
+            retriever_type: Type of retriever (bm25, vector, text2cypher, etc.)
+            experiment_id: Experiment ID (e.g., "001")
+
+        Returns:
+            Path to retrieval experiment directory
+            (e.g., outputs/run_1/retrievals/bm25/001)
+        """
+        return self.outputs_dir / f"run_{run_num}" / "retrievals" / retriever_type / experiment_id
+
+    def get_generation_output_dir(self, run_num: int, experiment_id: str) -> Path:
+        """
+        Get path for generation experiment output directory.
+
+        Args:
+            run_num: Run number
+            experiment_id: Experiment ID (e.g., "001")
+
+        Returns:
+            Path to generation experiment directory
+            (e.g., outputs/run_1/generation/001)
+        """
+        return self.outputs_dir / f"run_{run_num}" / "generation" / experiment_id
 
 
 # Global settings instance

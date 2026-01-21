@@ -51,34 +51,48 @@ python -m scripts.ingest_data --no-chunking --clear-db
 python -m scripts.ingest_data
 ```
 
-### Retrieval Evaluation
+### Experiment Tracking (Recommended - Mini MLflow Interface)
+
+**The unified experiment CLI provides MLflow-like convenience:**
+
 ```bash
-# Default: use --chunking no (chunking still needs testing)
-# Run vector search
-python -m scripts.evaluate_retrievers --run-num 1 --retriever vector --chunking no
+# Check current run number
+python -m scripts.experiment current
 
-# Run BM25
-python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25 --chunking no
+# Run retrieval experiment (uses current run by default)
+python -m scripts.experiment retrieval --retriever bm25 --description "Baseline BM25"
+python -m scripts.experiment retrieval --retriever vector --description "Vector search"
+python -m scripts.experiment retrieval --retriever text2cypher --text2cypher-prompt TEXT2CYPHER_PROMPT_V1
 
-# Run fulltext search
-python -m scripts.evaluate_retrievers --run-num 1 --retriever fulltext --chunking no
+# Run generation with shortcuts
+python -m scripts.experiment generation --retrieval latest/bm25 --prompt SYSTEM_PROMPT_V1
+python -m scripts.experiment generation --retrieval bm25/001 --prompt SYSTEM_PROMPT_V2 --description "Testing V2 prompt"
 
-# Run hybrid retrievers
-python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25_vector --chunking no
-python -m scripts.evaluate_retrievers --run-num 1 --retriever fulltext_vector --chunking no
-python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25_fulltext_vector --chunking no
+# List all experiments in current run
+python -m scripts.experiment list
+python -m scripts.experiment list --type retrieval
+python -m scripts.experiment list --type generation
 
-# Run Text2Cypher (WIP)
-python -m scripts.evaluate_retrievers --run-num 1 --retriever text2cypher --chunking no
+# Search across all runs
+python -m scripts.experiment search --retriever-type bm25
+python -m scripts.experiment search --chunking no
 
-# To test with chunking (experimental):
-python -m scripts.evaluate_retrievers --run-num 1 --retriever vector --chunking yes
+# Start new run (for fresh set of experiments)
+python -m scripts.experiment new-run
 ```
 
-### LLM Generation
+### Direct Script Usage (For Testing/Debugging)
+
+**Use these when you need full control over parameters:**
+
 ```bash
-# Run LLM generation pipeline with retrieved context
-python -m scripts.run_llm_generation --run-num 1
+# Retrieval - Direct script
+python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25 --chunking no --description "Baseline"
+python -m scripts.evaluate_retrievers --run-num 1 --retriever text2cypher --chunking no --text2cypher-prompt TEXT2CYPHER_PROMPT_V1
+
+# Generation - Direct script
+python -m scripts.run_llm_generation --run-num 1 --retrieval-reference bm25/001 --system-prompt SYSTEM_PROMPT_V1
+python -m scripts.run_llm_generation --run-num 1 --retrieval-reference latest/bm25 --system-prompt SYSTEM_PROMPT_V2
 ```
 
 ### Retrieval Metrics Calculation
@@ -96,6 +110,8 @@ python -m scripts.calculate_retrieval_metrics --run-num 1
   - `fulltext_search.md` - How Neo4j Lucene full-text search works
   - More coming: vector, BM25, hybrid retrievers
 - `docs/documentation_guide.md` - Best practices for documentation (meta-guide)
+- `docs/experiment_structure_design.md` - **NEW**: Experiment tracking structure design (metadata-driven approach inspired by MLflow/W&B)
+- `docs/mlflow_and_wandb_guide.md` - **NEW**: In-depth explanation of MLflow and Weights & Biases experiment tracking platforms
 
 ## Architecture Overview
 
@@ -197,17 +213,48 @@ retriever = Neo4jVectorSearch(driver=driver)
 
 **Query Dataset**: `queries/simple_reference_based_queries.csv`
 
-### Directory Structure
+### Experiment Tracking Structure
 
+**Metadata-driven structure inspired by MLflow/W&B:**
+
+```
+outputs/
+  experiments.yaml          # Central experiment registry (mini MLflow)
+  run_1/
+    retrievals/
+      bm25/001/             # Simple numeric IDs
+        config.json         # All metadata (retriever, chunking, prompts, etc.)
+        results.json        # Retrieved chunks for each query
+        cypher_queries.json # (text2cypher only) Generated Cypher queries
+      vector/001/
+        config.json
+        results.json
+      text2cypher/001/
+        config.json
+        results.json
+        cypher_queries.json
+    generation/
+      001/
+        config.json         # References retrieval + prompt versions
+        results.json        # LLM generated responses
+      002/
+        config.json         # Reuses same retrieval, different prompt
+        results.json
+```
+
+**Key features:**
+- **Simple numeric IDs** (001, 002, 003) instead of encoding params in folder names
+- **All metadata in config.json** - retriever type, chunking, prompt versions, etc.
+- **Experiment registry (experiments.yaml)** - tracks all experiments, enables shortcuts like `latest/bm25`
+- **Reusable retrievals** - run retrieval once, iterate on generation prompts 10x
+- **Extensible** - supports arbitrary prompt complexity without path explosion
+
+**Other directories**:
 ```
 data/
 ├── structured_outputs/    # Processed card data by CardType
 ├── schemas/              # JSON definitions of card types
 └── raw_htmls/           # Scraped HTML files
-
-outputs/
-├── retrievers/          # Retrieval results by run number
-└── generation/         # LLM generation outputs
 
 src/
 ├── data_processing/    # HTML parsing, card extraction, enrichment
@@ -245,22 +292,74 @@ def my_function():
 
 **Default settings**: Use `--no-chunking` by default since chunking still needs testing and can produce irrelevant chunks.
 
-### Prompt Versioning Methodology
+### Experiment Tracking Structure
 
-Follow chemistry notebook principles for experimental rigor:
+The project follows a **metadata-driven approach** inspired by MLflow and Weights & Biases:
 
-1. **Version control**: Append `_V{num}` suffix to prompt filenames (e.g., `system_prompt_V1.py`, `system_prompt_V2.py`)
+**Key Principles**:
+1. **Clean folder hierarchy** - Simple numeric IDs instead of encoding parameters in folder names
+2. **Metadata-driven** - All experiment details stored in `config.json` files
+3. **Separation of concerns** - Retrieval-affecting prompts (text2cypher) separate from generation prompts (system)
+4. **Reusability** - Run retrieval once, reuse for multiple generation experiments
+5. **Extensibility** - Support arbitrary prompt complexity without path explosion
+
+**Example**: To iterate on system prompt 10 times using the same BM25 retrieval:
+```bash
+# Run retrieval once
+python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25
+
+# Reuse retrieval for 10 generation experiments with different prompts
+python -m scripts.run_llm_generation --run-num 1 --retrieval-reference bm25/001 --system-prompt V1
+python -m scripts.run_llm_generation --run-num 1 --retrieval-reference bm25/001 --system-prompt V2
+# ... up to V10
+```
+
+See `docs/experiment_structure_design.md` for full details.
+
+### Prompt Versioning System
+
+**All prompts use the `VersionedPrompt` dataclass** for consistent versioning:
+
+```python
+from src.utils.prompt_utils import VersionedPrompt
+
+# Example: System prompt
+SYSTEM_PROMPT_V1 = VersionedPrompt(
+    prompt_version_name="SYSTEM_PROMPT_V1",  # Must match variable name
+    prompt_tuple=(
+        "You are a helpful assistant...",  # Template string
+        # No parameters for simple prompts
+    )
+)
+
+# Example: Text2Cypher prompt with parameters
+TEXT2CYPHER_PROMPT_V1 = VersionedPrompt(
+    prompt_version_name="TEXT2CYPHER_PROMPT_V1",
+    prompt_tuple=(
+        "Convert {query} using {schema}",  # Template with placeholders
+        "query",
+        "schema"
+    )
+)
+```
+
+**Versioning methodology** (chemistry notebook principles):
+
+1. **Version naming**: Use `_V{num}` suffix (e.g., `SYSTEM_PROMPT_V1`, `SYSTEM_PROMPT_V2`)
 2. **Ceteris paribus**: Change only ONE variable at a time between versions
-3. **Start simple**: Begin with the simplest possible prompt, then incrementally build complexity
-4. **Document changes**: User maintains separate notebook tracking what changed between versions and why
-5. **Reproducibility**: Each version should be runnable independently for comparison
+3. **Start simple**: Begin with minimal baseline, incrementally add complexity
+4. **Document changes**: Track what changed between versions in your research notebook
+5. **Reproducibility**: Each version is independently runnable
 
-Example progression:
-- `system_prompt_V1.py`: Minimal baseline
-- `system_prompt_V2.py`: Add one constraint (e.g., "Be concise")
-- `system_prompt_V3.py`: Add another constraint (e.g., "Cite sources")
+**Example progression:**
+- `SYSTEM_PROMPT_V1`: Minimal baseline ("Answer the question")
+- `SYSTEM_PROMPT_V2`: Add constraint ("Be concise")
+- `SYSTEM_PROMPT_V3`: Add another constraint ("Cite sources")
 
-This allows isolating which prompt changes improve/degrade performance.
+**Important distinctions**:
+- **Retrieval prompts** (text2cypher) → require re-running retrieval
+- **Generation prompts** (system) → can reuse existing retrieval results
+- **Prompt files**: `prompts/text2cypher_prompts.py`, `prompts/system_prompts.py`
 
 ### When Adding New Retrievers
 
