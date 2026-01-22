@@ -77,7 +77,7 @@ async def main():
         # Run retriever
         try:
             await run_retriever_subprocess(run_num, chunking, retriever_config)
-            print(f"  [OK] Completed")
+            print("  [OK] Completed")
             results.append({'retriever': retriever_config, 'status': 'success'})
         except Exception as e:
             print(f"  [FAILED] {e}")
@@ -94,7 +94,7 @@ async def main():
     skipped_count = len([r for r in results if r['status'] == 'skipped'])
     failed_count = len([r for r in results if r['status'] == 'failed'])
 
-    print(f"Batch complete!")
+    print("Batch complete!")
     print(f"  Success: {success_count}")
     print(f"  Skipped: {skipped_count}")
     print(f"  Failed: {failed_count}")

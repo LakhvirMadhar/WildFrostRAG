@@ -1,7 +1,4 @@
-import os
-from pathlib import Path
 from neo4j import GraphDatabase
-from typing import List, Dict, Any
 from src.data_processing.cards import CardType, TribeExclusivity
 from src.utils.config import settings
 
@@ -94,14 +91,14 @@ def create_card_tribe_relationships(tx, cards_data):
                 print(f"ERROR: Could not find enum member for value: {exclusivity_value}")
                 continue
 
-    print(f"\n=== TRIBE RELATIONSHIP SUMMARY ===")
+    print("\n=== TRIBE RELATIONSHIP SUMMARY ===")
     print(f"Total cards with tribe data: {total_cards_with_tribes}")
     print(f"Cards by exclusivity: {cards_by_exclusivity}")
     print(f"Total card-tribe relationships to create: {len(card_tribes)}")
 
     # Show sample relationships
     if card_tribes:
-        print(f"Sample relationships:")
+        print("Sample relationships:")
         for i, rel in enumerate(card_tribes[:10]):  # Show first 10
             print(f"  {rel['card_name']} -> {rel['tribe_name']}")
         if len(card_tribes) > 10:

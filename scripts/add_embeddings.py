@@ -192,7 +192,7 @@ async def main():
         logger.info(f"Index: {index_name}")
         logger.info("")
         logger.info("You can now use this embedder in batch retrieval:")
-        logger.info(f"  - type: vector")
+        logger.info("  - type: vector")
         logger.info(f"    embedder: \"{args.embedder}\"")
 
     finally:

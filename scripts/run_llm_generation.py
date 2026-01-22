@@ -22,12 +22,8 @@ Usage:
 
 import asyncio
 import argparse
-import os
-import pandas as pd
 import sys
 from pathlib import Path
-import json
-from datetime import datetime
 
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -46,7 +42,6 @@ from src.utils.experiment_utils import (
 )
 from src.experiment_tracker import ExperimentRegistry
 from src.rag.augmented_generation.call_llm_generation import LLMGenerator
-from src.utils.prompt_utils import format_prompt_tuple
 import importlib
 
 
@@ -202,7 +197,7 @@ async def main():
     # Save results
     save_results(results, experiment_dir / "results.json")
 
-    logger.info(f"Experiment completed successfully!")
+    logger.info("Experiment completed successfully!")
     logger.info(f"Generation ID: gen/{generation_id}")
     logger.info(f"Results saved to {experiment_dir}")
     logger.info("Done!")

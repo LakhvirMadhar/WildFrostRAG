@@ -94,7 +94,7 @@ class BM25Retriever(BaseNeo4jRetriever):
             self.bm25_model = BM25Retriever._shared_cache['bm25_model']
             return
 
-        logger.info(f"Loading all documents from Neo4j for BM25 indexing...")
+        logger.info("Loading all documents from Neo4j for BM25 indexing...")
 
         with self.driver.session(database=self.neo4j_database) as session:
             # Query all documents

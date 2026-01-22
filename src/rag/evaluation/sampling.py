@@ -11,7 +11,6 @@ import json
 import random
 import pandas as pd
 import re
-from typing import List
 from src.data_processing.cards import CardType, CardInfo
 from src.data_processing.generate_schemas import generate_card_type_html_schema
 from src.utils.config import settings

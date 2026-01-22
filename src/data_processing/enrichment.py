@@ -8,7 +8,7 @@ information that must be scraped from aggregate pages.
 
 import requests
 from bs4 import BeautifulSoup, Comment
-from typing import List, Dict, Optional
+from typing import List, Dict
 from src.data_processing.cards import CardInfo, TribeExclusivity
 from src.utils.logger import logger
 

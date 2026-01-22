@@ -178,7 +178,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
                 # Extract label name without Neo4j syntax (remove :` and `)
                 clean_label = node_label.strip(":").strip("`")
                 print(f"  Label: `{clean_label}`")
-                print(f"  Properties:")
+                print("  Properties:")
                 for prop in properties:
                     print(f"    - {prop}")
                 print()  # Empty line between labels

@@ -25,7 +25,6 @@ import argparse
 import asyncio
 import os
 import json
-from pathlib import Path
 from typing import List
 from tqdm import tqdm
 from neo4j import GraphDatabase
@@ -42,11 +41,9 @@ from src.neo4j_kg.vector_store import (
     link_documents_to_cards
 )
 from src.neo4j_kg.neo4j_indexes import (
-    create_vector_index,
     create_fulltext_index,
     wait_for_index_population
 )
-from src.embeddings.generator import EmbeddingGenerator
 from src.utils.config import settings
 from src.utils.logger import logger
 

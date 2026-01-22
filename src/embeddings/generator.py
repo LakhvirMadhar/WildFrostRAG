@@ -42,7 +42,7 @@ class EmbeddingGenerator:
         if self._model is None:
             logger.info(f"Loading embedding model: {self.model_name}")
             self._model = SentenceTransformer(self.model_name)
-            logger.info(f"Model loaded successfully")
+            logger.info("Model loaded successfully")
         return self._model
     
     def generate_embeddings(
@@ -107,7 +107,7 @@ def load_embedding_model(model_name: str = "all-MiniLM-L6-v2") -> SentenceTransf
     """
     logger.info(f"Loading embedding model: {model_name}")
     model = SentenceTransformer(model_name)
-    logger.info(f"Model loaded successfully")
+    logger.info("Model loaded successfully")
     return model
 
 

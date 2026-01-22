@@ -5,7 +5,6 @@ This module handles ingestion of document embeddings into Neo4j and
 vector similarity search operations.
 """
 
-import numpy as np
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from neo4j import GraphDatabase
@@ -173,7 +172,7 @@ def get_retrieved_chunks(
     try:
         with driver.session() as session:
             # Vector similarity search query
-            search_query = f"""
+            search_query = """
             CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
             YIELD node, score
             RETURN node, score

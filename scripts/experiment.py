@@ -30,7 +30,6 @@ Usage:
 """
 
 import argparse
-import asyncio
 import subprocess
 import sys
 from pathlib import Path

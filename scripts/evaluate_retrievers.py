@@ -25,7 +25,6 @@ import os
 import pandas as pd
 import sys
 from pathlib import Path
-import json
 from datetime import datetime
 
 # Add project root to sys.path
@@ -54,7 +53,6 @@ from src.experiment_tracker import ExperimentRegistry
 from src.rag.retrievers.hybrid_retriever import HybridRetriever
 from neo4j import GraphDatabase
 import importlib
-from prompts.text2cypher_prompts import TEXT2CYPHER_PROMPT_V1
 
 
 def get_retriever(retriever_type: str, driver, embedder: str = "hf", **kwargs):
@@ -270,7 +268,7 @@ async def run_retriever(
         }
         save_individual_results(individual_results_list, experiment_dir / "individual_results.json", metadata=metadata)
 
-    logger.info(f"Experiment completed successfully!")
+    logger.info("Experiment completed successfully!")
     logger.info(f"Retrieval ID: {retriever_type}/{experiment_id}")
     logger.info(f"Results saved to {experiment_dir}")
 

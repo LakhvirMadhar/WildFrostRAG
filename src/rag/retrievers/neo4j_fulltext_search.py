@@ -48,7 +48,7 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
             List of dictionaries containing retrieved chunks with their metadata and scores
         """
         # Perform full-text search (index must already exist)
-        search_query = f"""
+        search_query = """
         CALL db.index.fulltext.queryNodes($index_name, $query)
         YIELD node, score
         RETURN node, score

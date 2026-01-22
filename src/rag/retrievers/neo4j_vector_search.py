@@ -71,7 +71,7 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
         query_embedding = model.encode(query).tolist()
 
         # Step 2: Perform vector similarity search
-        search_query = f"""
+        search_query = """
         CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
         YIELD node, score
         RETURN node, score

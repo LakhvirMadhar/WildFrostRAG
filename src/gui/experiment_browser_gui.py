@@ -17,7 +17,7 @@ Usage:
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, Optional
 
 import ipywidgets as widgets
 from IPython.display import display, clear_output
@@ -221,7 +221,7 @@ class ExperimentBrowserGUI:
                 from datetime import datetime
                 dt = datetime.fromisoformat(ts)
                 ts_formatted = dt.strftime('%Y-%m-%d %H:%M')
-            except:
+            except (ValueError, TypeError):
                 ts_formatted = ts[:16]
             rows.append(f'<tr><td><b>Timestamp:</b></td><td>{ts_formatted}</td></tr>')
 
