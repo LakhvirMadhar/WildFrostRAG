@@ -9,23 +9,22 @@ This script runs different retrieval strategies and saves raw results for manual
 4. Results can be manually evaluated later using a GUI
 
 Usage:
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever vector --chunking yes    # Run vector search with chunking
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever vector --chunking no     # Run vector search without chunking
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever fulltext --chunking yes  # Run full-text search
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25 --chunking no       # Run BM25 without chunking
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25_vector --chunking yes    # Run BM25+Vector hybrid search
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever fulltext_vector --chunking yes # Run Fulltext+Vector hybrid search
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25_fulltext_vector --chunking yes # Run BM25+Fulltext+Vector hybrid search
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever text2cypher --chunking no # Run Text2Cypher
+    python -m scripts.evaluate_retrievers --run-num 1 --retriever vector --chunking yes
+    python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25 --chunking no
+    python -m scripts.evaluate_retrievers --run-num 1 --retriever text2cypher --chunking no
 """
 
 import asyncio
 import argparse
+import importlib
 import os
-import pandas as pd
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+from neo4j import GraphDatabase, Driver
 
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -39,6 +38,7 @@ from src.rag.retrievers import (
     BM25FulltextVectorHybridRetriever,
     Text2CypherRetriever
 )
+from src.rag.retrievers.hybrid_retriever import HybridRetriever
 from src.utils.logger import logger
 from src.utils.config import settings
 from src.utils.experiment_utils import (
@@ -50,12 +50,13 @@ from src.utils.experiment_utils import (
     save_individual_results
 )
 from src.experiment_tracker import ExperimentRegistry
-from src.rag.retrievers.hybrid_retriever import HybridRetriever
-from neo4j import GraphDatabase
-import importlib
 
 
-def get_retriever(retriever_type: str, driver, embedder: str = "hf", **kwargs):
+# Retriever types that use vector embeddings
+VECTOR_BASED_RETRIEVERS = ['vector', 'bm25_vector', 'fulltext_vector', 'bm25_fulltext_vector']
+
+
+def get_retriever(retriever_type: str, driver: Driver, embedder: str = "hf", **kwargs) -> Any:
     """
     Factory function to create the appropriate retriever based on type.
 
@@ -68,48 +69,151 @@ def get_retriever(retriever_type: str, driver, embedder: str = "hf", **kwargs):
     Returns:
         An instance of the specified retriever
     """
-    # List of vector-based retrievers that need embedder config
-    vector_based_retrievers = ['vector', 'bm25_vector', 'fulltext_vector', 'bm25_fulltext_vector']
+    index_name = _get_vector_index_name(retriever_type, embedder)
 
-    # Get embedder config for vector-based retrievers
-    index_name = None
-    if retriever_type in vector_based_retrievers:
-        if embedder not in settings.embedding_configs:
-            raise ValueError(f"Unknown embedder: {embedder}. Available: {list(settings.embedding_configs.keys())}")
+    retriever_factory = {
+        'vector': lambda: Neo4jVectorSearch(driver, index_name=index_name),
+        'fulltext': lambda: Neo4jFullTextSearch(driver),
+        'bm25': lambda: BM25Retriever(driver),
+        'bm25_vector': lambda: BM25VectorHybridRetriever(driver, index_name=index_name),
+        'fulltext_vector': lambda: FulltextVectorHybridRetriever(driver, index_name=index_name),
+        'bm25_fulltext_vector': lambda: BM25FulltextVectorHybridRetriever(driver, index_name=index_name),
+        'text2cypher': lambda: Text2CypherRetriever(driver, **kwargs),
+    }
 
-        embedder_config = settings.embedding_configs[embedder]
-        index_name = embedder_config['index_name']
-        logger.info(f"Using embedder '{embedder}' with index '{index_name}'")
-
-    # Create retrievers
-    if retriever_type == 'vector':
-        return Neo4jVectorSearch(driver, index_name=index_name)
-
-    elif retriever_type == 'fulltext':
-        return Neo4jFullTextSearch(driver)
-
-    elif retriever_type == 'bm25':
-        return BM25Retriever(driver)
-
-    elif retriever_type == 'bm25_vector':
-        return BM25VectorHybridRetriever(driver, index_name=index_name)
-
-    elif retriever_type == 'fulltext_vector':
-        return FulltextVectorHybridRetriever(driver, index_name=index_name)
-
-    elif retriever_type == 'bm25_fulltext_vector':
-        return BM25FulltextVectorHybridRetriever(driver, index_name=index_name)
-
-    elif retriever_type == 'text2cypher':
-        return Text2CypherRetriever(driver, **kwargs)
-
-    else:
+    if retriever_type not in retriever_factory:
         raise ValueError(f"Unknown retriever type: {retriever_type}")
+
+    return retriever_factory[retriever_type]()
+
+
+def _get_vector_index_name(retriever_type: str, embedder: str) -> str | None:
+    """Get vector index name for vector-based retrievers."""
+    if retriever_type not in VECTOR_BASED_RETRIEVERS:
+        return None
+
+    if embedder not in settings.embedding_configs:
+        raise ValueError(f"Unknown embedder: {embedder}. Available: {list(settings.embedding_configs.keys())}")
+
+    embedder_config = settings.embedding_configs[embedder]
+    index_name = embedder_config['index_name']
+    logger.info(f"Using embedder '{embedder}' with index '{index_name}'")
+    return index_name
+
+
+def _clean_chunks(chunks: list[dict]) -> list[dict]:
+    """Remove embedding arrays from chunks (they bloat files and aren't needed for evaluation)."""
+    return [
+        {k: v for k, v in chunk.items() if not k.endswith('_embedding') and k != 'embedding'}
+        for chunk in chunks
+    ]
+
+
+def _process_single_query(
+    retriever: Any,
+    retriever_type: str,
+    query: str,
+    query_id: int,
+    k: int
+) -> tuple[dict, dict | None, dict | None]:
+    """
+    Process a single query and return results.
+
+    Returns:
+        Tuple of (result_entry, cypher_query_entry, individual_results_entry)
+    """
+    retrieved_chunks = retriever.search(query, k=k)
+    cleaned_chunks = _clean_chunks(retrieved_chunks)
+
+    result_entry = {
+        'query_id': query_id,
+        'query': query,
+        'retrieved_chunks': cleaned_chunks,
+        'relevance_annotations': []
+    }
+
+    # Capture text2cypher LLM response
+    cypher_entry = None
+    if retriever_type == "text2cypher" and hasattr(retriever, 'llm_response'):
+        cypher_entry = {
+            "query_id": query_id,
+            "query": query,
+            "llm_response": retriever.llm_response,
+            "execution_status": "success" if retrieved_chunks else "failed",
+            "execution_time_ms": None,
+            "error_message": None
+        }
+
+    # Capture hybrid retriever individual results
+    individual_entry = None
+    if isinstance(retriever, HybridRetriever) and hasattr(retriever, 'last_individual_results'):
+        individual_entry = {
+            "query_id": query_id,
+            "query": query,
+            "individual_results": retriever.last_individual_results
+        }
+
+    return result_entry, cypher_entry, individual_entry
+
+
+def _get_embedder_config_kwargs(retriever_type: str, embedder: str) -> dict:
+    """Get embedder configuration for config file (only for vector-based retrievers)."""
+    if retriever_type not in VECTOR_BASED_RETRIEVERS:
+        return {}
+
+    embedder_cfg = settings.embedding_configs[embedder]
+    return {
+        "embedding_provider": embedder,
+        "embedding_model": embedder_cfg['model'],
+        "vector_index_name": embedder_cfg['index_name']
+    }
+
+
+def _save_experiment_artifacts(
+    experiment_dir: Path,
+    config: dict,
+    results: list[dict],
+    cypher_queries: list[dict],
+    individual_results: list[dict],
+    retriever: Any,
+    retriever_type: str,
+    experiment_id: str,
+    run_num: int,
+    kwargs: dict
+) -> None:
+    """Save all experiment artifacts to disk."""
+    # Save config
+    save_config(config, experiment_dir)
+
+    # Register in experiment registry
+    registry = ExperimentRegistry()
+    registry.register_retrieval(run_num, retriever_type, experiment_id, config)
+
+    # Save results
+    save_results(results, experiment_dir / "results.json")
+
+    # Save text2cypher queries if applicable
+    if retriever_type == "text2cypher" and cypher_queries:
+        metadata = {
+            "retrieval_id": f"{retriever_type}/{experiment_id}",
+            "text2cypher_prompt_version": kwargs.get("text2cypher_prompt_version", "V1"),
+            "timestamp": datetime.now().isoformat()
+        }
+        save_cypher_queries(cypher_queries, experiment_dir / "cypher_queries.json", metadata=metadata)
+
+    # Save hybrid individual results if applicable
+    if isinstance(retriever, HybridRetriever) and individual_results:
+        metadata = {
+            "retrieval_id": f"{retriever_type}/{experiment_id}",
+            "retriever_names": retriever.retriever_names,
+            "timestamp": datetime.now().isoformat()
+        }
+        save_individual_results(individual_results, experiment_dir / "individual_results.json", metadata=metadata)
 
 
 async def run_retriever(
     df: pd.DataFrame,
-    retriever,
+    retriever: Any,
     retriever_type: str,
     run_num: int,
     chunking: bool,
@@ -117,7 +221,7 @@ async def run_retriever(
     description: str = "",
     embedder: str = "hf",
     **kwargs
-):
+) -> list[dict]:
     """
     Run a specific retriever on the provided dataset and save raw results.
 
@@ -133,17 +237,13 @@ async def run_retriever(
         **kwargs: Additional metadata (e.g., text2cypher_prompt_version)
 
     Returns:
-        Dictionary containing raw retrieval results
+        List of retrieval results
     """
-    # Determine retriever directory name
-    vector_based_retrievers = ['vector', 'bm25_vector', 'fulltext_vector', 'bm25_fulltext_vector']
+    # Setup experiment directory
     retriever_dir_name = retriever_type
-
-    # Add embedder suffix for vector-based retrievers
-    if retriever_type in vector_based_retrievers:
+    if retriever_type in VECTOR_BASED_RETRIEVERS:
         retriever_dir_name = f"{retriever_type}_{embedder}"
 
-    # Generate experiment ID
     base_path = settings.outputs_dir / f"run_{run_num}" / "retrievals" / retriever_dir_name
     experiment_id = get_next_experiment_id(base_path)
     experiment_dir = base_path / experiment_id
@@ -152,121 +252,51 @@ async def run_retriever(
     logger.info(f"Running {retriever_type} retriever in {experiment_dir}")
     logger.info(f"Experiment ID: {retriever_type}/{experiment_id}")
 
-    # Process each query in the dataset
+    # Process queries
     results = []
-    cypher_queries = []  # For text2cypher
-    individual_results_list = []  # For hybrid retrievers
-
-    # Check if this is a hybrid retriever
-    is_hybrid = isinstance(retriever, HybridRetriever)
+    cypher_queries = []
+    individual_results_list = []
 
     for idx, row in df.iterrows():
         query = row['query']
-
         if pd.isna(query) or query == '':
             continue
 
-        logger.info(f"Processing query {idx+1}/{len(df)}: '{query}'")
+        logger.info(f"Processing query {idx + 1}/{len(df)}: '{query}'")
+        query_id = row.get('query_id', idx)
 
-        # Retrieve chunks using the retriever
-        retrieved_chunks = retriever.search(query, k=k)
+        result, cypher_entry, individual_entry = _process_single_query(
+            retriever, retriever_type, query, query_id, k
+        )
+        results.append(result)
 
-        # For text2cypher: capture LLM responses
-        if retriever_type == "text2cypher" and hasattr(retriever, 'llm_response'):
-            cypher_queries.append({
-                "query_id": row.get('query_id', idx),
-                "query": query,
-                "llm_response": retriever.llm_response,
-                "execution_status": "success" if retrieved_chunks else "failed",
-                "execution_time_ms": None,  # Could add timing if needed
-                "error_message": None
-            })
+        if cypher_entry:
+            cypher_queries.append(cypher_entry)
+        if individual_entry:
+            individual_results_list.append(individual_entry)
 
-        # For hybrid retrievers: capture individual results
-        if is_hybrid and hasattr(retriever, 'last_individual_results'):
-            individual_results_list.append({
-                "query_id": row.get('query_id', idx),
-                "query": query,
-                "individual_results": retriever.last_individual_results
-            })
-
-        # Clean chunks: remove embedding arrays (they bloat the file and aren't needed for evaluation)
-        cleaned_chunks = []
-        for chunk in retrieved_chunks:
-            cleaned_chunk = {
-                k: v for k, v in chunk.items()
-                if not k.endswith('_embedding') and k != 'embedding'
-            }
-            cleaned_chunks.append(cleaned_chunk)
-
-        # Store results with cleaned chunk data
-        result_entry = {
-            'query_id': row.get('query_id', idx),
-            'query': query,
-            'retrieved_chunks': cleaned_chunks,
-            # Initialize relevance annotations as empty - to be filled by manual evaluation
-            'relevance_annotations': []
-        }
-
-        results.append(result_entry)
-
-    # Count successful and failed queries
+    # Build and save config
     total_queries = len([r for _, r in df.iterrows() if not pd.isna(r.get('query', '')) and r.get('query', '') != ''])
-    successful_queries = len(results)
-    failed_queries = total_queries - successful_queries
+    embedder_kwargs = _get_embedder_config_kwargs(retriever_type, embedder)
 
-    # Prepare embedder info for config (only for vector-based retrievers)
-    embedder_config_kwargs = {}
-    if retriever_type in vector_based_retrievers:
-        embedder_cfg = settings.embedding_configs[embedder]
-        embedder_config_kwargs = {
-            "embedding_provider": embedder,
-            "embedding_model": embedder_cfg['model'],
-            "vector_index_name": embedder_cfg['index_name']
-        }
-
-    # Build config with all metadata
     config = create_retrieval_config(
         run_num=run_num,
         retriever_type=retriever_type,
         experiment_id=experiment_id,
         chunking=chunking,
         total_queries=total_queries,
-        successful_queries=successful_queries,
-        failed_queries=failed_queries,
+        successful_queries=len(results),
+        failed_queries=total_queries - len(results),
         description=description,
         k=k,
-        **embedder_config_kwargs,
+        **embedder_kwargs,
         **kwargs
     )
 
-    # Save config
-    save_config(config, experiment_dir)
-
-    # Register in experiment registry
-    registry = ExperimentRegistry()
-    registry.register_retrieval(run_num, retriever_type, experiment_id, config)
-
-    # Save results
-    save_results(results, experiment_dir / "results.json")
-
-    # For text2cypher: Save cypher_queries.json
-    if retriever_type == "text2cypher" and cypher_queries:
-        metadata = {
-            "retrieval_id": f"{retriever_type}/{experiment_id}",
-            "text2cypher_prompt_version": kwargs.get("text2cypher_prompt_version", "V1"),
-            "timestamp": datetime.now().isoformat()
-        }
-        save_cypher_queries(cypher_queries, experiment_dir / "cypher_queries.json", metadata=metadata)
-
-    # For hybrid retrievers: Save individual_results.json
-    if is_hybrid and individual_results_list:
-        metadata = {
-            "retrieval_id": f"{retriever_type}/{experiment_id}",
-            "retriever_names": retriever.retriever_names,
-            "timestamp": datetime.now().isoformat()
-        }
-        save_individual_results(individual_results_list, experiment_dir / "individual_results.json", metadata=metadata)
+    _save_experiment_artifacts(
+        experiment_dir, config, results, cypher_queries, individual_results_list,
+        retriever, retriever_type, experiment_id, run_num, kwargs
+    )
 
     logger.info("Experiment completed successfully!")
     logger.info(f"Retrieval ID: {retriever_type}/{experiment_id}")
@@ -275,92 +305,98 @@ async def run_retriever(
     return results
 
 
-async def main():
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Run different retrievers and save raw results")
     parser.add_argument("--run-num", type=int, required=True, help="Experiment run number")
     parser.add_argument("--retriever", type=str,
-                       choices=["vector", "fulltext", "bm25", "bm25_vector", "fulltext_vector", "bm25_fulltext_vector", "text2cypher"],
-                       required=True, help="Retriever to run")
+                        choices=["vector", "fulltext", "bm25", "bm25_vector", "fulltext_vector",
+                                 "bm25_fulltext_vector", "text2cypher"],
+                        required=True, help="Retriever to run")
     parser.add_argument("--chunking", type=str, choices=["yes", "no"], default="no",
-                       help="Whether chunking was used during ingestion")
+                        help="Whether chunking was used during ingestion")
     parser.add_argument("--description", type=str, default="",
-                       help="Human-readable description of this experiment")
+                        help="Human-readable description of this experiment")
     parser.add_argument("--text2cypher-prompt", type=str, default="TEXT2CYPHER_PROMPT_V1",
-                       help="Text2cypher prompt name (e.g., TEXT2CYPHER_PROMPT_V1, TEXT2CYPHER_PROMPT_V2)")
-    parser.add_argument("--query-ids", type=str, help="Comma-separated query IDs to include (e.g., '1,5,10')")
-    parser.add_argument("--exclude-query-ids", type=str, help="Comma-separated query IDs to exclude (e.g., '2,3,4')")
-    parser.add_argument("--k", type=int, default=10, help="Number of chunks to retrieve per query (default: 10)")
+                        help="Text2cypher prompt name (e.g., TEXT2CYPHER_PROMPT_V1)")
+    parser.add_argument("--query-ids", type=str,
+                        help="Comma-separated query IDs to include (e.g., '1,5,10')")
+    parser.add_argument("--exclude-query-ids", type=str,
+                        help="Comma-separated query IDs to exclude (e.g., '2,3,4')")
+    parser.add_argument("--k", type=int, default=10,
+                        help="Number of chunks to retrieve per query (default: 10)")
     parser.add_argument("--file", type=str,
-                       default="queries/simple_reference_based_queries.csv",
-                       help="Path to input CSV file with queries")
+                        default="queries/simple_reference_based_queries.csv",
+                        help="Path to input CSV file with queries")
     parser.add_argument("--embedder", type=str, default="hf",
-                       help="Embedding provider (e.g., 'hf', 'openai'). Only used for vector-based retrievers.")
+                        help="Embedding provider (e.g., 'hf', 'openai')")
+    return parser.parse_args()
 
-    args = parser.parse_args()
 
-    # Ensure directories exist
-    settings.create_directories()
+def load_and_filter_queries(file_path: str, query_ids: str | None, exclude_ids: str | None) -> pd.DataFrame:
+    """Load queries from CSV and apply filters."""
+    if not os.path.exists(file_path):
+        logger.error(f"File {file_path} not found.")
+        sys.exit(1)
 
-    # Check if file exists
-    if not os.path.exists(args.file):
-        logger.error(f"File {args.file} not found.")
-        exit(1)
-
-    logger.info(f"Loading data from {args.file}...")
-    df = pd.read_csv(args.file)
+    logger.info(f"Loading data from {file_path}...")
+    df = pd.read_csv(file_path)
     logger.info(f"Loaded {len(df)} rows.")
 
-    # Filter by query IDs if specified
-    if args.query_ids:
-        query_ids = [int(qid.strip()) for qid in args.query_ids.split(',')]
-        df = df[df['query_id'].isin(query_ids)]
-        logger.info(f"Filtered to {len(df)} queries with IDs: {query_ids}")
+    if query_ids:
+        ids = [int(qid.strip()) for qid in query_ids.split(',')]
+        df = df[df['query_id'].isin(ids)]
+        logger.info(f"Filtered to {len(df)} queries with IDs: {ids}")
 
-    # Exclude query IDs if specified
-    if args.exclude_query_ids:
-        exclude_ids = [int(qid.strip()) for qid in args.exclude_query_ids.split(',')]
-        df = df[~df['query_id'].isin(exclude_ids)]
-        logger.info(f"Excluded {len(exclude_ids)} queries. Remaining: {len(df)} queries")
+    if exclude_ids:
+        ids = [int(qid.strip()) for qid in exclude_ids.split(',')]
+        df = df[~df['query_id'].isin(ids)]
+        logger.info(f"Excluded {len(ids)} queries. Remaining: {len(df)} queries")
 
     if len(df) == 0:
         logger.error("No queries to process after filtering!")
-        exit(1)
+        sys.exit(1)
 
-    # Convert chunking to boolean
+    return df
+
+
+def load_text2cypher_prompt(prompt_name: str):
+    """Load text2cypher prompt from prompts module."""
+    try:
+        prompts_module = importlib.import_module("prompts.text2cypher_prompts")
+        return getattr(prompts_module, prompt_name)
+    except AttributeError:
+        logger.error(f"Prompt '{prompt_name}' not found in prompts.text2cypher_prompts")
+        sys.exit(1)
+    except ImportError as e:
+        logger.error(f"Failed to import prompts.text2cypher_prompts: {e}")
+        sys.exit(1)
+
+
+async def main():
+    args = parse_args()
+    settings.create_directories()
+
+    df = load_and_filter_queries(args.file, args.query_ids, args.exclude_query_ids)
     chunking = args.chunking == "yes"
 
-    # Create Neo4j driver (created once, passed to retriever)
-    uri = settings.neo4j_uri.get_secret_value()
-    username = settings.neo4j_username
-    password = settings.neo4j_password.get_secret_value()
-    driver = GraphDatabase.driver(uri, auth=(username, password))
+    driver = GraphDatabase.driver(
+        settings.neo4j_uri.get_secret_value(),
+        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
+    )
 
     try:
-        # Prepare kwargs for retriever creation and config
         retriever_kwargs = {}
         config_kwargs = {}
 
         if args.retriever == "text2cypher":
-            # Dynamically load the prompt from prompts.text2cypher_prompts
-            prompt_name = args.text2cypher_prompt
-            try:
-                prompts_module = importlib.import_module("prompts.text2cypher_prompts")
-                text2cypher_prompt = getattr(prompts_module, prompt_name)
-            except AttributeError:
-                logger.error(f"Prompt '{prompt_name}' not found in prompts.text2cypher_prompts")
-                exit(1)
-            except ImportError as e:
-                logger.error(f"Failed to import prompts.text2cypher_prompts: {e}")
-                exit(1)
+            prompt = load_text2cypher_prompt(args.text2cypher_prompt)
+            retriever_kwargs["text2cypher_prompt"] = prompt
+            config_kwargs["text2cypher_prompt_version"] = prompt.prompt_version_name
 
-            retriever_kwargs["text2cypher_prompt"] = text2cypher_prompt
-            config_kwargs["text2cypher_prompt_version"] = text2cypher_prompt.prompt_version_name
-
-        # Get the retriever instance (pass driver and embedder)
         retriever = get_retriever(args.retriever, driver, embedder=args.embedder, **retriever_kwargs)
         logger.info(f"Using {args.retriever} retriever")
 
-        # Run the retriever
         results = await run_retriever(
             df=df,
             retriever=retriever,
@@ -373,13 +409,12 @@ async def main():
             **config_kwargs
         )
 
-        if results is not None:
+        if results:
             logger.info("Retriever run completed successfully! Results saved for manual evaluation.")
         else:
             logger.error("Retriever run failed.")
 
     finally:
-        # Close driver
         driver.close()
         logger.info("Neo4j driver closed")
 

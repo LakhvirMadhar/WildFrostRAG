@@ -6,12 +6,21 @@ in a metadata-driven approach inspired by MLflow and Weights & Biases.
 """
 
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.utils.config import settings
 from src.utils.logger import logger
+
+
+@dataclass
+class QueryStats:
+    """Statistics for queries processed in an experiment."""
+    total: int
+    successful: int
+    failed: int = 0
 
 
 def get_next_experiment_id(base_path: Path) -> str:

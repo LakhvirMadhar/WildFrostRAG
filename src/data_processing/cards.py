@@ -132,63 +132,76 @@ class CardInfo:
             logger.error(f'Failed to save HTML for {self.card_name}: {e}')
 
 
-    # This really is for the card_type, we'd have to do another function for the tribe exclusiviy
+    def _extract_description(self, soup: BeautifulSoup) -> None:
+        """Extract card description from meta tag."""
+        description_tag = soup.find("meta", attrs={'name': 'description'})
+        if description_tag:
+            self.card_description = description_tag.get("content", "")
+
+    def _set_stat_value(self, attr_name: str, value: str) -> None:
+        """Set a stat attribute with appropriate type conversion."""
+        if not hasattr(self, attr_name):
+            return
+
+        if value.strip() == "":
+            setattr(self, attr_name, None)
+        elif value.isdigit():
+            setattr(self, attr_name, int(value))
+        else:
+            setattr(self, attr_name, value)
+
+    def _extract_stats_from_rows(self, rows: list) -> None:
+        """Extract stats from infobox table rows."""
+        if len(rows) < 4:
+            return
+
+        # Stats are in rows 2 (headers) and 3 (values)
+        stats_headers = [th.text.strip() for th in rows[2].find_all('th')]
+        stats_values = [td.text.strip() for td in rows[3].find_all('td')]
+        stats = dict(zip(stats_headers, stats_values))
+
+        for stat_name, value in stats.items():
+            self._set_stat_value(stat_name.lower(), value)
+
+    def _extract_other_stats(self, rows: list) -> None:
+        """Extract 'Other Stats' section from infobox rows."""
+        for i, row in enumerate(rows):
+            th = row.find('th')
+            if not th or th.text.strip() != "Other Stats":
+                continue
+
+            if i + 1 >= len(rows):
+                break
+
+            td = rows[i + 1].find('td')
+            if td:
+                other_stats_text = td.get_text(strip=True)
+                self.other_stats = other_stats_text if other_stats_text else None
+            break
+
     def parse_html(self) -> bool:
         """
-        Parse the HTML and populate the card stats fields
-        
+        Parse the HTML and populate the card stats fields.
+
         Returns:
             bool: True if parsing succeeded, False otherwise
         """
         if not self.card_html:
             logger.warning(f"No HTML content to parse for {self.card_name}")
             return False
-        
+
         try:
             soup = BeautifulSoup(self.card_html, 'html.parser')
-            
-            # Extract description
-            description_tag = soup.find("meta", attrs={'name': 'description'})
-            if description_tag:
-                self.card_description = description_tag.get("content", "")
-            
-            # Extract stats from infobox
+            self._extract_description(soup)
+
             infobox = soup.find('table', {'id': 'infobox'})
             if infobox:
                 rows = infobox.find_all('tr')
-                if len(rows) >= 4:
-                    # Stats are in rows 2 and 3
-                    stats_headers = [th.text.strip() for th in rows[2].find_all('th')]
-                    stats_values = [td.text.strip() for td in rows[3].find_all('td')]
-                    
-                    stats = dict(zip(stats_headers, stats_values))
-                    
-                    # Dynamically populate matching fields
-                    for stat_name, value in stats.items():
-                        attr_name = stat_name.lower()
-                        
-                        if hasattr(self, attr_name):
-                            if value.strip() == "":
-                                setattr(self, attr_name, None)
-                            elif value.isdigit():
-                                setattr(self, attr_name, int(value))
-                            else:
-                                setattr(self, attr_name, value)
-                    
-                    # Look for "Other Stats" section (effects)
-                    for i, row in enumerate(rows):
-                        th = row.find('th')
-                        if th and th.text.strip() == "Other Stats":
-                            if i + 1 < len(rows):
-                                other_stats_row = rows[i + 1]
-                                td = other_stats_row.find('td')
-                                if td:
-                                    other_stats_text = td.get_text(strip=True)
-                                    self.other_stats = other_stats_text if other_stats_text else None
-                            break
-            
+                self._extract_stats_from_rows(rows)
+                self._extract_other_stats(rows)
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to parse HTML for {self.card_name}: {e}")
             return False

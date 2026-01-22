@@ -5,9 +5,11 @@ This module implements retrieval by using an LLM to convert natural language
 queries into Cypher queries based on the Neo4j schema.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 from neo4j import Driver
 from openai import OpenAI
+
 from src.utils.config import settings
 from src.utils.logger import logger
 from src.utils.prompt_utils import format_prompt_tuple, VersionedPrompt
@@ -25,7 +27,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         self,
         driver: Driver,
         text2cypher_prompt: VersionedPrompt,
-        neo4j_database: Optional[str] = None
+        neo4j_database: str | None = None
     ):
         """
         Initialize the Text2Cypher retriever.
@@ -43,7 +45,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         self.prompt_version = text2cypher_prompt.prompt_version_name
         self.prompt_template = text2cypher_prompt.prompt_tuple
 
-    def _get_schema(self, session) -> Dict[str, Any]:
+    def _get_schema(self, session) -> dict[str, Any]:
         """
         Get the schema of the Neo4j database with relationship directions.
 
@@ -53,54 +55,85 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         Returns:
             Dictionary containing the database schema with node properties and relationship patterns
         """
-        # Get all node properties schema
-        node_query = """
-        CALL db.schema.nodeTypeProperties() YIELD nodeType, propertyName, propertyTypes, mandatory
-        RETURN nodeType, collect({propertyName: propertyName, propertyTypes: propertyTypes, mandatory: mandatory}) as properties
-        """
-
-        nodes_result = session.run(node_query)
-        nodes = {}
-        for record in nodes_result:
-            node_type = record["nodeType"]
-            properties = record["properties"]
-            nodes[node_type] = [prop["propertyName"] for prop in properties]
-
-        # Get relationship patterns with directions using schema visualization
-        schema_viz_query = """
-        CALL db.schema.visualization()
-        """
-
-        viz_result = session.run(schema_viz_query)
-        viz_record = viz_result.single()
-
-        # Debug: print what we got
-        print(f"DEBUG viz_record: {viz_record}")
-        print(f"DEBUG viz_record keys: {list(viz_record.keys()) if viz_record else 'None'}")
-
-        relationship_patterns = []
-        if viz_record:
-            # Neo4j Record objects don't support 'in' operator reliably, access directly
-            relationships = viz_record.get("relationships", [])
-            print(f"DEBUG: Found {len(relationships)} relationships")
-            for rel in relationships:
-                # Extract start and end node labels from the relationship
-                start_node, end_node = rel.nodes
-                start_label = list(start_node.labels)[0] if start_node.labels else "Unknown"
-                end_label = list(end_node.labels)[0] if end_node.labels else "Unknown"
-                rel_type = rel.type
-
-                # Format as: (StartLabel)-[:REL_TYPE]->(EndLabel)
-                pattern = f"({start_label})-[:{rel_type}]->({end_label})"
-                print(f"DEBUG: Added pattern: {pattern}")
-                relationship_patterns.append(pattern)
+        nodes = self._get_node_schema(session)
+        relationship_patterns = self._get_relationship_patterns(session)
 
         return {
             "nodes": nodes,
             "relationship_patterns": relationship_patterns
         }
 
-    def _generate_cypher_query(self, natural_query: str, schema: Dict[str, Any]) -> str:
+    def _get_node_schema(self, session) -> dict[str, list[str]]:
+        """Get node labels and their properties from the database."""
+        query = """
+        CALL db.schema.nodeTypeProperties() YIELD nodeType, propertyName, propertyTypes, mandatory
+        RETURN nodeType, collect({propertyName: propertyName, propertyTypes: propertyTypes, mandatory: mandatory}) as properties
+        """
+
+        result = session.run(query)
+        nodes = {}
+        for record in result:
+            node_type = record["nodeType"]
+            properties = record["properties"]
+            nodes[node_type] = [prop["propertyName"] for prop in properties]
+
+        return nodes
+
+    def _get_relationship_patterns(self, session) -> list[str]:
+        """Get relationship patterns with directions from the database."""
+        query = "CALL db.schema.visualization()"
+        viz_result = session.run(query)
+        viz_record = viz_result.single()
+
+        print(f"DEBUG viz_record: {viz_record}")
+        print(f"DEBUG viz_record keys: {list(viz_record.keys()) if viz_record else 'None'}")
+
+        if not viz_record:
+            return []
+
+        relationships = viz_record.get("relationships", [])
+        print(f"DEBUG: Found {len(relationships)} relationships")
+
+        patterns = []
+        for rel in relationships:
+            start_node, end_node = rel.nodes
+            start_label = list(start_node.labels)[0] if start_node.labels else "Unknown"
+            end_label = list(end_node.labels)[0] if end_node.labels else "Unknown"
+            pattern = f"({start_label})-[:{rel.type}]->({end_label})"
+            print(f"DEBUG: Added pattern: {pattern}")
+            patterns.append(pattern)
+
+        return patterns
+
+    def _format_schema_for_prompt(self, schema: dict[str, Any]) -> str:
+        """Format schema into a string for the LLM prompt."""
+        nodes_str = ""
+        for node_label, properties in schema['nodes'].items():
+            clean_label = node_label.strip(":").strip("`")
+            nodes_str += f"\n  Label: `{clean_label}`\n  Properties:\n"
+            for prop in properties:
+                nodes_str += f"    - {prop}\n"
+
+        patterns_str = "\n".join(f"  {pattern}" for pattern in schema['relationship_patterns'])
+
+        return f"""Node labels and their properties:{nodes_str}
+        Relationship patterns (with directions):
+        {patterns_str}"""
+
+    def _clean_cypher_response(self, response: str) -> str:
+        """Remove markdown formatting from LLM response."""
+        if not response.startswith("```"):
+            return response
+
+        lines = response.split('\n')
+        if lines[0].strip().startswith('```'):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith('```'):
+            lines = lines[:-1]
+
+        return '\n'.join(lines).strip()
+
+    def _generate_cypher_query(self, natural_query: str, schema: dict[str, Any]) -> str:
         """
         Generate a Cypher query from a natural language query using an LLM.
 
@@ -111,22 +144,8 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         Returns:
             Generated Cypher query string
         """
-        # Format schema information with clean formatting
-        nodes_str = ""
-        for node_label, properties in schema['nodes'].items():
-            # Extract label name without Neo4j syntax (remove :` and `)
-            clean_label = node_label.strip(":").strip("`")
-            nodes_str += f"\n  Label: `{clean_label}`\n  Properties:\n"
-            for prop in properties:
-                nodes_str += f"    - {prop}\n"
+        schema_str = self._format_schema_for_prompt(schema)
 
-        patterns_str = "\n".join(f"  {pattern}" for pattern in schema['relationship_patterns'])
-
-        schema_str = f"""Node labels and their properties:{nodes_str}
-        Relationship patterns (with directions):
-        {patterns_str}"""
-
-        # Use versioned prompt template with utility function
         prompt = format_prompt_tuple(
             self.prompt_template,
             schema=schema_str,
@@ -136,27 +155,86 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.0  # Deterministic output
+            temperature=0.0
         )
 
         cypher_query = response.choices[0].message.content.strip()
+        cypher_query = self._clean_cypher_response(cypher_query)
 
-        # Clean up the response if it contains markdown formatting
-        if cypher_query.startswith("```cypher") or cypher_query.startswith("```"):
-            # Remove the first and last lines if they contain markdown
-            lines = cypher_query.split('\n')
-            if lines[0].strip().startswith('```'):
-                lines = lines[1:]
-            if lines[-1].strip().startswith('```'):
-                lines = lines[:-1]
-            cypher_query = '\n'.join(lines).strip()
-
-        # Store LLM response for experiment tracking
         self.llm_response = cypher_query
-
         return cypher_query
 
-    def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
+    def _print_schema_debug(self, schema: dict[str, Any]) -> None:
+        """Print schema for debugging purposes."""
+        print("\n=== SCHEMA SEEN BY LLM ===")
+        print("\nNode Labels and Properties:")
+
+        for node_label, properties in schema['nodes'].items():
+            clean_label = node_label.strip(":").strip("`")
+            print(f"  Label: `{clean_label}`")
+            print("  Properties:")
+            for prop in properties:
+                print(f"    - {prop}")
+            print()
+
+        print("Relationship Patterns:")
+        for pattern in schema['relationship_patterns']:
+            print(f"  {pattern}")
+        print("\n===========================\n")
+
+    def _add_limit_clause(self, cypher_query: str, k: int) -> str:
+        """Add LIMIT clause to query if not present."""
+        if "LIMIT" in cypher_query.upper():
+            return cypher_query
+        if "RETURN" in cypher_query.upper():
+            return f"{cypher_query} LIMIT {k}"
+        return cypher_query
+
+    def _record_to_dict(self, record, cypher_query: str, index: int) -> dict[str, Any]:
+        """Convert a Neo4j record to a result dictionary."""
+        result_dict = {
+            "score": 1.0,
+            "generated_cypher": cypher_query,
+            "result_index": index
+        }
+
+        for key, value in record.items():
+            if not isinstance(value, dict):
+                result_dict[key] = value
+                continue
+
+            # Extract properties from nested dicts (nodes/relationships)
+            if hasattr(value, 'items'):
+                for prop_key, prop_value in value.items():
+                    result_dict[f"{key}_{prop_key}"] = prop_value
+            else:
+                result_dict[key] = str(value)
+
+        return result_dict
+
+    def _execute_cypher_query(
+        self, session, cypher_query: str, k: int
+    ) -> list[dict[str, Any]]:
+        """Execute Cypher query and return results."""
+        try:
+            result = session.run(cypher_query)
+            results = []
+
+            for i, record in enumerate(result):
+                if i >= k:
+                    break
+                results.append(self._record_to_dict(record, cypher_query, i))
+
+            return self._add_metadata(results, 'text2cypher_llm')
+
+        except Exception as e:
+            error_results = [{
+                "error": f"Generated Cypher query failed: {str(e)}",
+                "generated_cypher": cypher_query
+            }]
+            return self._add_metadata(error_results, 'text2cypher_llm_error')
+
+    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
         """
         Retrieve results by generating and executing a Cypher query from the natural language query.
 
@@ -168,74 +246,11 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             List of dictionaries containing retrieved chunks with their metadata and scores
         """
         with self.driver.session(database=self.neo4j_database) as session:
-            # Get the current database schema
             schema = self._get_schema(session)
+            self._print_schema_debug(schema)
 
-            # Print schema for debugging (not logged, just printed)
-            print("\n=== SCHEMA SEEN BY LLM ===")
-            print("\nNode Labels and Properties:")
-            for node_label, properties in schema['nodes'].items():
-                # Extract label name without Neo4j syntax (remove :` and `)
-                clean_label = node_label.strip(":").strip("`")
-                print(f"  Label: `{clean_label}`")
-                print("  Properties:")
-                for prop in properties:
-                    print(f"    - {prop}")
-                print()  # Empty line between labels
-
-            print("Relationship Patterns:")
-            for pattern in schema['relationship_patterns']:
-                print(f"  {pattern}")
-            print("\n===========================\n")
-
-            # Generate a Cypher query from the natural language query
             cypher_query = self._generate_cypher_query(query, schema)
             logger.info(f"Generated Cypher query:\n{cypher_query}")
 
-            # Execute the generated Cypher query
-            # We need to modify the query to limit results and return appropriate data
-            # If the query doesn't already have a LIMIT clause, add one
-            if "LIMIT" not in cypher_query.upper():
-                # Try to find where we might add a LIMIT clause
-                # This is a simple approach - in practice, you'd want more sophisticated query parsing
-                if "RETURN" in cypher_query.upper():
-                    cypher_query += f" LIMIT {k}"
-
-            try:
-                result = session.run(cypher_query)
-
-                results = []
-                for i, record in enumerate(result):
-                    if i >= k:
-                        break
-
-                    # Convert the result record to a dictionary
-                    result_dict = {
-                        "score": 1.0,  # Generated queries don't have a natural score
-                        "generated_cypher": cypher_query,
-                        "result_index": i
-                    }
-
-                    # Add all properties from the result record
-                    for key, value in record.items():
-                        if isinstance(value, dict):
-                            # If the value is a node or relationship, extract its properties
-                            if hasattr(value, 'items'):
-                                for prop_key, prop_value in value.items():
-                                    result_dict[f"{key}_{prop_key}"] = prop_value
-                            else:
-                                result_dict[key] = dict(value) if hasattr(value, 'items') else str(value)
-                        else:
-                            result_dict[key] = value
-
-                    results.append(result_dict)
-
-                return self._add_metadata(results, 'text2cypher_llm')
-
-            except Exception as e:
-                # If the generated query fails, return an error result
-                error_results = [{
-                    "error": f"Generated Cypher query failed: {str(e)}",
-                    "generated_cypher": cypher_query
-                }]
-                return self._add_metadata(error_results, 'text2cypher_llm_error')
+            cypher_query = self._add_limit_clause(cypher_query, k)
+            return self._execute_cypher_query(session, cypher_query, k)

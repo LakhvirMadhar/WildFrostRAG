@@ -12,15 +12,18 @@ Usage:
 
 import argparse
 import asyncio
+from dataclasses import dataclass
 from pathlib import Path
 import sys
 import time
+from typing import Any
+
 from tqdm import tqdm
 
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from neo4j import GraphDatabase
+from neo4j import GraphDatabase, Driver
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 import ollama
@@ -29,7 +32,18 @@ from src.utils.logger import logger
 from src.neo4j_kg.vector_store import create_embedding_index
 
 
-async def main():
+@dataclass
+class EmbedderConfig:
+    """Configuration for an embedding provider."""
+    name: str
+    property_name: str
+    index_name: str
+    model_name: str
+    dimension: int
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Add embedding properties to existing Document nodes"
     )
@@ -39,27 +53,145 @@ async def main():
         required=True,
         help="Embedder name (e.g., 'hf', 'openai'). Must be defined in config.py"
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    # Get embedder config
-    if args.embedder not in settings.embedding_configs:
-        logger.error(f"Unknown embedder: {args.embedder}")
+
+def get_embedder_config(embedder_name: str) -> EmbedderConfig:
+    """Validate embedder name and return its configuration."""
+    if embedder_name not in settings.embedding_configs:
+        logger.error(f"Unknown embedder: {embedder_name}")
         logger.error(f"Available embedders: {list(settings.embedding_configs.keys())}")
-        exit(1)
+        sys.exit(1)
 
-    embedder_config = settings.embedding_configs[args.embedder]
-    property_name = embedder_config["property_name"]
-    index_name = embedder_config["index_name"]
-    model_name = embedder_config["model"]
-    dimension = embedder_config["dimension"]
+    config = settings.embedding_configs[embedder_name]
+    return EmbedderConfig(
+        name=embedder_name,
+        property_name=config["property_name"],
+        index_name=config["index_name"],
+        model_name=config["model"],
+        dimension=config["dimension"]
+    )
 
-    logger.info(f"Adding embeddings for provider: {args.embedder}")
-    logger.info(f"Model: {model_name}")
-    logger.info(f"Property name: {property_name}")
-    logger.info(f"Index name: {index_name}")
-    logger.info(f"Dimension: {dimension}")
 
-    # Connect to Neo4j
+def check_existing_embeddings(driver: Driver, property_name: str) -> int:
+    """Check if embeddings already exist for the given property."""
+    with driver.session() as session:
+        query = f"""
+        MATCH (d:Document)
+        WHERE d.{property_name} IS NOT NULL
+        RETURN count(d) as count
+        """
+        result = session.run(query)
+        record = result.single()
+        return record["count"] if record else 0
+
+
+def get_documents(driver: Driver) -> list[tuple[str, str]]:
+    """Fetch all Document nodes from Neo4j."""
+    with driver.session() as session:
+        query = """
+        MATCH (d:Document)
+        RETURN d.text as text, elementId(d) as element_id
+        ORDER BY element_id
+        """
+        results = session.run(query)
+        return [(record["text"], record["element_id"]) for record in results]
+
+
+def load_embedding_model(embedder_name: str, model_name: str) -> Any:
+    """Load the appropriate embedding model based on provider."""
+    logger.info(f"Loading embedding model: {model_name}...")
+
+    if embedder_name == "hf":
+        model = SentenceTransformer(model_name)
+        logger.info("HuggingFace model loaded")
+        return model
+
+    if embedder_name == "openai":
+        if not settings.openai_api_key:
+            logger.error("OpenAI API key not found in settings")
+            sys.exit(1)
+        client = OpenAI(api_key=settings.openai_api_key.get_secret_value())
+        logger.info("OpenAI client initialized")
+        return client
+
+    if embedder_name == "gemma":
+        logger.info("Using Ollama for Gemma embeddings")
+        return None  # Ollama is accessed via API
+
+    logger.error(f"Unsupported embedder type: {embedder_name}")
+    sys.exit(1)
+
+
+async def generate_batch_embeddings(
+    embedder_name: str,
+    model: Any,
+    model_name: str,
+    texts: list[str],
+    async_client: ollama.AsyncClient | None = None
+) -> list[list[float]]:
+    """Generate embeddings for a batch of texts."""
+    if embedder_name == "hf":
+        embeddings = model.encode(texts, show_progress_bar=False)
+        return [emb.tolist() for emb in embeddings]
+
+    if embedder_name == "openai":
+        response = model.embeddings.create(input=texts, model=model_name)
+        return [data.embedding for data in response.data]
+
+    if embedder_name == "gemma":
+        response = await async_client.embed(model=model_name, input=texts)
+        return response['embeddings']
+
+    raise ValueError(f"Unknown embedder: {embedder_name}")
+
+
+def update_documents(
+    driver: Driver,
+    element_ids: list[str],
+    embeddings: list[list[float]],
+    property_name: str
+) -> int:
+    """Update Document nodes with embeddings."""
+    updated = 0
+    with driver.session() as session:
+        for element_id, embedding in zip(element_ids, embeddings):
+            query = f"""
+            MATCH (d:Document)
+            WHERE elementId(d) = $element_id
+            SET d.{property_name} = $embedding
+            """
+            session.run(query, element_id=element_id, embedding=embedding)
+            updated += 1
+    return updated
+
+
+def log_summary(config: EmbedderConfig, total_updated: int) -> None:
+    """Log completion summary."""
+    logger.info("")
+    logger.info("=" * 60)
+    logger.info("Embedding addition complete!")
+    logger.info("=" * 60)
+    logger.info(f"Provider: {config.name}")
+    logger.info(f"Documents updated: {total_updated}")
+    logger.info(f"Property: {config.property_name}")
+    logger.info(f"Index: {config.index_name}")
+    logger.info("")
+    logger.info("You can now use this embedder in batch retrieval:")
+    logger.info("  - type: vector")
+    logger.info(f"    embedder: \"{config.name}\"")
+
+
+async def main():
+    args = parse_args()
+    config = get_embedder_config(args.embedder)
+
+    logger.info(f"Adding embeddings for provider: {config.name}")
+    logger.info(f"Model: {config.model_name}")
+    logger.info(f"Property name: {config.property_name}")
+    logger.info(f"Index name: {config.index_name}")
+    logger.info(f"Dimension: {config.dimension}")
+
     driver = GraphDatabase.driver(
         settings.neo4j_uri.get_secret_value(),
         auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
@@ -69,131 +201,62 @@ async def main():
         driver.verify_connectivity()
         logger.info("Connected to Neo4j successfully")
 
-        with driver.session() as session:
-            # Check if property already exists
-            check_query = f"""
-            MATCH (d:Document)
-            WHERE d.{property_name} IS NOT NULL
-            RETURN count(d) as count
-            """
+        # Check for existing embeddings
+        existing_count = check_existing_embeddings(driver, config.property_name)
+        if existing_count > 0:
+            logger.info(f"Property '{config.property_name}' already exists on {existing_count} documents")
+            logger.info("Skipping embedding generation (already exists)")
+            return
 
-            result = session.run(check_query)
-            record = result.single()
-            existing_count = record["count"] if record else 0
+        # Get documents
+        documents = get_documents(driver)
+        if not documents:
+            logger.error("No Document nodes found in Neo4j")
+            sys.exit(1)
+        logger.info(f"Found {len(documents)} documents to process")
 
-            if existing_count > 0:
-                logger.info(f"Property '{property_name}' already exists on {existing_count} documents")
-                logger.info("Skipping embedding generation (already exists)")
-                driver.close()
-                return
+        # Load model
+        model = load_embedding_model(config.name, config.model_name)
+        async_client = ollama.AsyncClient() if config.name == "gemma" else None
 
-            # Get all Document nodes
-            get_docs_query = """
-            MATCH (d:Document)
-            RETURN d.text as text, elementId(d) as element_id
-            ORDER BY element_id
-            """
-
-            results = session.run(get_docs_query)
-            documents = [(record["text"], record["element_id"]) for record in results]
-
-            if not documents:
-                logger.error("No Document nodes found in Neo4j")
-                exit(1)
-
-            logger.info(f"Found {len(documents)} documents to process")
-
-        # Load embedding model
-        logger.info(f"Loading embedding model: {model_name}...")
-        if args.embedder == "hf":
-            # HuggingFace sentence transformers
-            embedding_model = SentenceTransformer(model_name)
-            logger.info("HuggingFace model loaded")
-        elif args.embedder == "openai":
-            # OpenAI embeddings
-            if not settings.openai_api_key:
-                logger.error("OpenAI API key not found in settings")
-                exit(1)
-            embedding_model = OpenAI(api_key=settings.openai_api_key.get_secret_value())
-            logger.info("OpenAI client initialized")
-        elif args.embedder == "gemma":
-            # Ollama embeddings (no model loading needed)
-            embedding_model = None  # Ollama is accessed via API
-            logger.info("Using Ollama for Gemma embeddings")
-        else:
-            logger.error(f"Unsupported embedder type: {args.embedder}")
-            exit(1)
-
-        # Create async client for Gemma if needed
-        async_client = None
-        if args.embedder == "gemma":
-            async_client = ollama.AsyncClient()
-
-        # Generate embeddings and update nodes
+        # Process in batches
         logger.info("Generating embeddings and updating nodes...")
         batch_size = 50
         total_updated = 0
 
-        # Progress bar for all documents
         with tqdm(total=len(documents), desc="Embedding documents", unit="doc") as pbar:
             for i in range(0, len(documents), batch_size):
                 batch = documents[i:i + batch_size]
                 batch_texts = [doc[0] for doc in batch]
                 batch_ids = [doc[1] for doc in batch]
 
-                # Generate embeddings
                 batch_start = time.time()
-                if args.embedder == "hf":
-                    embeddings = embedding_model.encode(batch_texts, show_progress_bar=False)
-                    embeddings_list = [emb.tolist() for emb in embeddings]
-                elif args.embedder == "openai":
-                    response = embedding_model.embeddings.create(
-                        input=batch_texts,
-                        model=model_name
-                    )
-                    embeddings_list = [data.embedding for data in response.data]
-                elif args.embedder == "gemma":
-                    response = await async_client.embed(model=model_name, input=batch_texts)
-                    embeddings_list = response['embeddings']
-
+                embeddings = await generate_batch_embeddings(
+                    config.name, model, config.model_name, batch_texts, async_client
+                )
                 batch_time = time.time() - batch_start
-                logger.info(f"Batch {i//batch_size + 1}: {len(batch_texts)} docs in {batch_time:.2f}s ({len(batch_texts)/batch_time:.1f} docs/sec)")
 
-                # Update nodes
-                with driver.session() as session:
-                    for element_id, embedding in zip(batch_ids, embeddings_list):
-                        update_query = f"""
-                        MATCH (d:Document)
-                        WHERE elementId(d) = $element_id
-                        SET d.{property_name} = $embedding
-                        """
-                        session.run(update_query, element_id=element_id, embedding=embedding)
-                        total_updated += 1
-                        pbar.update(1)
+                logger.info(
+                    f"Batch {i // batch_size + 1}: {len(batch_texts)} docs in "
+                    f"{batch_time:.2f}s ({len(batch_texts) / batch_time:.1f} docs/sec)"
+                )
 
-        logger.info(f"✓ Successfully added {property_name} to {total_updated} documents")
+                updated = update_documents(driver, batch_ids, embeddings, config.property_name)
+                total_updated += updated
+                pbar.update(len(batch))
+
+        logger.info(f"Successfully added {config.property_name} to {total_updated} documents")
 
         # Create vector index
-        logger.info(f"Creating vector index: {index_name}...")
+        logger.info(f"Creating vector index: {config.index_name}...")
         create_embedding_index(
-            property_name=property_name,
-            index_name=index_name,
-            dimension=dimension
+            property_name=config.property_name,
+            index_name=config.index_name,
+            dimension=config.dimension
         )
-        logger.info(f"✓ Vector index '{index_name}' created")
+        logger.info(f"Vector index '{config.index_name}' created")
 
-        logger.info("")
-        logger.info("="*60)
-        logger.info("Embedding addition complete!")
-        logger.info("="*60)
-        logger.info(f"Provider: {args.embedder}")
-        logger.info(f"Documents updated: {total_updated}")
-        logger.info(f"Property: {property_name}")
-        logger.info(f"Index: {index_name}")
-        logger.info("")
-        logger.info("You can now use this embedder in batch retrieval:")
-        logger.info("  - type: vector")
-        logger.info(f"    embedder: \"{args.embedder}\"")
+        log_summary(config, total_updated)
 
     finally:
         driver.close()
