@@ -192,16 +192,20 @@ async def run_retriever(
                 "individual_results": retriever.last_individual_results
             })
 
-        # Store results with all available node properties
+        # Clean chunks: remove embedding arrays (they bloat the file and aren't needed for evaluation)
+        cleaned_chunks = []
+        for chunk in retrieved_chunks:
+            cleaned_chunk = {
+                k: v for k, v in chunk.items()
+                if not k.endswith('_embedding') and k != 'embedding'
+            }
+            cleaned_chunks.append(cleaned_chunk)
+
+        # Store results with cleaned chunk data
         result_entry = {
             'query_id': row.get('query_id', idx),
             'query': query,
-            'retrieved_chunks': [
-                {
-                    key: value for key, value in chunk.items()
-                    if key != 'text' or len(str(value)) <= 500  # Limit text length in results
-                } for chunk in retrieved_chunks
-            ],
+            'retrieved_chunks': cleaned_chunks,
             # Initialize relevance annotations as empty - to be filled by manual evaluation
             'relevance_annotations': []
         }

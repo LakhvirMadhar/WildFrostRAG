@@ -74,9 +74,8 @@ def process_html_files(filepaths: List[str], split_text: bool = True) -> List[Do
                 # Split the cleaned document based on the headers and add to the list.
                 text_chunks = html_splitter.split_text(cleaned_html)
             else:
-                # Create a single document for the whole file, but extract text first
-                # using get_text with a separator to preserve some structure
-                full_text = soup.get_text(separator='\n\n', strip=True)
+                # Create a single document for the whole file, extract text with space separator
+                full_text = soup.get_text(separator=' ', strip=True)
                 text_chunks = [Document(page_content=full_text)]
             
             # Add source filepath to metadata for each chunk

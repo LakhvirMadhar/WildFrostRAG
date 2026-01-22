@@ -197,10 +197,18 @@ def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = Tr
     all_document_chunks = process_html_files(all_html_filepaths, split_text=split_text)
     logger.info(f"Created {len(all_document_chunks)} document objects")
 
+    # Build filename -> URL lookup from card_infos
+    url_lookup = {
+        f"{card.sanitized_name()}.html": card.card_url
+        for card in card_infos
+    }
+    logger.info(f"Built URL lookup with {len(url_lookup)} entries")
+
     # Ingest into Neo4j (no embeddings)
     logger.info("Ingesting documents into Neo4j...")
     ingest_documents_into_neo4j(
-        document_chunks=all_document_chunks
+        document_chunks=all_document_chunks,
+        url_lookup=url_lookup
     )
 
     # Create full-text search index

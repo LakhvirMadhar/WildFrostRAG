@@ -6,7 +6,8 @@ vector similarity search operations.
 """
 
 import numpy as np
-from typing import List, Dict, Any
+from pathlib import Path
+from typing import List, Dict, Any, Optional
 from neo4j import GraphDatabase
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
@@ -16,6 +17,7 @@ from src.utils.logger import logger
 
 def ingest_documents_into_neo4j(
     document_chunks: List[Document],
+    url_lookup: Optional[Dict[str, str]] = None,
     chunk_label: str = "Document",
     text_property: str = "text"
 ) -> None:
@@ -28,12 +30,16 @@ def ingest_documents_into_neo4j(
 
     Args:
         document_chunks: List of LangChain Document objects
+        url_lookup: Optional dict mapping filename to wiki URL
         chunk_label: Node label to use in Neo4j (default: "Document")
         text_property: Property name for text content (default: "text")
     """
     logger.info(
         f"Ingesting {len(document_chunks)} document chunks into Neo4j database"
     )
+
+    if url_lookup is None:
+        url_lookup = {}
 
     driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
 
@@ -42,24 +48,30 @@ def ingest_documents_into_neo4j(
         logger.info("Connection to Neo4j successful")
 
         with driver.session() as session:
-            # Cypher query - just text and metadata, no embeddings
+            # Cypher query - text, metadata, and source URL
             cypher_query = f"""
             UNWIND $data AS item
             MERGE (d:{chunk_label} {{
                 {text_property}: item.text
             }})
             ON CREATE SET
-                d.source_file = item.source_file
+                d.source_file = item.source_file,
+                d.source_url = item.source_url
             """
 
             # Prepare data without embeddings
-            data_to_ingest = [
-                {
+            data_to_ingest = []
+            for chunk in document_chunks:
+                source_file = chunk.metadata.get('source', 'unknown')
+                # Extract filename to look up URL
+                filename = Path(source_file).name if source_file else ''
+                source_url = url_lookup.get(filename, '')
+
+                data_to_ingest.append({
                     "text": chunk.page_content,
-                    "source_file": chunk.metadata.get('source', 'unknown')
-                }
-                for chunk in document_chunks
-            ]
+                    "source_file": source_file,
+                    "source_url": source_url
+                })
 
             session.run(cypher_query, parameters={"data": data_to_ingest})
             logger.info("Data ingestion complete")
