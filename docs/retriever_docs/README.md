@@ -4,24 +4,25 @@ This directory contains detailed documentation for each retrieval method used in
 
 ## Available Retriever Guides
 
-### Completed
+- **[Vector Search](vector_search.md)** - Semantic similarity using embeddings
 - **[Full-Text Search](fulltext_search.md)** - Neo4j Lucene-based keyword retrieval
-
-### Coming Soon
-- **Vector Search** - Semantic similarity using embeddings
-- **BM25** - Probabilistic keyword ranking
-- **Hybrid Retrieval** - Combining multiple methods with RRF
-- **Text2Cypher** - Structured query generation (WIP)
-- **Graph RAG** - Community-based graph traversal (WIP)
+- **[BM25 Search](bm25_search.md)** - Probabilistic keyword ranking (deprecated)
+- **[Hybrid Retrieval](hybrid_retrieval.md)** - Combining multiple methods with RRF
+- **[Graph-Aware Retrievers](graph_aware_retrievers.md)** - VectorThenCypher + Text2CypherVectorHybrid
 
 ## Quick Comparison
 
-| Retriever | Type | Best For | Speed | Semantic Understanding |
-|-----------|------|----------|-------|----------------------|
-| **Vector** | Semantic | Concepts, synonyms | Fast | ✓✓✓ |
-| **Full-Text** | Lexical | Exact terms, names | Very Fast | ✗ |
-| **BM25** | Lexical | Keyword ranking | Slower | ✗ |
-| **Hybrid** | Combined | Best of both worlds | Fast | ✓✓ |
+| Retriever | Type | Best For | Speed | Graph Enrichment |
+|-----------|------|----------|-------|------------------|
+| **Vector** | Semantic | Concepts, synonyms | Fast | No |
+| **Full-Text** | Lexical | Exact terms, names | Very Fast | No |
+| **BM25** | Lexical | Keyword ranking | Slower* | No |
+| **Hybrid (RRF)** | Combined | Best of both worlds | Fast | No |
+| **Text2Cypher** | LLM-generated | Structured queries | Medium | Yes |
+| **VectorThenCypher** | Graph-aware | Enriched card context | Fast | Yes |
+| **Text2CypherVectorHybrid** | Graph-aware | Precise + fallback | Medium | Yes |
+
+*BM25 loads all documents into memory - deprecated for large datasets
 
 ## Testing Retrievers
 
@@ -29,13 +30,16 @@ Use the test script to try different retrievers:
 
 ```bash
 # Test full-text search
-poetry run python -m scripts.test_neo4j_retrieval --retriever fulltext "Frost Guardian"
+python -m scripts.test_neo4j_retrieval --retriever fulltext "Frost Guardian"
 
 # Test vector search
-poetry run python -m scripts.test_neo4j_retrieval --retriever vector "healing cards"
+python -m scripts.test_neo4j_retrieval --retriever vector "healing cards"
 
 # Test hybrid
-poetry run python -m scripts.test_neo4j_retrieval --retriever fulltext_vector "attack damage"
+python -m scripts.test_neo4j_retrieval --retriever fulltext_vector "attack damage"
+
+# Test graph-aware (vector + graph traversal)
+python -m scripts.test_neo4j_retrieval --retriever vector_then_cypher "What tribe is Snoffel in?"
 ```
 
 ## Evaluation
@@ -43,7 +47,13 @@ poetry run python -m scripts.test_neo4j_retrieval --retriever fulltext_vector "a
 Run full evaluation on all queries:
 
 ```bash
-poetry run python -m scripts.evaluate_retrievers --run-num 1 --retriever fulltext --chunking no
+# Basic retrievers
+python -m scripts.evaluate_retrievers --run-num 1 --retriever fulltext --chunking no
+python -m scripts.evaluate_retrievers --run-num 1 --retriever vector --chunking no
+
+# Graph-aware retrievers
+python -m scripts.evaluate_retrievers --run-num 1 --retriever vector_then_cypher --chunking no
+python -m scripts.evaluate_retrievers --run-num 1 --retriever text2cypher_vector --text2cypher-prompt TEXT2CYPHER_PROMPT_V1 --chunking no
 ```
 
 ## Contributing

@@ -32,25 +32,26 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
     """
 
     # Predefined traversal patterns for Wildfrost knowledge graph
+    # Variable names become property prefixes (e.g., card_card_name, tribe_name)
     TRAVERSAL_PATTERNS = {
         "full_card_context": """
-            MATCH (d)<-[:HAS_DOCUMENT]-(c:Card)
-            OPTIONAL MATCH (c)-[:BELONGS_TO_TRIBE]->(t:Tribe)
-            OPTIONAL MATCH (c)-[:HAS_CARD_TYPE]->(ct:CardType)
-            RETURN d, c, t, ct, score
+            MATCH (doc)<-[:HAS_DOCUMENT]-(card:Card)
+            OPTIONAL MATCH (card)-[:BELONGS_TO_TRIBE]->(tribe:Tribe)
+            OPTIONAL MATCH (card)-[:HAS_CARD_TYPE]->(cardtype:CardType)
+            RETURN doc, card, tribe, cardtype, score
             ORDER BY score DESC
         """,
         "card_only": """
-            MATCH (d)<-[:HAS_DOCUMENT]-(c:Card)
-            RETURN d, c, score
+            MATCH (doc)<-[:HAS_DOCUMENT]-(card:Card)
+            RETURN doc, card, score
             ORDER BY score DESC
         """,
         "with_stats": """
-            MATCH (d)<-[:HAS_DOCUMENT]-(c:Card)
-            OPTIONAL MATCH (c)-[:BELONGS_TO_TRIBE]->(t:Tribe)
-            OPTIONAL MATCH (c)-[:HAS_CARD_TYPE]->(ct:CardType)
-            OPTIONAL MATCH (c)-[hs:HAS_STAT]->(s:Stat)
-            RETURN d, c, t, ct, collect({stat_name: s.name, value: hs.value}) as stats, score
+            MATCH (doc)<-[:HAS_DOCUMENT]-(card:Card)
+            OPTIONAL MATCH (card)-[:BELONGS_TO_TRIBE]->(tribe:Tribe)
+            OPTIONAL MATCH (card)-[:HAS_CARD_TYPE]->(cardtype:CardType)
+            OPTIONAL MATCH (card)-[has_stat:HAS_STAT]->(stat:Stat)
+            RETURN doc, card, tribe, cardtype, collect({stat_name: stat.name, value: has_stat.value}) as stats, score
             ORDER BY score DESC
         """,
     }
@@ -109,7 +110,7 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         # Step 2: Build combined vector search + traversal query
         combined_query = f"""
         CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
-        YIELD node as d, score
+        YIELD node as doc, score
         {self.traversal_pattern}
         """
 
@@ -120,7 +121,7 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         }
 
         # Step 3: Execute using base class _execute_query (handles any Cypher result)
-        # Base class _record_to_dict() will prefix node properties: d_text, c_card_name, t_name, etc.
-        # Base class _format_result_as_text() will format all properties dynamically
+        # Base class _record_to_dict() prefixes properties: doc_text, card_card_name, tribe_name, etc.
+        # Base class _format_result_as_text() formats all properties dynamically
         results = self._execute_query(combined_query, params)
         return self._add_metadata(results, f'vector_then_cypher_{self.pattern_name}')
