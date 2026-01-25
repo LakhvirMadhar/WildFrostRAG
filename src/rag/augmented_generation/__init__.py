@@ -1,9 +1,21 @@
 """
 __init__.py for augmented_generation package.
 
-This module exports the main classes from the generation pipeline.
+This module exports the OpenAI client functions for generation.
 """
 
-from .call_llm_generation import LLMGenerator, GenerationPipeline
+from .openai_client import (
+    call_openai_api,
+    call_openai_api_structured,
+    call_openai_embeddings,
+    generate_zero_shot,
+    generate_rag,
+)
 
-__all__ = ['LLMGenerator', 'GenerationPipeline']
+__all__ = [
+    'call_openai_api',
+    'call_openai_api_structured',
+    'call_openai_embeddings',
+    'generate_zero_shot',
+    'generate_rag',
+]

@@ -88,6 +88,16 @@ class Settings(BaseSettings):
     default_k: int = 5  # Default number of chunks to retrieve
     default_batch_size: int = 25  # Default batch size for processing
 
+    # ===== LLM Client Configuration =====
+    llm_semaphore_limit: int = 50  # Max concurrent LLM calls
+
+    # Per-use-case settings (for experiment tracking)
+    text2cypher_temperature: float = 0.0   # Deterministic for Cypher generation
+    text2cypher_model: str = "gpt-4.1-nano"
+
+    taxonomy_temperature: float = 0.3      # Slightly creative for categorization
+    taxonomy_model: str = "gpt-4o-mini"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

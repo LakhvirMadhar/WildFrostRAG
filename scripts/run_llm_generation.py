@@ -3,13 +3,16 @@
 LLM Generation Pipeline for WildFrostRAG.
 
 This script orchestrates the LLM generation process:
-1. Loads query data from CSV
-2. Processes queries in batch mode
-3. Generates responses using OpenAI API
-4. Supports both zero-shot and RAG modes with various retrieval strategies
-5. Saves results to structured output directories with run numbers
+1. Loads query data from CSV or retrieval results
+2. Generates responses using OpenAI API
+3. Supports both zero-shot (baseline) and RAG modes
+4. Saves results to structured output directories with run numbers
 
 Usage:
+    # Zero-shot mode (baseline - no retrieval)
+    python -m scripts.run_llm_generation --run-num 1 --zero-shot --system-prompt SYSTEM_PROMPT_V1
+
+    # RAG mode (with retrieval)
     python -m scripts.run_llm_generation --run-num 1 --retrieval-reference bm25/001 \
         --system-prompt SYSTEM_PROMPT_V1 --rag-prompt RAG_PROMPT_V1
 """
@@ -26,6 +29,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.utils.logger import logger
 from src.utils.config import settings
+from src.rag.augmented_generation.openai_client import generate_zero_shot, generate_rag
 from src.utils.experiment_utils import (
     get_next_experiment_id,
     create_generation_config,
@@ -37,7 +41,6 @@ from src.utils.experiment_utils import (
     list_available_retrievals
 )
 from src.experiment_tracker import ExperimentRegistry
-from src.rag.augmented_generation.call_llm_generation import LLMGenerator
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,21 +48,34 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run LLM Generation Pipeline")
     parser.add_argument("--run-num", type=int, default=1,
                         help="Experiment run number (default: 1)")
-    parser.add_argument("--retrieval-reference", type=str, required=True,
-                        help="Retrieval experiment to use (e.g., 'bm25/001', 'vector/002')")
     parser.add_argument("--system-prompt", type=str, required=True,
                         help="System prompt name (e.g., SYSTEM_PROMPT_V1)")
-    parser.add_argument("--rag-prompt", type=str, required=True,
-                        help="RAG prompt name for user message formatting (e.g., RAG_PROMPT_V1)")
     parser.add_argument("--description", type=str, default="",
                         help="Human-readable description of this experiment")
-    parser.add_argument("--batch-size", type=int, default=10,
-                        help="Batch size for processing")
     parser.add_argument("--query-ids", type=str,
                         help="Comma-separated query IDs to include (e.g., '1,5,10')")
     parser.add_argument("--exclude-query-ids", type=str,
                         help="Comma-separated query IDs to exclude")
+
+    # Mode selection (mutually exclusive)
+    mode_group = parser.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument("--zero-shot", action="store_true",
+                            help="Run zero-shot generation (no retrieval)")
+    mode_group.add_argument("--retrieval-reference", type=str,
+                            help="Retrieval experiment to use for RAG (e.g., 'bm25/001')")
+
+    # RAG-specific arguments
+    parser.add_argument("--rag-prompt", type=str,
+                        help="RAG prompt name (required for RAG mode, e.g., RAG_PROMPT_V1)")
+
     return parser.parse_args()
+
+
+def validate_args(args: argparse.Namespace) -> None:
+    """Validate argument combinations."""
+    if args.retrieval_reference and not args.rag_prompt:
+        logger.error("--rag-prompt is required when using --retrieval-reference")
+        sys.exit(1)
 
 
 def load_retrieval_data(run_num: int, retrieval_reference: str) -> tuple[dict, list[dict]]:
@@ -85,6 +101,29 @@ def load_retrieval_data(run_num: int, retrieval_reference: str) -> tuple[dict, l
     return config, results
 
 
+def load_queries_for_zero_shot() -> list[dict]:
+    """Load queries from the base query CSV for zero-shot mode."""
+    import pandas as pd
+
+    queries_path = settings.project_root / "queries" / "simple_reference_based_queries.csv"
+    if not queries_path.exists():
+        logger.error(f"Queries file not found: {queries_path}")
+        sys.exit(1)
+
+    df = pd.read_csv(queries_path)
+    logger.info(f"Loaded {len(df)} queries from {queries_path}")
+
+    results = []
+    for _, row in df.iterrows():
+        results.append({
+            'query_id': row.get('query_id', row.name),
+            'query': row['query'],
+            'retrieved_chunks': []
+        })
+
+    return results
+
+
 def filter_results_by_query_ids(
     results: list[dict],
     include_ids: str | None,
@@ -108,15 +147,13 @@ def filter_results_by_query_ids(
     return results
 
 
-def load_prompts(system_prompt_name: str, rag_prompt_name: str) -> tuple[Any, Any]:
-    """Load system and RAG prompts from prompts module."""
+def load_prompt(prompt_name: str, module_name: str = "prompts.system_prompts") -> Any:
+    """Load a prompt from the prompts module."""
     try:
-        prompts_module = importlib.import_module("prompts.system_prompts")
-        system_prompt = getattr(prompts_module, system_prompt_name)
-        rag_prompt = getattr(prompts_module, rag_prompt_name)
-        return system_prompt, rag_prompt
+        prompts_module = importlib.import_module(module_name)
+        return getattr(prompts_module, prompt_name)
     except (ImportError, AttributeError) as e:
-        logger.error(f"Failed to load prompts: {e}")
+        logger.error(f"Failed to load prompt '{prompt_name}' from {module_name}: {e}")
         sys.exit(1)
 
 
@@ -126,38 +163,11 @@ def extract_context_from_chunks(chunks: list[dict]) -> str:
     return "\n\n".join(context_texts)
 
 
-async def generate_response_for_query(
-    llm_generator: LLMGenerator,
-    query: str,
-    chunks: list[dict],
-    rag_prompt: Any
-) -> tuple[str, bool]:
-    """
-    Generate LLM response for a single query.
-
-    Returns:
-        Tuple of (response, success)
-    """
-    if not chunks:
-        return "ERROR: No retrieved chunks available", False
-
-    context = extract_context_from_chunks(chunks)
-    try:
-        response = await llm_generator.generate_rag_response(
-            query=query,
-            context=context,
-            rag_prompt=rag_prompt
-        )
-        return response, True
-    except Exception as e:
-        logger.error(f"Failed to generate response for query {query}: {e}")
-        return f"ERROR: {str(e)}", False
-
-
 async def run_generation(
-    retrieval_results: list[dict],
-    llm_generator: LLMGenerator,
-    rag_prompt: Any
+    query_results: list[dict],
+    system_prompt: Any,
+    rag_prompt: Any | None,
+    is_zero_shot: bool
 ) -> tuple[list[dict], int, int]:
     """
     Run generation for all queries.
@@ -169,22 +179,32 @@ async def run_generation(
     successful = 0
     failed = 0
 
-    for retrieval_result in retrieval_results:
-        query = retrieval_result['query']
-        chunks = retrieval_result['retrieved_chunks']
+    mode_name = "zero-shot" if is_zero_shot else "RAG"
+    logger.info(f"Running {mode_name} generation for {len(query_results)} queries...")
 
-        logger.info(f"Generating response for query: {query}")
-        response, success = await generate_response_for_query(
-            llm_generator, query, chunks, rag_prompt
-        )
+    for query_result in query_results:
+        query = query_result['query']
+        chunks = query_result.get('retrieved_chunks', [])
 
-        if success:
+        logger.info(f"Generating response for query: {query[:50]}...")
+
+        try:
+            if is_zero_shot:
+                response = await generate_zero_shot(query, system_prompt)
+            else:
+                context = extract_context_from_chunks(chunks)
+                if not context:
+                    response = "ERROR: No retrieved chunks available"
+                    raise ValueError("No context available")
+                response = await generate_rag(query, context, system_prompt, rag_prompt)
             successful += 1
-        else:
+        except Exception as e:
+            logger.error(f"Failed to generate response: {e}")
+            response = f"ERROR: {str(e)}"
             failed += 1
 
         results.append({
-            'query_id': retrieval_result['query_id'],
+            'query_id': query_result['query_id'],
             'query': query,
             'response': response,
             'retrieved_chunks': chunks
@@ -197,28 +217,30 @@ def save_experiment(
     experiment_dir: Path,
     run_num: int,
     generation_id: str,
-    retrieval_reference: str,
+    retrieval_reference: str | None,
     system_prompt: Any,
-    rag_prompt: Any,
+    rag_prompt: Any | None,
     results: list[dict],
     successful: int,
     failed: int,
     description: str,
-    batch_size: int
+    is_zero_shot: bool
 ) -> None:
     """Save experiment config and results."""
     config = create_generation_config(
         run_num=run_num,
         generation_id=f"gen/{generation_id}",
-        retrieval_reference=retrieval_reference,
+        retrieval_reference=retrieval_reference or "zero-shot",
         system_prompt_version=system_prompt.prompt_version_name,
-        rag_prompt_version=rag_prompt.prompt_version_name,
+        rag_prompt_version=rag_prompt.prompt_version_name if rag_prompt else None,
         total_queries=len(results),
         successful_queries=successful,
         failed_queries=failed,
         description=description,
-        batch_size=batch_size
+        batch_size=1
     )
+
+    config['is_zero_shot'] = is_zero_shot
 
     save_config(config, experiment_dir)
 
@@ -234,18 +256,27 @@ def save_experiment(
 
 async def main():
     args = parse_args()
+    validate_args(args)
     settings.create_directories()
 
-    # Load retrieval data
-    _, retrieval_results = load_retrieval_data(args.run_num, args.retrieval_reference)
+    is_zero_shot = args.zero_shot
+
+    # Load query data
+    if is_zero_shot:
+        query_results = load_queries_for_zero_shot()
+        logger.info("Running in ZERO-SHOT mode (no retrieval)")
+    else:
+        _, query_results = load_retrieval_data(args.run_num, args.retrieval_reference)
+        logger.info("Running in RAG mode")
 
     # Filter queries
-    retrieval_results = filter_results_by_query_ids(
-        retrieval_results, args.query_ids, args.exclude_query_ids
+    query_results = filter_results_by_query_ids(
+        query_results, args.query_ids, args.exclude_query_ids
     )
 
     # Load prompts
-    system_prompt, rag_prompt = load_prompts(args.system_prompt, args.rag_prompt)
+    system_prompt = load_prompt(args.system_prompt)
+    rag_prompt = load_prompt(args.rag_prompt) if args.rag_prompt else None
 
     # Setup experiment directory
     base_path = settings.outputs_dir / f"run_{args.run_num}" / "generation"
@@ -256,21 +287,22 @@ async def main():
     logger.info(f"Generation experiment directory: {experiment_dir}")
     logger.info(f"Generation ID: gen/{generation_id}")
     logger.info(f"Using system prompt: {system_prompt.prompt_version_name}")
-    logger.info(f"Using RAG prompt: {rag_prompt.prompt_version_name}")
+    if rag_prompt:
+        logger.info(f"Using RAG prompt: {rag_prompt.prompt_version_name}")
 
     # Run generation
-    llm_generator = LLMGenerator(system_prompt=system_prompt)
     results, successful, failed = await run_generation(
-        retrieval_results, llm_generator, rag_prompt
+        query_results, system_prompt, rag_prompt, is_zero_shot
     )
 
     # Save experiment
     save_experiment(
-        experiment_dir, args.run_num, generation_id, args.retrieval_reference,
-        system_prompt, rag_prompt, results, successful, failed,
-        args.description, args.batch_size
+        experiment_dir, args.run_num, generation_id,
+        args.retrieval_reference, system_prompt, rag_prompt,
+        results, successful, failed, args.description, is_zero_shot
     )
 
+    logger.info(f"Completed: {successful} successful, {failed} failed")
     logger.info("Done!")
 
 

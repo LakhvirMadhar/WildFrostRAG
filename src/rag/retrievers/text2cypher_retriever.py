@@ -8,11 +8,11 @@ queries into Cypher queries based on the Neo4j schema.
 from typing import Any
 
 from neo4j import Driver
-from openai import OpenAI
 
 from src.utils.config import settings
 from src.utils.logger import logger
 from src.utils.prompt_utils import format_prompt_tuple, VersionedPrompt
+from src.rag.augmented_generation.openai_client import call_openai_api
 from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
@@ -38,8 +38,6 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             neo4j_database: Optional database name (default: None uses default database)
         """
         super().__init__(driver, neo4j_database)
-        self.client = OpenAI(api_key=settings.openai_api_key.get_secret_value())
-        self.model = settings.openai_model_name
         self.llm_response = None  # Track LLM response for experiment tracking
 
         self.prompt_version = text2cypher_prompt.prompt_version_name
@@ -133,7 +131,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
 
         return '\n'.join(lines).strip()
 
-    def _generate_cypher_query(self, natural_query: str, schema: dict[str, Any]) -> str:
+    async def _generate_cypher_query(self, natural_query: str, schema: dict[str, Any]) -> str:
         """
         Generate a Cypher query from a natural language query using an LLM.
 
@@ -152,13 +150,13 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             query=natural_query
         )
 
-        response = self.client.chat.completions.create(
-            model=self.model,
+        response = await call_openai_api(
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.0
+            model=settings.text2cypher_model,
+            temperature=settings.text2cypher_temperature,
         )
 
-        cypher_query = response.choices[0].message.content.strip()
+        cypher_query = response.strip()
         cypher_query = self._clean_cypher_response(cypher_query)
 
         self.llm_response = cypher_query
@@ -234,7 +232,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             }]
             return self._add_metadata(error_results, 'text2cypher_llm_error')
 
-    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+    async def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
         """
         Retrieve results by generating and executing a Cypher query from the natural language query.
 
@@ -249,7 +247,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             schema = self._get_schema(session)
             self._print_schema_debug(schema)
 
-            cypher_query = self._generate_cypher_query(query, schema)
+            cypher_query = await self._generate_cypher_query(query, schema)
             logger.info(f"Generated Cypher query:\n{cypher_query}")
 
             cypher_query = self._add_limit_clause(cypher_query, k)

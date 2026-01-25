@@ -8,11 +8,7 @@ from src.utils.prompt_utils import VersionedPrompt
 SYSTEM_PROMPT_V1 = VersionedPrompt(
     prompt_version_name="SYSTEM_PROMPT_V1",
     prompt_tuple=(
-"""You are a helpful assistant that answers questions about the game Wildfrost based on the provided context.
-
-Answer the question using only the information from the retrieved context. If the context doesn't contain enough information to answer the question, say so.
-
-Be concise and accurate.""",
+"""You are a helpful assistant that answers questions about the rougelike deckbuilder video game Wildfrost.""",
     )
 )
 

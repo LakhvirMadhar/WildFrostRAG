@@ -109,7 +109,7 @@ def _clean_chunks(chunks: list[dict]) -> list[dict]:
     ]
 
 
-def _process_single_query(
+async def _process_single_query(
     retriever: Any,
     retriever_type: str,
     query: str,
@@ -122,7 +122,12 @@ def _process_single_query(
     Returns:
         Tuple of (result_entry, cypher_query_entry, individual_results_entry)
     """
-    retrieved_chunks = retriever.search(query, k=k)
+    # Handle both sync and async retrievers
+    result = retriever.search(query, k=k)
+    if asyncio.iscoroutine(result):
+        retrieved_chunks = await result
+    else:
+        retrieved_chunks = result
     cleaned_chunks = _clean_chunks(retrieved_chunks)
 
     result_entry = {
@@ -265,7 +270,7 @@ async def run_retriever(
         logger.info(f"Processing query {idx + 1}/{len(df)}: '{query}'")
         query_id = row.get('query_id', idx)
 
-        result, cypher_entry, individual_entry = _process_single_query(
+        result, cypher_entry, individual_entry = await _process_single_query(
             retriever, retriever_type, query, query_id, k
         )
         results.append(result)
