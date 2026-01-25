@@ -5,6 +5,7 @@ This module implements lexical retrieval using the rank_bm25 library for true BM
 It retrieves documents from Neo4j, processes them with BM25, and returns ranked results.
 """
 
+import warnings
 from typing import List, Dict, Any, Optional
 import nltk
 from nltk.corpus import stopwords
@@ -39,6 +40,13 @@ class BM25Retriever(BaseNeo4jRetriever):
             neo4j_database: Optional database name (default: None uses default database)
         """
         super().__init__(driver, neo4j_database)
+        warnings.warn(
+            "BM25Retriever loads all documents into memory. "
+            "For production use with large datasets, prefer Neo4jFullTextSearch "
+            "which uses Lucene's on-disk BM25-style scoring.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.index_name = settings.bm25_index_name
         self.bm25_model = None
         self.documents = []

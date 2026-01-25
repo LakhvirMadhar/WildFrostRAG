@@ -37,9 +37,59 @@ class BaseNeo4jRetriever:
         parsed_uri = urlparse(uri)
         self.port = parsed_uri.port or 7687  # Default Neo4j port
 
+    def _record_to_dict(self, record) -> Dict[str, Any]:
+        """
+        Convert any Neo4j record to a flat dictionary.
+
+        Handles any Cypher query result structure:
+        - Single nodes: RETURN node, score
+        - Multiple nodes: RETURN d, c, t, score
+        - Scalars: RETURN count(*), name
+        - Mixed: Any combination
+
+        For backward compatibility:
+        - Variable named 'node' has properties extracted WITHOUT prefix (text, source_file)
+        - Other node variables are prefixed (d_text, c_card_name) to avoid collisions
+
+        Args:
+            record: Neo4j record from query result
+
+        Returns:
+            Flattened dictionary with all properties
+        """
+        result = {}
+
+        for key, value in record.items():
+            if value is None:
+                continue
+
+            # Handle Neo4j Node/Relationship objects - extract their properties
+            if hasattr(value, 'items') and callable(value.items):
+                for prop_key, prop_value in value.items():
+                    if prop_key == "embedding" or prop_key.endswith("_embedding"):
+                        continue  # Skip embedding vectors
+
+                    # Backward compat: 'node' variable doesn't get prefixed
+                    # Other variables (d, c, t, etc.) get prefixed to avoid collisions
+                    if key == "node":
+                        result[prop_key] = prop_value
+                    else:
+                        result[f"{key}_{prop_key}"] = prop_value
+            elif isinstance(value, list):
+                # Keep lists as-is (e.g., collected stats, aggregations)
+                result[key] = value
+            else:
+                # Scalar values (score, strings, ints, etc.)
+                result[key] = value
+
+        return result
+
     def _execute_query(self, query: str, params: dict) -> List[Dict[str, Any]]:
         """
         Execute a Neo4j query and return results using the shared driver.
+
+        Handles ANY Cypher query structure - single nodes, multiple nodes,
+        scalars, or mixed results.
 
         Args:
             query: Cypher query to execute
@@ -50,23 +100,7 @@ class BaseNeo4jRetriever:
         """
         with self.driver.session(database=self.neo4j_database) as session:
             results = session.run(query, params)
-
-            retrieved_chunks = []
-            for record in results:
-                node = record["node"]
-                # Start with score
-                chunk_dict = {
-                    "score": record["score"],
-                }
-                # Flatten all node properties into the dict
-                # This includes 'text', 'source_file', etc.
-                for key, value in node.items():
-                    if key != "embedding":  # Exclude the large vector
-                        chunk_dict[key] = value
-
-                retrieved_chunks.append(chunk_dict)
-
-        return retrieved_chunks
+            return [self._record_to_dict(record) for record in results]
 
     def _format_result_as_text(self, result: Dict[str, Any]) -> str:
         """

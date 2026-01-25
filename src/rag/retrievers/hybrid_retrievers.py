@@ -1,8 +1,14 @@
 """
-Hybrid retriever for WildFrostRAG using Reciprocal Rank Fusion (RRF).
+Hybrid retrievers for WildFrostRAG using Reciprocal Rank Fusion (RRF).
 
 This module implements hybrid retrieval by combining multiple retrieval methods
 using Reciprocal Rank Fusion to produce a single ranked result list.
+
+Available hybrid retrievers:
+- BM25VectorHybridRetriever: BM25 + Vector
+- FulltextVectorHybridRetriever: Fulltext + Vector
+- BM25FulltextVectorHybridRetriever: BM25 + Fulltext + Vector
+- Text2CypherVectorHybridRetriever: Text2Cypher + Vector (async, with fallback)
 """
 
 from typing import List, Dict, Any, Optional
@@ -10,7 +16,10 @@ from neo4j import Driver
 from src.rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
 from src.rag.retrievers.bm25_retriever import BM25Retriever
 from src.rag.retrievers.neo4j_fulltext_search import Neo4jFullTextSearch
+from src.rag.retrievers.text2cypher_retriever import Text2CypherRetriever
 from src.utils.config import settings
+from src.utils.logger import logger
+from src.utils.prompt_utils import VersionedPrompt
 
 
 class HybridRetriever:
@@ -212,3 +221,109 @@ class BM25FulltextVectorHybridRetriever(HybridRetriever):
             weights=[1.0, 1.0, 1.0],  # Equal weights for all methods
             k1=settings.rrf_k1
         )
+
+
+class Text2CypherVectorHybridRetriever(HybridRetriever):
+    """
+    Hybrid retriever combining Text2Cypher with Vector search.
+
+    Key features:
+    - Text2Cypher provides precise structured queries when it works
+    - Vector search provides semantic fallback
+    - Falls back to vector-only if Text2Cypher fails
+    - Uses RRF fusion when both succeed
+    """
+
+    def __init__(
+        self,
+        driver: Driver,
+        text2cypher_prompt: VersionedPrompt,
+        neo4j_database: Optional[str] = None,
+        index_name: Optional[str] = None,
+    ):
+        """
+        Initialize the Text2Cypher + Vector hybrid retriever.
+
+        Args:
+            driver: Neo4j driver instance
+            text2cypher_prompt: VersionedPrompt for Text2Cypher LLM
+            neo4j_database: Optional database name
+            index_name: Vector index name (default: from settings)
+        """
+        # Create component retrievers
+        self.text2cypher = Text2CypherRetriever(driver, text2cypher_prompt, neo4j_database)
+        self.vector = Neo4jVectorSearch(driver, neo4j_database, index_name=index_name or settings.vector_index_name)
+
+        # Store for config tracking
+        self.text2cypher_prompt_version = text2cypher_prompt.prompt_version_name
+
+        # Initialize parent HybridRetriever with equal weights
+        super().__init__(
+            retrievers=[self.text2cypher, self.vector],
+            retriever_names=['text2cypher', 'vector'],
+            weights=[1.0, 1.0],
+            k1=settings.rrf_k1
+        )
+
+    async def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
+        """
+        Search using Text2Cypher + Vector with RRF fusion.
+
+        Override parent to handle async Text2Cypher and provide fallback.
+
+        Args:
+            query: Natural language query
+            k: Number of results to return
+
+        Returns:
+            List of fused results (or vector-only if Text2Cypher fails)
+        """
+        all_results = []
+        individual_results = {}
+
+        # Try Text2Cypher (async) with error handling
+        text2cypher_results = []
+        text2cypher_success = False
+        try:
+            text2cypher_results = await self.text2cypher.search(query, k=k*2)
+            # Check if Text2Cypher returned an error result
+            if not self._has_error(text2cypher_results):
+                text2cypher_success = True
+                for result in text2cypher_results:
+                    result['source_retriever'] = 'text2cypher'
+                all_results.append((text2cypher_results, self.weights[0]))
+                individual_results['text2cypher'] = text2cypher_results
+            else:
+                logger.warning("Text2Cypher returned error, falling back to vector-only")
+                individual_results['text2cypher'] = text2cypher_results  # Keep error for tracking
+        except Exception as e:
+            logger.warning(f"Text2Cypher failed with exception, falling back to vector-only: {e}")
+            individual_results['text2cypher'] = [{"error": str(e)}]
+
+        # Vector search (sync) - always run
+        vector_results = self.vector.search(query, k=k*2)
+        for result in vector_results:
+            result['source_retriever'] = 'vector'
+        all_results.append((vector_results, self.weights[1]))
+        individual_results['vector'] = vector_results
+
+        # Apply RRF if we have multiple result sets, otherwise just return vector
+        if len(all_results) > 1:
+            fused_results = self._apply_rrf(all_results, k)
+        else:
+            # Vector-only fallback
+            fused_results = vector_results[:k]
+            for result in fused_results:
+                result['search_type'] = 'text2cypher_vector_fallback'
+
+        # Store individual results for experiment tracking
+        self.last_individual_results = individual_results
+        self.text2cypher_success = text2cypher_success
+
+        return fused_results
+
+    def _has_error(self, results: List[Dict]) -> bool:
+        """Check if Text2Cypher returned an error result."""
+        if not results:
+            return True
+        return any('error' in r for r in results)

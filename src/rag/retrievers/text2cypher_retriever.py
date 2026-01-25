@@ -188,22 +188,20 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             return f"{cypher_query} LIMIT {k}"
         return cypher_query
 
-    def _record_to_dict(self, record, cypher_query: str, index: int) -> dict[str, Any]:
-        """Convert a Neo4j record to a result dictionary."""
-        result_dict = {
-            "score": 1.0,
-            "generated_cypher": cypher_query,
-            "result_index": index
-        }
+    def _record_to_dict_with_cypher(self, record, cypher_query: str, index: int) -> dict[str, Any]:
+        """
+        Convert a Neo4j record to a result dictionary with Text2Cypher-specific fields.
 
-        for key, value in record.items():
-            # Handle Neo4j Node/Relationship objects and dicts - extract their properties
-            if hasattr(value, 'items') and callable(value.items):
-                for prop_key, prop_value in value.items():
-                    result_dict[prop_key] = prop_value
-            else:
-                # Scalar values (strings, ints, etc.)
-                result_dict[key] = value
+        Uses base class _record_to_dict() for generic record handling,
+        then adds Text2Cypher-specific metadata.
+        """
+        # Use base class for generic record → dict conversion
+        result_dict = super()._record_to_dict(record)
+
+        # Add Text2Cypher-specific fields
+        result_dict["score"] = result_dict.get("score", 1.0)  # Default score if not in query
+        result_dict["generated_cypher"] = cypher_query
+        result_dict["result_index"] = index
 
         return result_dict
 
@@ -218,7 +216,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             for i, record in enumerate(result):
                 if i >= k:
                     break
-                results.append(self._record_to_dict(record, cypher_query, i))
+                results.append(self._record_to_dict_with_cypher(record, cypher_query, i))
 
             return self._add_metadata(results, 'text2cypher_llm')
 

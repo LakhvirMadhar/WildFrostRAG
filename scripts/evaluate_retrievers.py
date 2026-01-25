@@ -36,9 +36,11 @@ from src.rag.retrievers import (
     BM25VectorHybridRetriever,
     FulltextVectorHybridRetriever,
     BM25FulltextVectorHybridRetriever,
-    Text2CypherRetriever
+    Text2CypherRetriever,
+    Text2CypherVectorHybridRetriever,
+    VectorThenCypherRetriever,
 )
-from src.rag.retrievers.hybrid_retriever import HybridRetriever
+from src.rag.retrievers.hybrid_retrievers import HybridRetriever
 from src.utils.logger import logger
 from src.utils.config import settings
 from src.utils.experiment_utils import (
@@ -53,7 +55,7 @@ from src.experiment_tracker import ExperimentRegistry
 
 
 # Retriever types that use vector embeddings
-VECTOR_BASED_RETRIEVERS = ['vector', 'bm25_vector', 'fulltext_vector', 'bm25_fulltext_vector']
+VECTOR_BASED_RETRIEVERS = ['vector', 'bm25_vector', 'fulltext_vector', 'bm25_fulltext_vector', 'vector_then_cypher', 'text2cypher_vector']
 
 
 def get_retriever(retriever_type: str, driver: Driver, embedder: str = "hf", **kwargs) -> Any:
@@ -79,6 +81,8 @@ def get_retriever(retriever_type: str, driver: Driver, embedder: str = "hf", **k
         'fulltext_vector': lambda: FulltextVectorHybridRetriever(driver, index_name=index_name),
         'bm25_fulltext_vector': lambda: BM25FulltextVectorHybridRetriever(driver, index_name=index_name),
         'text2cypher': lambda: Text2CypherRetriever(driver, **kwargs),
+        'text2cypher_vector': lambda: Text2CypherVectorHybridRetriever(driver, index_name=index_name, **kwargs),
+        'vector_then_cypher': lambda: VectorThenCypherRetriever(driver, index_name=index_name, **kwargs),
     }
 
     if retriever_type not in retriever_factory:
@@ -316,7 +320,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-num", type=int, required=True, help="Experiment run number")
     parser.add_argument("--retriever", type=str,
                         choices=["vector", "fulltext", "bm25", "bm25_vector", "fulltext_vector",
-                                 "bm25_fulltext_vector", "text2cypher"],
+                                 "bm25_fulltext_vector", "text2cypher", "text2cypher_vector", "vector_then_cypher"],
                         required=True, help="Retriever to run")
     parser.add_argument("--chunking", type=str, choices=["yes", "no"], default="no",
                         help="Whether chunking was used during ingestion")
@@ -394,7 +398,7 @@ async def main():
         retriever_kwargs = {}
         config_kwargs = {}
 
-        if args.retriever == "text2cypher":
+        if args.retriever in ("text2cypher", "text2cypher_vector"):
             prompt = load_text2cypher_prompt(args.text2cypher_prompt)
             retriever_kwargs["text2cypher_prompt"] = prompt
             config_kwargs["text2cypher_prompt_version"] = prompt.prompt_version_name
