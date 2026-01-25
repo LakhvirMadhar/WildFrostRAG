@@ -158,8 +158,8 @@ def load_prompt(prompt_name: str, module_name: str = "prompts.system_prompts") -
 
 
 def extract_context_from_chunks(chunks: list[dict]) -> str:
-    """Extract text content from retrieved chunks."""
-    context_texts = [chunk['text'] for chunk in chunks if 'text' in chunk]
+    """Extract RAG context from retrieved chunks."""
+    context_texts = [chunk['rag_context'] for chunk in chunks if 'rag_context' in chunk]
     return "\n\n".join(context_texts)
 
 

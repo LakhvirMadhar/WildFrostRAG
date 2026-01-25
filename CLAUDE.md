@@ -405,11 +405,15 @@ Evaluation compares:
 
 The evaluation follows rigorous methodology with manual query annotation and failure mode taxonomy to understand not just which method performs better, but why it succeeds or fails.
 
-### Secondary Goal
-Learn software engineering principles while conducting research. This is an educational project with the goal of becoming an AI engineer, which means:
+### Secondary Goal (Equally Important)
+This is BOTH a research project AND a production-ready software engineering project. Every design decision must be:
+- **Scalable**: No hardcoded values that break when schema changes
+- **Configurable**: Use constructor parameters or settings, not magic strings in code
+- **Production-ready**: Code should be deployable, not just "research code"
 - Following proper SWE practices (dependency injection, configuration management, type safety)
-- Building production-ready systems, not just research code
 - Understanding the full stack: backend, API, frontend
+
+**Important**: When implementing features, always ask "what if the schema changes?" or "what if this needs to scale?" - avoid shortcuts that create tech debt.
 
 ### Future Roadmap (Tentative)
 1. **Current**: Complete Graph RAG evaluation and ablation study (showcase AI eval expertise)

@@ -197,16 +197,13 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         }
 
         for key, value in record.items():
-            if not isinstance(value, dict):
-                result_dict[key] = value
-                continue
-
-            # Extract properties from nested dicts (nodes/relationships)
-            if hasattr(value, 'items'):
+            # Handle Neo4j Node/Relationship objects and dicts - extract their properties
+            if hasattr(value, 'items') and callable(value.items):
                 for prop_key, prop_value in value.items():
-                    result_dict[f"{key}_{prop_key}"] = prop_value
+                    result_dict[prop_key] = prop_value
             else:
-                result_dict[key] = str(value)
+                # Scalar values (strings, ints, etc.)
+                result_dict[key] = value
 
         return result_dict
 

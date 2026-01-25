@@ -16,6 +16,10 @@ class BaseNeo4jRetriever:
     Follows dependency injection pattern - driver is passed in, not created here.
     """
 
+    # Subclasses can override to specify which result field to use as rag_context
+    # If None, _format_result_as_text() is used as fallback
+    rag_context_field: Optional[str] = None
+
     def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
         """
         Initialize the base Neo4j retriever.
@@ -64,17 +68,49 @@ class BaseNeo4jRetriever:
 
         return retrieved_chunks
 
+    def _format_result_as_text(self, result: Dict[str, Any]) -> str:
+        """
+        Format a result dictionary as human-readable text for RAG context.
+
+        Excludes metadata fields and formats the remaining fields as readable text.
+        Override in subclasses for custom formatting.
+        """
+        exclude_fields = {"score", "search_type", "generated_cypher", "result_index", "rag_context"}
+        lines = []
+
+        for key, value in result.items():
+            if key in exclude_fields:
+                continue
+            if value is None or value == "":
+                continue
+            if key.endswith("_embedding") or key == "embedding":
+                continue
+
+            formatted_key = key.replace("_", " ").title()
+            lines.append(f"{formatted_key}: {value}")
+
+        return "\n".join(lines)
+
     def _add_metadata(self, results: List[Dict[str, Any]], search_type: str) -> List[Dict[str, Any]]:
         """
-        Add metadata to search results.
+        Add metadata to search results and ensure rag_context field exists.
 
         Args:
             results: List of retrieval results
             search_type: Type of search performed (e.g., 'vector', 'fulltext', 'bm25')
 
         Returns:
-            Results with added metadata
+            Results with added metadata and standardized rag_context field
         """
         for result in results:
             result['search_type'] = search_type
+
+            # Standardize RAG context - ensure every result has this field
+            if 'rag_context' not in result:
+                # Use configured field if set, otherwise format all properties
+                if self.rag_context_field and self.rag_context_field in result:
+                    result['rag_context'] = result[self.rag_context_field]
+                else:
+                    result['rag_context'] = self._format_result_as_text(result)
+
         return results
