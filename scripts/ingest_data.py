@@ -104,19 +104,32 @@ async def stage_1_scrape_cards() -> List[CardInfo]:
         max_concurrent=settings.max_concurrent_requests
     )
 
-    # Attach HTML to CardInfo objects and save
-    successful_count = 0
-    # logger.info("Parsing and saving HTML content...") # Using tqdm desc instead
-    for card_info, html in tqdm(zip(card_infos, html_outputs), total=len(card_infos), desc="Parsing HTML", unit="card"):
-        card_info.card_html = html
-        if card_info.card_html is not None:
-            card_info.save_html()
-            card_info.parse_html()
-            successful_count += 1
+    # Parse HTML and create CardInfo objects (may return multiple for multi-phase cards)
+    all_cards: List[CardInfo] = []
+    successful_pages = 0
 
-    logger.info(f"Successfully scraped and parsed {successful_count}/{len(card_infos)} cards")
+    for card_info, html in tqdm(zip(card_infos, html_outputs), total=len(card_infos), desc="Parsing HTML", unit="page"):
+        if html is None:
+            continue
 
-    return card_infos
+        # Use parse_html_multi_phase which handles multi-phase cards
+        parsed_cards = CardInfo.parse_html_multi_phase(
+            html=html,
+            card_type=card_info.card_type,
+            card_url=card_info.card_url
+        )
+
+        if parsed_cards:
+            successful_pages += 1
+            # Save HTML for each parsed card
+            for card in parsed_cards:
+                card.save_html()
+            all_cards.extend(parsed_cards)
+
+    logger.info(f"Successfully scraped {successful_pages}/{len(card_infos)} pages")
+    logger.info(f"Created {len(all_cards)} CardInfo objects (including multi-phase cards)")
+
+    return all_cards
 
 
 def stage_2_enrich_data(card_infos: List[CardInfo]) -> None:

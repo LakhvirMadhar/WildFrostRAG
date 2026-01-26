@@ -1,22 +1,97 @@
 from neo4j import GraphDatabase
 from src.data_processing.cards import CardType, TribeExclusivity
+from src.data_processing.phase_config import RECRUITABLE_ENEMIES
 from src.utils.config import settings
+from src.utils.logger import logger
 
 
 def create_cards(tx, cards_data):
     """
-    Bulk create card nodes in neo4j
+    Bulk create card nodes in neo4j.
+
+    For multi-phase cards (like Infernoko Phase 1 and Phase 2), we use
+    card_name + phase as the unique identifier. For single-phase cards,
+    phase is null and we merge by card_name only.
+    """
+    # Separate phased and non-phased cards
+    phased_cards = [c for c in cards_data if c.get('phase') is not None]
+    non_phased_cards = [c for c in cards_data if c.get('phase') is None]
+
+    total_created = 0
+
+    # Create non-phased cards (MERGE by card_name only)
+    if non_phased_cards:
+        query = """
+        UNWIND $cards AS card
+        MERGE (c:Card {card_name: card.card_name})
+        SET c += card
+        MERGE (t:CardType {name: card.card_type})
+        MERGE (c)-[:HAS_CARD_TYPE]->(t)
+        RETURN count(c) AS createdCount
+        """
+        result = tx.run(query, cards=non_phased_cards)
+        total_created += result.single()["createdCount"]
+
+    # Create phased cards (MERGE by card_name + phase)
+    if phased_cards:
+        query = """
+        UNWIND $cards AS card
+        MERGE (c:Card {card_name: card.card_name, phase: card.phase})
+        SET c += card
+        MERGE (t:CardType {name: card.card_type})
+        MERGE (c)-[:HAS_CARD_TYPE]->(t)
+        RETURN count(c) AS createdCount
+        """
+        result = tx.run(query, cards=phased_cards)
+        total_created += result.single()["createdCount"]
+
+    return total_created
+
+
+def create_phase_relationships(tx):
+    """
+    Create TRANSFORMS_INTO relationships between card phases.
+
+    Links Phase 1 -> Phase 2 -> Phase 3, etc. for multi-phase cards.
+    Uses base_name for matching since phased cards may have different card_names
+    (e.g., "Truffle" -> "Truffle (medium)" -> "Truffle (small)").
     """
     query = """
-    UNWIND $cards AS card
-    MERGE (c:Card {card_name: card.card_name})
-    SET c += card
-    MERGE (t:CardType {name: card.card_type})
-    MERGE (c)-[:HAS_CARD_TYPE]->(t)
-    RETURN count(c) AS createdCount
+    MATCH (c1:Card)
+    WHERE c1.phase IS NOT NULL AND c1.phase > 0 AND c1.phase < c1.total_phases
+    MATCH (c2:Card {base_name: c1.base_name, phase: c1.phase + 1})
+    MERGE (c1)-[:TRANSFORMS_INTO]->(c2)
+    RETURN count(*) AS relationshipsCreated
     """
-    result = tx.run(query, cards=cards_data)
-    return result.single()["createdCount"]
+    result = tx.run(query)
+    return result.single()["relationshipsCreated"]
+
+
+def create_recruitment_relationships(tx):
+    """
+    Create CAN_BE_RECRUITED_AS relationships for enemy cards that can become companions.
+
+    Some enemies (like Naked Gnome) can be recruited as companions if kept alive.
+    This links the enemy variant to its companion variant.
+    """
+    if not RECRUITABLE_ENEMIES:
+        return 0
+
+    query = """
+    UNWIND $recruitables AS pair
+    MATCH (enemy:Card {card_name: pair.enemy_name})
+    MATCH (companion:Card {card_name: pair.companion_name})
+    MERGE (enemy)-[:CAN_BE_RECRUITED_AS]->(companion)
+    RETURN count(*) AS relationshipsCreated
+    """
+
+    recruitables = [
+        {"enemy_name": enemy, "companion_name": companion}
+        for enemy, companion in RECRUITABLE_ENEMIES.items()
+    ]
+
+    result = tx.run(query, recruitables=recruitables)
+    return result.single()["relationshipsCreated"]
 
 
 def create_tribes(tx):
@@ -71,11 +146,10 @@ def create_card_tribe_relationships(tx, cards_data):
 
                 # Debug for first few cards
                 if total_cards_with_tribes <= 5:
-                    print(f"Card: {card_dict['card_name']}")
-                    print(f"  Exclusivity: {exclusivity_value}")
-                    print(f"  Is Universal: {exclusivity_enum_member.is_universal}")
-                    print(f"  Tribes to link: {tribes_to_link}")
-                    print(f"  Type of tribes_to_link: {type(tribes_to_link)}")
+                    logger.debug(f"Card: {card_dict['card_name']}")
+                    logger.debug(f"  Exclusivity: {exclusivity_value}")
+                    logger.debug(f"  Is Universal: {exclusivity_enum_member.is_universal}")
+                    logger.debug(f"  Tribes to link: {tribes_to_link}")
 
                 # Handle both string and list returns from get_tribes()
                 if isinstance(tribes_to_link, str):
@@ -88,21 +162,21 @@ def create_card_tribe_relationships(tx, cards_data):
                     })
 
             except StopIteration:
-                print(f"ERROR: Could not find enum member for value: {exclusivity_value}")
+                logger.error(f"Could not find enum member for value: {exclusivity_value}")
                 continue
 
-    print("\n=== TRIBE RELATIONSHIP SUMMARY ===")
-    print(f"Total cards with tribe data: {total_cards_with_tribes}")
-    print(f"Cards by exclusivity: {cards_by_exclusivity}")
-    print(f"Total card-tribe relationships to create: {len(card_tribes)}")
+    logger.info("=== TRIBE RELATIONSHIP SUMMARY ===")
+    logger.info(f"Total cards with tribe data: {total_cards_with_tribes}")
+    logger.info(f"Cards by exclusivity: {cards_by_exclusivity}")
+    logger.info(f"Total card-tribe relationships to create: {len(card_tribes)}")
 
     # Show sample relationships
     if card_tribes:
-        print("Sample relationships:")
+        logger.debug("Sample relationships:")
         for i, rel in enumerate(card_tribes[:10]):  # Show first 10
-            print(f"  {rel['card_name']} -> {rel['tribe_name']}")
+            logger.debug(f"  {rel['card_name']} -> {rel['tribe_name']}")
         if len(card_tribes) > 10:
-            print(f"  ... and {len(card_tribes) - 10} more")
+            logger.debug(f"  ... and {len(card_tribes) - 10} more")
 
     if card_tribes:
         result = tx.run(query, card_tribes=card_tribes)
@@ -201,32 +275,40 @@ def create_neo4j_data(cards_data):
 
     try:
         driver.verify_authentication()
-        print('Connected to Neo4j!')
+        logger.info('Connected to Neo4j!')
 
         with driver.session() as session:
             # Create tribes first
             tribes_created = session.execute_write(create_tribes)
-            print(f"Created {tribes_created} tribes")
+            logger.info(f"Created {tribes_created} tribes")
 
             # Create cards first
             created_count = session.execute_write(create_cards, cards_data)
-            print(f"Created/updated {created_count} cards")
+            logger.info(f"Created/updated {created_count} cards")
 
             # Create hierarchy relationships
             hierarchy_count = session.execute_write(create_card_type_hierarchy)
-            print(f"Created {hierarchy_count} hierarchy relationships")
+            logger.info(f"Created {hierarchy_count} hierarchy relationships")
 
             # Create tribe relationships
             tribe_relationships = session.execute_write(create_card_tribe_relationships, cards_data)
-            print(f"Created tribe relationships for {tribe_relationships} cards")
+            logger.info(f"Created tribe relationships for {tribe_relationships} cards")
 
             # Create stats
             stats_processed = session.execute_write(create_card_stats_flexible, cards_data)
-            print(f"Processed stats for {stats_processed} cards")
+            logger.info(f"Processed stats for {stats_processed} cards")
 
-        print("Import completed successfully")
+            # Create phase relationships (TRANSFORMS_INTO)
+            phase_relationships = session.execute_write(create_phase_relationships)
+            logger.info(f"Created {phase_relationships} phase relationships (TRANSFORMS_INTO)")
+
+            # Create recruitment relationships (CAN_BE_RECRUITED_AS)
+            recruitment_relationships = session.execute_write(create_recruitment_relationships)
+            logger.info(f"Created {recruitment_relationships} recruitment relationships (CAN_BE_RECRUITED_AS)")
+
+        logger.info("Import completed successfully")
     except Exception as e:
-        print(f'Connection failed: {e}')
+        logger.error(f'Connection failed: {e}')
 
     finally:
         driver.close()
