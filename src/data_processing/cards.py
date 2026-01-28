@@ -56,7 +56,7 @@ class CardType(Enum):
 
 class TribeExclusivity(Enum):
     """
-    Defins which tribe(s) a card belongs to
+    Defines which tribe(s) a card belongs to
     """
     SNOWDWELLERS = 'Snowdwellers'
     SHADMANCERS = 'Shademancers'
@@ -102,6 +102,15 @@ class CardInfo:
     other_stats: Optional[str] = None
     abilities_normalized: Optional[str] = None
     abilities_specific: Optional[str] = None
+    flavor_text: Optional[str] = None
+
+    # Stat ranges (for Leaders with variable stats like "5-9")
+    health_min: Optional[int] = None
+    health_max: Optional[int] = None
+    attack_min: Optional[int] = None
+    attack_max: Optional[int] = None
+    counter_min: Optional[int] = None
+    counter_max: Optional[int] = None
     
     # Tribe Exclusivity
     tribe_exclusivity: Optional[TribeExclusivity] = None
@@ -252,7 +261,11 @@ class CardInfo:
                 result[k] = v
         
         # Add derived fields useful for Neo4j
-        result['filename'] = f"{self.sanitized_name()}.html"
+        # Leaders all share the same "Leaders.html" document
+        if self.card_type == CardType.LEADER:
+            result['filename'] = "Leaders.html"
+        else:
+            result['filename'] = f"{self.sanitized_name()}.html"
 
         return result
 
@@ -332,16 +345,40 @@ class CardInfo:
                 else:
                     stats[header] = value
 
-        # Extract 'Other Stats' section
+        # Extract 'Other Stats' and 'Card Description' sections
         for i, row in enumerate(rows):
             th = row.find('th')
-            if th and th.text.strip() == "Other Stats":
+            if not th:
+                continue
+
+            header_text = th.get_text(strip=True)
+
+            if header_text == "Other Stats":
                 if i + 1 < len(rows):
                     td = rows[i + 1].find('td')
                     if td:
-                        other_stats_text = td.get_text(strip=True)
+                        other_stats_text = td.get_text(separator=' ', strip=True)
+                        other_stats_text = re.sub(r'\s+', ' ', other_stats_text).strip()
                         stats['other_stats'] = other_stats_text if other_stats_text else None
-                break
+
+            elif header_text == "Card Description":
+                if i + 1 < len(rows):
+                    td = rows[i + 1].find('td')
+                    if td:
+                        # Check for flavor text: italic text in gray/grey span
+                        gray_span = td.find('span', style=lambda s: s and ('color:gray' in s or 'color:grey' in s))
+                        italic = td.find('i')
+
+                        if gray_span and italic:
+                            # This is flavor text (like "Does absolutely nothing...")
+                            flavor_text = italic.get_text(separator=' ', strip=True)
+                            flavor_text = re.sub(r'\s+', ' ', flavor_text).strip()
+                            stats['flavor_text'] = flavor_text if flavor_text else None
+                        else:
+                            # This is ability text
+                            ability_text = td.get_text(separator=' ', strip=True)
+                            ability_text = re.sub(r'\s+', ' ', ability_text).strip()
+                            stats['abilities_specific'] = ability_text if ability_text else None
 
         return stats
 
@@ -369,6 +406,8 @@ class CardInfo:
             scrap=card_data['stats'].get('scrap'),
             counter=card_data['stats'].get('counter'),
             other_stats=card_data['stats'].get('other_stats'),
+            abilities_specific=card_data['stats'].get('abilities_specific'),
+            flavor_text=card_data['stats'].get('flavor_text'),
             phase=phase,
             total_phases=total_phases,
             base_name=base_name,

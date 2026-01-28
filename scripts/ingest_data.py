@@ -35,6 +35,7 @@ from src.data_processing.cards import CardInfo, CardType
 from src.data_processing.generate_schemas import generate_card_type_html_schema
 from src.data_processing.enrichment import enrich_cards_with_tribes
 from src.data_processing.html_splitter import process_html_files
+from src.data_processing.leaders import parse_leaders_page
 from src.neo4j_kg.neo4j_utils import create_neo4j_data, clear_database
 from src.neo4j_kg.vector_store import (
     ingest_documents_into_neo4j,
@@ -51,6 +52,40 @@ from src.utils.logger import logger
 def clean_name_for_url(name: str) -> str:
     """Clean card name for use in URLs by replacing spaces with underscores."""
     return re.sub(r'\s+', '_', name)
+
+
+async def scrape_leaders() -> List[CardInfo]:
+    """
+    Scrape and parse the Leaders page.
+
+    Leaders are special cards with stat ranges instead of fixed values.
+    They all share a single wiki page rather than individual pages.
+
+    Returns:
+        List of CardInfo objects for all leaders
+    """
+    logger.info("Scraping Leaders page...")
+    leaders_url = f"{settings.wildfrost_wiki_base_url}/Leaders"
+    leaders_html_list = await scrape_multiple_links([leaders_url], max_concurrent=1)
+    leaders_html = leaders_html_list[0] if leaders_html_list else None
+
+    if not leaders_html:
+        logger.warning("Failed to scrape Leaders page")
+        return []
+
+    # Save the Leaders HTML file
+    leaders_dir = settings.structured_outputs_dir / 'leaders'
+    leaders_dir.mkdir(parents=True, exist_ok=True)
+    leaders_path = leaders_dir / 'Leaders.html'
+    with open(leaders_path, 'w', encoding='utf-8') as f:
+        f.write(leaders_html)
+    logger.info(f"Saved Leaders HTML to {leaders_path}")
+
+    # Parse leaders
+    leader_cards = parse_leaders_page(leaders_html)
+    logger.info(f"Parsed {len(leader_cards)} leader cards")
+
+    return leader_cards
 
 
 async def stage_1_scrape_cards() -> List[CardInfo]:
@@ -77,12 +112,11 @@ async def stage_1_scrape_cards() -> List[CardInfo]:
         json.dump(card_type_schema, f, indent=4)
     logger.info(f"Schema saved to {schema_path}")
 
-    # Create CardInfo objects for all cards
+    # Create CardInfo objects for all cards (excluding leaders - handled separately)
     card_infos = []
     for card_type, cards in card_type_schema.items():
         if card_type == 'leaders':
-            # Skip leaders for now (they need special handling)
-            continue
+            continue  # Leaders handled by scrape_leaders()
 
         for card_name in cards:
             cleaned_name = clean_name_for_url(card_name)
@@ -129,6 +163,11 @@ async def stage_1_scrape_cards() -> List[CardInfo]:
     logger.info(f"Successfully scraped {successful_pages}/{len(card_infos)} pages")
     logger.info(f"Created {len(all_cards)} CardInfo objects (including multi-phase cards)")
 
+    # Scrape leaders (separate page with different structure)
+    leader_cards = await scrape_leaders()
+    all_cards.extend(leader_cards)
+
+    logger.info(f"Total cards: {len(all_cards)}")
     return all_cards
 
 
