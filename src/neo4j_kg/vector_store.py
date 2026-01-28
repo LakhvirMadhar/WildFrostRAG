@@ -297,3 +297,37 @@ def link_documents_to_crowns() -> int:
 
     finally:
         driver.close()
+
+
+def link_documents_to_stats() -> int:
+    """
+    Link Stat nodes to the Stats Document node.
+
+    All Stat nodes get linked to the same Stats.html document.
+
+    Returns:
+        Number of relationships created
+    """
+    logger.info("Linking Stat nodes to Document...")
+
+    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+
+    try:
+        with driver.session() as session:
+            link_query = """
+            MATCH (d:Document)
+            WHERE d.source_file ENDS WITH 'Stats.html'
+            MATCH (stat:Stat)
+            MERGE (stat)-[:HAS_DOCUMENT]->(d)
+            RETURN count(*) as relationships_created
+            """
+
+            result = session.run(link_query)
+            record = result.single()
+            count = record["relationships_created"] if record else 0
+
+            logger.info(f"Created {count} Stat-Document relationships")
+            return count
+
+    finally:
+        driver.close()

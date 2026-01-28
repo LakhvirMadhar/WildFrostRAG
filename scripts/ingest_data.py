@@ -36,11 +36,13 @@ from src.data_processing.generate_schemas import generate_card_type_html_schema
 from src.data_processing.enrichment import enrich_cards_with_tribes
 from src.data_processing.html_splitter import process_html_files
 from src.data_processing.leaders import parse_leaders_page
-from src.neo4j_kg.neo4j_utils import create_neo4j_data, clear_database
+from src.data_processing.stats import parse_stats_page, StatInfo
+from src.neo4j_kg.neo4j_utils import create_neo4j_data, clear_database, create_stats_from_parsed
 from src.neo4j_kg.vector_store import (
     ingest_documents_into_neo4j,
     link_documents_to_cards,
-    link_documents_to_crowns
+    link_documents_to_crowns,
+    link_documents_to_stats
 )
 from src.neo4j_kg.neo4j_indexes import (
     create_fulltext_index,
@@ -55,73 +57,75 @@ def clean_name_for_url(name: str) -> str:
     return re.sub(r'\s+', '_', name)
 
 
-async def scrape_crowns() -> None:
+async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
     """
-    Scrape the Crowns page and save HTML for Document ingestion.
+    Scrape a wiki page and save HTML.
 
-    Crown nodes are created from hardcoded data in neo4j_utils.py,
-    but we still scrape the page for RAG context (Document node).
+    Args:
+        page_name: Name of the wiki page (e.g., "Crowns", "Leaders", "Stats")
+        output_subdir: Subdirectory under structured_outputs_dir to save the HTML
+
+    Returns:
+        HTML content if successful, None otherwise
     """
-    logger.info("Scraping Crowns page...")
-    crowns_url = f"{settings.wildfrost_wiki_base_url}/Crowns"
-    crowns_html_list = await scrape_multiple_links([crowns_url], max_concurrent=1)
-    crowns_html = crowns_html_list[0] if crowns_html_list else None
+    logger.info(f"Scraping {page_name} page...")
+    url = f"{settings.wildfrost_wiki_base_url}/{page_name}"
+    html_list = await scrape_multiple_links([url], max_concurrent=1)
+    html = html_list[0] if html_list else None
 
-    if not crowns_html:
-        logger.warning("Failed to scrape Crowns page")
-        return
+    if not html:
+        logger.warning(f"Failed to scrape {page_name} page")
+        return None
 
-    # Save the Crowns HTML file
-    crowns_dir = settings.structured_outputs_dir / 'crowns'
-    crowns_dir.mkdir(parents=True, exist_ok=True)
-    crowns_path = crowns_dir / 'Crowns.html'
-    with open(crowns_path, 'w', encoding='utf-8') as f:
-        f.write(crowns_html)
-    logger.info(f"Saved Crowns HTML to {crowns_path}")
+    output_path = settings.structured_outputs_dir / output_subdir / f'{page_name}.html'
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(html)
+    logger.info(f"Saved {page_name} HTML to {output_path}")
+
+    return html
 
 
 async def scrape_leaders() -> List[CardInfo]:
     """
     Scrape and parse the Leaders page.
 
-    Leaders are special cards with stat ranges instead of fixed values.
-    They all share a single wiki page rather than individual pages.
-
     Returns:
         List of CardInfo objects for all leaders
     """
-    logger.info("Scraping Leaders page...")
-    leaders_url = f"{settings.wildfrost_wiki_base_url}/Leaders"
-    leaders_html_list = await scrape_multiple_links([leaders_url], max_concurrent=1)
-    leaders_html = leaders_html_list[0] if leaders_html_list else None
-
-    if not leaders_html:
-        logger.warning("Failed to scrape Leaders page")
+    html = await scrape_wiki_page("Leaders", "leaders")
+    if not html:
         return []
 
-    # Save the Leaders HTML file
-    leaders_dir = settings.structured_outputs_dir / 'leaders'
-    leaders_dir.mkdir(parents=True, exist_ok=True)
-    leaders_path = leaders_dir / 'Leaders.html'
-    with open(leaders_path, 'w', encoding='utf-8') as f:
-        f.write(leaders_html)
-    logger.info(f"Saved Leaders HTML to {leaders_path}")
-
-    # Parse leaders
-    leader_cards = parse_leaders_page(leaders_html)
+    leader_cards = parse_leaders_page(html)
     logger.info(f"Parsed {len(leader_cards)} leader cards")
-
     return leader_cards
 
 
-async def stage_1_scrape_cards() -> List[CardInfo]:
+async def scrape_stats() -> List[StatInfo]:
+    """
+    Scrape and parse the Stats page.
+
+    Returns:
+        List of StatInfo objects for all stats
+    """
+    html = await scrape_wiki_page("Stats", "stats")
+    if not html:
+        return []
+
+    stats = parse_stats_page(html)
+    logger.info(f"Parsed {len(stats)} stats")
+    return stats
+
+
+async def stage_1_scrape_cards() -> tuple[List[CardInfo], List[StatInfo]]:
     """
     Stage 1: Web Scraping
 
     Scrapes card data from the Wildfrost wiki and saves HTML files.
 
     Returns:
-        List of CardInfo objects with HTML content populated
+        Tuple of (CardInfo list, StatInfo list)
     """
     logger.info("=" * 60)
     logger.info("STAGE 1: WEB SCRAPING")
@@ -194,10 +198,13 @@ async def stage_1_scrape_cards() -> List[CardInfo]:
     all_cards.extend(leader_cards)
 
     # Scrape crowns page (for Document node, Crown nodes are hardcoded)
-    await scrape_crowns()
+    await scrape_wiki_page("Crowns", "crowns")
+
+    # Scrape stats page
+    stats = await scrape_stats()
 
     logger.info(f"Total cards: {len(all_cards)}")
-    return all_cards
+    return all_cards, stats
 
 
 def stage_2_enrich_data(card_infos: List[CardInfo]) -> None:
@@ -220,7 +227,7 @@ def stage_2_enrich_data(card_infos: List[CardInfo]) -> None:
     )
 
 
-def stage_3_populate_graph(card_infos: List[CardInfo]) -> None:
+def stage_3_populate_graph(card_infos: List[CardInfo], stats: List[StatInfo]) -> None:
     """
     Stage 3: Neo4j Graph Population
 
@@ -228,16 +235,32 @@ def stage_3_populate_graph(card_infos: List[CardInfo]) -> None:
 
     Args:
         card_infos: List of CardInfo objects to ingest
+        stats: List of StatInfo objects to ingest
     """
     logger.info("=" * 60)
     logger.info("STAGE 3: NEO4J GRAPH POPULATION")
     logger.info("=" * 60)
+
+    # Create Stat nodes FIRST (cards need them for HAS_STAT relationships)
+    if stats:
+        logger.info(f"Creating {len(stats)} Stat nodes...")
+        driver = GraphDatabase.driver(
+            settings.neo4j_uri.get_secret_value(),
+            auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
+        )
+        try:
+            with driver.session() as session:
+                count = session.execute_write(create_stats_from_parsed, stats)
+                logger.info(f"Created {count} Stat nodes")
+        finally:
+            driver.close()
 
     # Convert CardInfo objects to dictionaries
     cards_dict_data = [card.to_dict() for card in card_infos]
     logger.info(f"Ingesting {len(cards_dict_data)} cards into Neo4j graph...")
 
     create_neo4j_data(cards_dict_data)
+
     logger.info("Graph population complete")
 
 
@@ -310,6 +333,11 @@ def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = Tr
     crown_link_count = link_documents_to_crowns()
     logger.info(f"Linked {crown_link_count} documents to crowns")
 
+    # Link Document nodes to Stat nodes
+    logger.info("Linking documents to stats in knowledge graph...")
+    stat_link_count = link_documents_to_stats()
+    logger.info(f"Linked {stat_link_count} documents to stats")
+
     logger.info("Document ingestion complete")
 
 
@@ -372,16 +400,16 @@ async def main():
         # TODO: Load CardInfo objects from existing HTML files
         # For now, we'll need to scrape to get the CardInfo objects
         logger.warning("Loading from existing files not yet implemented, running scrape anyway")
-        card_infos = await stage_1_scrape_cards()
+        card_infos, stats = await stage_1_scrape_cards()
     else:
-        card_infos = await stage_1_scrape_cards()
+        card_infos, stats = await stage_1_scrape_cards()
 
     # Stage 2: Enrich
     stage_2_enrich_data(card_infos)
 
     # Stage 3: Graph
     if not args.skip_graph:
-        stage_3_populate_graph(card_infos)
+        stage_3_populate_graph(card_infos, stats)
     else:
         logger.info("Skipping graph population (--skip-graph flag set)")
 
