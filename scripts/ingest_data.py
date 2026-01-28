@@ -39,7 +39,8 @@ from src.data_processing.leaders import parse_leaders_page
 from src.neo4j_kg.neo4j_utils import create_neo4j_data, clear_database
 from src.neo4j_kg.vector_store import (
     ingest_documents_into_neo4j,
-    link_documents_to_cards
+    link_documents_to_cards,
+    link_documents_to_crowns
 )
 from src.neo4j_kg.neo4j_indexes import (
     create_fulltext_index,
@@ -52,6 +53,31 @@ from src.utils.logger import logger
 def clean_name_for_url(name: str) -> str:
     """Clean card name for use in URLs by replacing spaces with underscores."""
     return re.sub(r'\s+', '_', name)
+
+
+async def scrape_crowns() -> None:
+    """
+    Scrape the Crowns page and save HTML for Document ingestion.
+
+    Crown nodes are created from hardcoded data in neo4j_utils.py,
+    but we still scrape the page for RAG context (Document node).
+    """
+    logger.info("Scraping Crowns page...")
+    crowns_url = f"{settings.wildfrost_wiki_base_url}/Crowns"
+    crowns_html_list = await scrape_multiple_links([crowns_url], max_concurrent=1)
+    crowns_html = crowns_html_list[0] if crowns_html_list else None
+
+    if not crowns_html:
+        logger.warning("Failed to scrape Crowns page")
+        return
+
+    # Save the Crowns HTML file
+    crowns_dir = settings.structured_outputs_dir / 'crowns'
+    crowns_dir.mkdir(parents=True, exist_ok=True)
+    crowns_path = crowns_dir / 'Crowns.html'
+    with open(crowns_path, 'w', encoding='utf-8') as f:
+        f.write(crowns_html)
+    logger.info(f"Saved Crowns HTML to {crowns_path}")
 
 
 async def scrape_leaders() -> List[CardInfo]:
@@ -167,6 +193,9 @@ async def stage_1_scrape_cards() -> List[CardInfo]:
     leader_cards = await scrape_leaders()
     all_cards.extend(leader_cards)
 
+    # Scrape crowns page (for Document node, Crown nodes are hardcoded)
+    await scrape_crowns()
+
     logger.info(f"Total cards: {len(all_cards)}")
     return all_cards
 
@@ -275,6 +304,11 @@ def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = Tr
     logger.info("Linking documents to cards in knowledge graph...")
     link_count = link_documents_to_cards()
     logger.info(f"Linked {link_count} documents to cards")
+
+    # Link Document nodes to Crown nodes
+    logger.info("Linking documents to crowns in knowledge graph...")
+    crown_link_count = link_documents_to_crowns()
+    logger.info(f"Linked {crown_link_count} documents to crowns")
 
     logger.info("Document ingestion complete")
 

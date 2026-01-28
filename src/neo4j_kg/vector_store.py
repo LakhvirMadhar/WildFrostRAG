@@ -55,20 +55,33 @@ def ingest_documents_into_neo4j(
             }})
             ON CREATE SET
                 d.source_file = item.source_file,
+                d.title = item.title,
                 d.source_url = item.source_url
             """
 
             # Prepare data without embeddings
             data_to_ingest = []
             for chunk in document_chunks:
-                source_file = chunk.metadata.get('source', 'unknown')
-                # Extract filename to look up URL
-                filename = Path(source_file).name if source_file else ''
+                full_path = chunk.metadata.get('source', 'unknown')
+
+                # Extract filename and make path relative to data/
+                filename = Path(full_path).name if full_path else ''
+
+                # Convert to relative path (data/structured_outputs/...)
+                source_file = full_path
+                if full_path and 'data' in full_path:
+                    data_idx = full_path.find('data')
+                    source_file = full_path[data_idx:].replace('\\', '/')
+
+                # Derive title from filename (without extension)
+                title = Path(filename).stem if filename else 'unknown'
+
                 source_url = url_lookup.get(filename, '')
 
                 data_to_ingest.append({
                     "text": chunk.page_content,
                     "source_file": source_file,
+                    "title": title,
                     "source_url": source_url
                 })
 
@@ -246,6 +259,40 @@ def link_documents_to_cards() -> int:
             count = record["relationships_created"] if record else 0
 
             logger.info(f"Created {count} Card-Document relationships")
+            return count
+
+    finally:
+        driver.close()
+
+
+def link_documents_to_crowns() -> int:
+    """
+    Link Crown nodes to the Crowns Document node.
+
+    Both Crown and Cursed Crown nodes get linked to the same Crowns.html document.
+
+    Returns:
+        Number of relationships created
+    """
+    logger.info("Linking Crown nodes to Document...")
+
+    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+
+    try:
+        with driver.session() as session:
+            link_query = """
+            MATCH (d:Document)
+            WHERE d.source_file ENDS WITH 'Crowns.html'
+            MATCH (crown:Crown)
+            MERGE (crown)-[:HAS_DOCUMENT]->(d)
+            RETURN count(*) as relationships_created
+            """
+
+            result = session.run(link_query)
+            record = result.single()
+            count = record["relationships_created"] if record else 0
+
+            logger.info(f"Created {count} Crown-Document relationships")
             return count
 
     finally:
