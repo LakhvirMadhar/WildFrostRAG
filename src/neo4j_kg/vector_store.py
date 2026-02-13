@@ -331,3 +331,37 @@ def link_documents_to_stats() -> int:
 
     finally:
         driver.close()
+
+
+def link_documents_to_charms() -> int:
+    """
+    Link Charm nodes to the Charms Document node.
+
+    All Charm nodes get linked to the same Charms.html document.
+
+    Returns:
+        Number of relationships created
+    """
+    logger.info("Linking Charm nodes to Document...")
+
+    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+
+    try:
+        with driver.session() as session:
+            link_query = """
+            MATCH (d:Document)
+            WHERE d.source_file ENDS WITH 'Charms.html'
+            MATCH (charm:Charm)
+            MERGE (charm)-[:HAS_DOCUMENT]->(d)
+            RETURN count(*) as relationships_created
+            """
+
+            result = session.run(link_query)
+            record = result.single()
+            count = record["relationships_created"] if record else 0
+
+            logger.info(f"Created {count} Charm-Document relationships")
+            return count
+
+    finally:
+        driver.close()

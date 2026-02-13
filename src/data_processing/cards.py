@@ -9,6 +9,7 @@ import logging
 from collections import defaultdict
 
 from src.data_processing.phase_config import VARIANT_CARDS, PHASE_ORDER_OVERRIDES
+from src.data_processing.tribes import TribeExclusivity
 
 logger = logging.getLogger(__name__)
 
@@ -52,38 +53,6 @@ class CardType(Enum):
         """Check if this card type has parent types"""
         return len(self.parents) > 0
 
-
-
-class TribeExclusivity(Enum):
-    """
-    Defines which tribe(s) a card belongs to
-    """
-    SNOWDWELLERS = 'Snowdwellers'
-    SHADMANCERS = 'Shademancers'
-    CLUNKMASTERS = 'Clunkmasters'
-    ALL_TRIBES = 'All' # Card belongs to all three tribes
-
-
-    @property
-    def is_exclusive(self) -> bool:
-        """Check if this card is exclusive to a single tribe"""
-        return self != TribeExclusivity.ALL_TRIBES
-    
-    
-    @property
-    def is_universal(self) -> bool:
-        return self == TribeExclusivity.ALL_TRIBES
-    
-
-    def get_tribes(self) -> list[str]:
-        """
-        Get list of tribe names this exclusivity represents
-        """
-
-        if self.is_universal:
-            return [tribe.value for tribe in TribeExclusivity if tribe.is_exclusive]
-        else:
-            return [self.value]
 
 
 @dataclass

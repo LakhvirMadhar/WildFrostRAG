@@ -37,12 +37,17 @@ from src.data_processing.enrichment import enrich_cards_with_tribes
 from src.data_processing.html_splitter import process_html_files
 from src.data_processing.leaders import parse_leaders_page
 from src.data_processing.stats import parse_stats_page, StatInfo
-from src.neo4j_kg.neo4j_utils import create_neo4j_data, clear_database, create_stats_from_parsed
+from src.data_processing.charms import parse_charms_page, CharmInfo
+from src.neo4j_kg.neo4j_utils import (
+    create_neo4j_data, clear_database, create_stats_from_parsed,
+    create_charms_from_parsed, create_charm_tribe_relationships
+)
 from src.neo4j_kg.vector_store import (
     ingest_documents_into_neo4j,
     link_documents_to_cards,
     link_documents_to_crowns,
-    link_documents_to_stats
+    link_documents_to_stats,
+    link_documents_to_charms
 )
 from src.neo4j_kg.neo4j_indexes import (
     create_fulltext_index,
@@ -118,14 +123,30 @@ async def scrape_stats() -> List[StatInfo]:
     return stats
 
 
-async def stage_1_scrape_cards() -> tuple[List[CardInfo], List[StatInfo]]:
+async def scrape_charms() -> List[CharmInfo]:
+    """
+    Scrape and parse the Charms page.
+
+    Returns:
+        List of CharmInfo objects for all charms
+    """
+    html = await scrape_wiki_page("Charms", "charms")
+    if not html:
+        return []
+
+    charms = parse_charms_page(html)
+    logger.info(f"Parsed {len(charms)} charms")
+    return charms
+
+
+async def stage_1_scrape_cards() -> tuple[List[CardInfo], List[StatInfo], List[CharmInfo]]:
     """
     Stage 1: Web Scraping
 
     Scrapes card data from the Wildfrost wiki and saves HTML files.
 
     Returns:
-        Tuple of (CardInfo list, StatInfo list)
+        Tuple of (CardInfo list, StatInfo list, CharmInfo list)
     """
     logger.info("=" * 60)
     logger.info("STAGE 1: WEB SCRAPING")
@@ -203,8 +224,11 @@ async def stage_1_scrape_cards() -> tuple[List[CardInfo], List[StatInfo]]:
     # Scrape stats page
     stats = await scrape_stats()
 
+    # Scrape charms page
+    charms = await scrape_charms()
+
     logger.info(f"Total cards: {len(all_cards)}")
-    return all_cards, stats
+    return all_cards, stats, charms
 
 
 def stage_2_enrich_data(card_infos: List[CardInfo]) -> None:
@@ -227,7 +251,7 @@ def stage_2_enrich_data(card_infos: List[CardInfo]) -> None:
     )
 
 
-def stage_3_populate_graph(card_infos: List[CardInfo], stats: List[StatInfo]) -> None:
+def stage_3_populate_graph(card_infos: List[CardInfo], stats: List[StatInfo], charms: List[CharmInfo]) -> None:
     """
     Stage 3: Neo4j Graph Population
 
@@ -236,30 +260,49 @@ def stage_3_populate_graph(card_infos: List[CardInfo], stats: List[StatInfo]) ->
     Args:
         card_infos: List of CardInfo objects to ingest
         stats: List of StatInfo objects to ingest
+        charms: List of CharmInfo objects to ingest
     """
     logger.info("=" * 60)
     logger.info("STAGE 3: NEO4J GRAPH POPULATION")
     logger.info("=" * 60)
 
-    # Create Stat nodes FIRST (cards need them for HAS_STAT relationships)
-    if stats:
-        logger.info(f"Creating {len(stats)} Stat nodes...")
+    driver = GraphDatabase.driver(
+        settings.neo4j_uri.get_secret_value(),
+        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
+    )
+    try:
+        with driver.session() as session:
+            # Create Stat nodes FIRST (cards need them for HAS_STAT relationships)
+            if stats:
+                count = session.execute_write(create_stats_from_parsed, stats)
+                logger.info(f"Created {count} Stat nodes")
+
+            # Create Charm nodes (tribe relationships after create_neo4j_data, which creates Tribes)
+            if charms:
+                charm_count = session.execute_write(create_charms_from_parsed, charms)
+                logger.info(f"Created {charm_count} Charm nodes")
+    finally:
+        driver.close()
+
+    # Convert CardInfo objects to dictionaries
+    cards_dict_data = [card.to_dict() for card in card_infos]
+    logger.info(f"Ingesting {len(cards_dict_data)} cards into Neo4j graph...")
+
+    # Creates Tribes, Cards, Crowns, Stats relationships, etc.
+    create_neo4j_data(cards_dict_data)
+
+    # Charm-Tribe relationships (Tribes must exist first)
+    if charms:
         driver = GraphDatabase.driver(
             settings.neo4j_uri.get_secret_value(),
             auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
         )
         try:
             with driver.session() as session:
-                count = session.execute_write(create_stats_from_parsed, stats)
-                logger.info(f"Created {count} Stat nodes")
+                tribe_count = session.execute_write(create_charm_tribe_relationships, charms)
+                logger.info(f"Created {tribe_count} Charm-Tribe relationships")
         finally:
             driver.close()
-
-    # Convert CardInfo objects to dictionaries
-    cards_dict_data = [card.to_dict() for card in card_infos]
-    logger.info(f"Ingesting {len(cards_dict_data)} cards into Neo4j graph...")
-
-    create_neo4j_data(cards_dict_data)
 
     logger.info("Graph population complete")
 
@@ -338,6 +381,11 @@ def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = Tr
     stat_link_count = link_documents_to_stats()
     logger.info(f"Linked {stat_link_count} documents to stats")
 
+    # Link Document nodes to Charm nodes
+    logger.info("Linking documents to charms in knowledge graph...")
+    charm_link_count = link_documents_to_charms()
+    logger.info(f"Linked {charm_link_count} documents to charms")
+
     logger.info("Document ingestion complete")
 
 
@@ -400,16 +448,16 @@ async def main():
         # TODO: Load CardInfo objects from existing HTML files
         # For now, we'll need to scrape to get the CardInfo objects
         logger.warning("Loading from existing files not yet implemented, running scrape anyway")
-        card_infos, stats = await stage_1_scrape_cards()
+        card_infos, stats, charms = await stage_1_scrape_cards()
     else:
-        card_infos, stats = await stage_1_scrape_cards()
+        card_infos, stats, charms = await stage_1_scrape_cards()
 
     # Stage 2: Enrich
     stage_2_enrich_data(card_infos)
 
     # Stage 3: Graph
     if not args.skip_graph:
-        stage_3_populate_graph(card_infos, stats)
+        stage_3_populate_graph(card_infos, stats, charms)
     else:
         logger.info("Skipping graph population (--skip-graph flag set)")
 

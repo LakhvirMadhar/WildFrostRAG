@@ -11,7 +11,8 @@ import re
 from typing import Optional
 from bs4 import BeautifulSoup, Tag
 
-from src.data_processing.cards import CardInfo, CardType, TribeExclusivity
+from src.data_processing.cards import CardInfo, CardType
+from src.data_processing.tribes import TribeExclusivity
 from src.utils.logger import logger
 
 
