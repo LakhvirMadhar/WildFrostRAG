@@ -365,3 +365,73 @@ def link_documents_to_charms() -> int:
 
     finally:
         driver.close()
+
+
+def link_documents_to_map() -> int:
+    """
+    Link Map, Zone, and MapEvent nodes to the Map Document node.
+
+    Fight nodes are NOT linked here - they get their own fight page documents
+    via link_documents_to_fights().
+
+    Returns:
+        Number of relationships created
+    """
+    logger.info("Linking map nodes to Document...")
+
+    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+
+    try:
+        total = 0
+        with driver.session() as session:
+            for label in ['Map', 'Zone', 'MapEvent']:
+                query = f"""
+                MATCH (d:Document)
+                WHERE d.source_file ENDS WITH 'Map.html'
+                MATCH (n:{label})
+                MERGE (n)-[:HAS_DOCUMENT]->(d)
+                RETURN count(*) as created
+                """
+                result = session.run(query)
+                count = result.single()["created"]
+                total += count
+                logger.info(f"  Linked {count} {label} nodes to Map document")
+
+        logger.info(f"Created {total} map-Document relationships")
+        return total
+
+    finally:
+        driver.close()
+
+
+def link_documents_to_fights() -> int:
+    """
+    Link Fight nodes to their individual fight page Document nodes.
+
+    Each Fight has a page_name property (e.g., "Infernoko_Fight") that
+    corresponds to the source_file of its Document (e.g., "Infernoko_Fight.html").
+
+    Returns:
+        Number of relationships created
+    """
+    logger.info("Linking fight nodes to their Documents...")
+
+    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+
+    try:
+        with driver.session() as session:
+            query = """
+            MATCH (f:Fight)
+            WHERE f.page_name IS NOT NULL
+            MATCH (d:Document)
+            WHERE d.source_file ENDS WITH (f.page_name + '.html')
+            MERGE (f)-[:HAS_DOCUMENT]->(d)
+            RETURN count(*) AS created
+            """
+            result = session.run(query)
+            count = result.single()["created"]
+            logger.info(f"Linked {count} Fight nodes to their Documents")
+            return count
+
+    finally:
+        driver.close()
