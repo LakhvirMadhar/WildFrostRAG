@@ -25,6 +25,7 @@ import argparse
 import asyncio
 import os
 import json
+from dataclasses import dataclass, field
 from typing import List
 from tqdm import tqdm
 from neo4j import GraphDatabase
@@ -40,10 +41,12 @@ from src.data_processing.stats import parse_stats_page, StatInfo
 from src.data_processing.charms import parse_charms_page, CharmInfo
 from src.data_processing.map import parse_map_page, get_fight_page_mapping, ZoneInfo, MapEventInfo, FightSlotInfo
 from src.data_processing.fights import parse_fight_enemies
+from src.data_processing.shades import parse_shades_page, SummonInfo
 from src.neo4j_kg.neo4j_utils import (
     create_neo4j_data, clear_database, create_stats_from_parsed,
     create_charms_from_parsed, create_charm_tribe_relationships,
-    create_map_graph, create_fight_enemy_relationships
+    create_map_graph, create_fight_enemy_relationships,
+    create_summon_relationships
 )
 from src.neo4j_kg.vector_store import (
     ingest_documents_into_neo4j,
@@ -51,6 +54,7 @@ from src.neo4j_kg.vector_store import (
     link_documents_to_crowns,
     link_documents_to_stats,
     link_documents_to_charms,
+    link_documents_to_shades,
     link_documents_to_map,
     link_documents_to_fights
 )
@@ -60,6 +64,24 @@ from src.neo4j_kg.neo4j_indexes import (
 )
 from src.utils.config import settings
 from src.utils.logger import logger
+
+
+@dataclass
+class PipelineData:
+    """All data collected during Stage 1 (scraping).
+
+    Replaces the positional tuple that previously grew with every new data source.
+    New scraping targets just add a field here — no tuple unpacking to update.
+    """
+    cards: List[CardInfo] = field(default_factory=list)
+    stats: List[StatInfo] = field(default_factory=list)
+    charms: List[CharmInfo] = field(default_factory=list)
+    summons: List[SummonInfo] = field(default_factory=list)
+    zones: List[ZoneInfo] = field(default_factory=list)
+    map_events: List[MapEventInfo] = field(default_factory=list)
+    fight_slots: List[FightSlotInfo] = field(default_factory=list)
+    fight_page_mapping: dict[str, str] = field(default_factory=dict)
+    fight_enemies: dict[str, list[str]] = field(default_factory=dict)
 
 
 def clean_name_for_url(name: str) -> str:
@@ -144,6 +166,22 @@ async def scrape_charms() -> List[CharmInfo]:
     return charms
 
 
+async def scrape_shades() -> List[SummonInfo]:
+    """
+    Scrape and parse the Shades page for summoning relationships.
+
+    Returns:
+        List of SummonInfo objects linking summoner cards to shades
+    """
+    html = await scrape_wiki_page("Shades", "shades")
+    if not html:
+        return []
+
+    summons = parse_shades_page(html)
+    logger.info(f"Parsed {len(summons)} summoning relationships")
+    return summons
+
+
 async def scrape_map() -> tuple[List[ZoneInfo], List[MapEventInfo], List[FightSlotInfo], dict[str, str]]:
     """
     Scrape and parse the Map page.
@@ -190,14 +228,14 @@ async def scrape_fight_pages(fight_page_mapping: dict[str, str]) -> dict[str, Li
     return fight_enemies
 
 
-async def stage_1_scrape_cards():
+async def stage_1_scrape_cards() -> PipelineData:
     """
     Stage 1: Web Scraping
 
     Scrapes card data from the Wildfrost wiki and saves HTML files.
 
     Returns:
-        Tuple of (cards, stats, charms, zones, map_events, fight_slots, fight_page_mapping, fight_enemies)
+        PipelineData containing all scraped and parsed data
     """
     logger.info("=" * 60)
     logger.info("STAGE 1: WEB SCRAPING")
@@ -278,6 +316,9 @@ async def stage_1_scrape_cards():
     # Scrape charms page
     charms = await scrape_charms()
 
+    # Scrape shades page (summoning relationships)
+    summons = await scrape_shades()
+
     # Scrape map page
     zones, map_events, fight_slots, fight_page_mapping = await scrape_map()
 
@@ -287,7 +328,17 @@ async def stage_1_scrape_cards():
         fight_enemies = await scrape_fight_pages(fight_page_mapping)
 
     logger.info(f"Total cards: {len(all_cards)}")
-    return all_cards, stats, charms, zones, map_events, fight_slots, fight_page_mapping, fight_enemies
+    return PipelineData(
+        cards=all_cards,
+        stats=stats,
+        charms=charms,
+        summons=summons,
+        zones=zones,
+        map_events=map_events,
+        fight_slots=fight_slots,
+        fight_page_mapping=fight_page_mapping,
+        fight_enemies=fight_enemies,
+    )
 
 
 def stage_2_enrich_data(card_infos: List[CardInfo]) -> None:
@@ -310,30 +361,14 @@ def stage_2_enrich_data(card_infos: List[CardInfo]) -> None:
     )
 
 
-def stage_3_populate_graph(
-    card_infos: List[CardInfo],
-    stats: List[StatInfo],
-    charms: List[CharmInfo],
-    zones: List[ZoneInfo],
-    map_events: List[MapEventInfo],
-    fight_slots: List[FightSlotInfo],
-    fight_page_mapping: dict[str, str] = None,
-    fight_enemies: dict[str, list[str]] = None,
-) -> None:
+def stage_3_populate_graph(data: PipelineData) -> None:
     """
     Stage 3: Neo4j Graph Population
 
     Creates nodes and relationships in Neo4j knowledge graph.
 
     Args:
-        card_infos: List of CardInfo objects to ingest
-        stats: List of StatInfo objects to ingest
-        charms: List of CharmInfo objects to ingest
-        zones: List of ZoneInfo objects
-        map_events: List of MapEventInfo objects
-        fight_slots: List of FightSlotInfo objects
-        fight_page_mapping: Display name → wiki page slug for fight document linking
-        fight_enemies: page_name → list of enemy card names from fight pages
+        data: PipelineData containing all scraped data to populate the graph
     """
     logger.info("=" * 60)
     logger.info("STAGE 3: NEO4J GRAPH POPULATION")
@@ -346,19 +381,19 @@ def stage_3_populate_graph(
     try:
         with driver.session() as session:
             # Create Stat nodes FIRST (cards need them for HAS_STAT relationships)
-            if stats:
-                count = session.execute_write(create_stats_from_parsed, stats)
+            if data.stats:
+                count = session.execute_write(create_stats_from_parsed, data.stats)
                 logger.info(f"Created {count} Stat nodes")
 
             # Create Charm nodes (tribe relationships after create_neo4j_data, which creates Tribes)
-            if charms:
-                charm_count = session.execute_write(create_charms_from_parsed, charms)
+            if data.charms:
+                charm_count = session.execute_write(create_charms_from_parsed, data.charms)
                 logger.info(f"Created {charm_count} Charm nodes")
     finally:
         driver.close()
 
     # Convert CardInfo objects to dictionaries
-    cards_dict_data = [card.to_dict() for card in card_infos]
+    cards_dict_data = [card.to_dict() for card in data.cards]
     logger.info(f"Ingesting {len(cards_dict_data)} cards into Neo4j graph...")
 
     # Creates Tribes, Cards, Crowns, Stats relationships, etc.
@@ -372,17 +407,21 @@ def stage_3_populate_graph(
     )
     try:
         with driver.session() as session:
-            if charms:
-                tribe_count = session.execute_write(create_charm_tribe_relationships, charms)
+            if data.charms:
+                tribe_count = session.execute_write(create_charm_tribe_relationships, data.charms)
                 logger.info(f"Created {tribe_count} Charm-Tribe relationships")
 
-            if zones or map_events or fight_slots:
-                counts = session.execute_write(create_map_graph, zones, map_events, fight_slots, fight_page_mapping or {})
+            if data.zones or data.map_events or data.fight_slots:
+                counts = session.execute_write(create_map_graph, data.zones, data.map_events, data.fight_slots, data.fight_page_mapping)
                 logger.info(f"Map graph created: {counts}")
 
-            if fight_enemies and fight_page_mapping:
-                enemy_count = session.execute_write(create_fight_enemy_relationships, fight_enemies, fight_page_mapping)
+            if data.fight_enemies and data.fight_page_mapping:
+                enemy_count = session.execute_write(create_fight_enemy_relationships, data.fight_enemies, data.fight_page_mapping)
                 logger.info(f"Created {enemy_count} Fight-Enemy relationships")
+
+            if data.summons:
+                summon_count = session.execute_write(create_summon_relationships, data.summons)
+                logger.info(f"Created {summon_count} SUMMONS relationships")
     finally:
         driver.close()
 
@@ -468,6 +507,11 @@ def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = Tr
     charm_link_count = link_documents_to_charms()
     logger.info(f"Linked {charm_link_count} documents to charms")
 
+    # Link shade Card nodes to Shades.html overview Document
+    logger.info("Linking shade cards to Shades overview document...")
+    shade_link_count = link_documents_to_shades()
+    logger.info(f"Linked {shade_link_count} shade cards to Shades overview document")
+
     # Link Document nodes to Map nodes (Map, Zone, MapEvent)
     logger.info("Linking documents to map nodes in knowledge graph...")
     map_link_count = link_documents_to_map()
@@ -540,16 +584,14 @@ async def main():
         # TODO: Load CardInfo objects from existing HTML files
         # For now, we'll need to scrape to get the CardInfo objects
         logger.warning("Loading from existing files not yet implemented, running scrape anyway")
-        card_infos, stats, charms, zones, map_events, fight_slots, fight_page_mapping, fight_enemies = await stage_1_scrape_cards()
-    else:
-        card_infos, stats, charms, zones, map_events, fight_slots, fight_page_mapping, fight_enemies = await stage_1_scrape_cards()
+    pipeline_data = await stage_1_scrape_cards()
 
     # Stage 2: Enrich
-    stage_2_enrich_data(card_infos)
+    stage_2_enrich_data(pipeline_data.cards)
 
     # Stage 3: Graph
     if not args.skip_graph:
-        stage_3_populate_graph(card_infos, stats, charms, zones, map_events, fight_slots, fight_page_mapping, fight_enemies)
+        stage_3_populate_graph(pipeline_data)
     else:
         logger.info("Skipping graph population (--skip-graph flag set)")
 
@@ -557,7 +599,7 @@ async def main():
     if not args.skip_vectors:
         # If --no-chunking is passed, split_text should be False
         split_text = not args.no_chunking
-        stage_4_document_ingestion(card_infos, split_text=split_text)
+        stage_4_document_ingestion(pipeline_data.cards, split_text=split_text)
     else:
         logger.info("Skipping document ingestion (--skip-vectors flag set)")
 

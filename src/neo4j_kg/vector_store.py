@@ -282,7 +282,7 @@ def link_documents_to_crowns() -> int:
         with driver.session() as session:
             link_query = """
             MATCH (d:Document)
-            WHERE d.source_file ENDS WITH 'Crowns.html'
+            WHERE d.source_file ENDS WITH 'crowns/Crowns.html'
             MATCH (crown:Crown)
             MERGE (crown)-[:HAS_DOCUMENT]->(d)
             RETURN count(*) as relationships_created
@@ -316,7 +316,7 @@ def link_documents_to_stats() -> int:
         with driver.session() as session:
             link_query = """
             MATCH (d:Document)
-            WHERE d.source_file ENDS WITH 'Stats.html'
+            WHERE d.source_file ENDS WITH 'stats/Stats.html'
             MATCH (stat:Stat)
             MERGE (stat)-[:HAS_DOCUMENT]->(d)
             RETURN count(*) as relationships_created
@@ -350,7 +350,7 @@ def link_documents_to_charms() -> int:
         with driver.session() as session:
             link_query = """
             MATCH (d:Document)
-            WHERE d.source_file ENDS WITH 'Charms.html'
+            WHERE d.source_file ENDS WITH 'charms/Charms.html'
             MATCH (charm:Charm)
             MERGE (charm)-[:HAS_DOCUMENT]->(d)
             RETURN count(*) as relationships_created
@@ -361,6 +361,39 @@ def link_documents_to_charms() -> int:
             count = record["relationships_created"] if record else 0
 
             logger.info(f"Created {count} Charm-Document relationships")
+            return count
+
+    finally:
+        driver.close()
+
+
+def link_documents_to_shades() -> int:
+    """
+    Link shade Card nodes to the Shades.html overview Document.
+
+    Individual shade cards already link to their own page Documents via
+    link_documents_to_cards(). This additionally links them to the aggregate
+    Shades page which contains summoning mechanics and summon conditions.
+
+    Returns:
+        Number of relationships created
+    """
+    logger.info("Linking shade cards to Shades overview Document...")
+
+    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+
+    try:
+        with driver.session() as session:
+            query = """
+            MATCH (d:Document)
+            WHERE d.source_file ENDS WITH 'shades/Shades.html'
+            MATCH (c:Card)-[:HAS_CARD_TYPE]->(ct:CardType {name: 'shades'})
+            MERGE (c)-[:HAS_DOCUMENT]->(d)
+            RETURN count(*) AS created
+            """
+            result = session.run(query)
+            count = result.single()["created"]
+            logger.info(f"Linked {count} shade cards to Shades overview document")
             return count
 
     finally:
@@ -387,7 +420,7 @@ def link_documents_to_map() -> int:
             for label in ['Map', 'Zone', 'MapEvent']:
                 query = f"""
                 MATCH (d:Document)
-                WHERE d.source_file ENDS WITH 'Map.html'
+                WHERE d.source_file ENDS WITH 'maps/Map.html'
                 MATCH (n:{label})
                 MERGE (n)-[:HAS_DOCUMENT]->(d)
                 RETURN count(*) as created
@@ -424,7 +457,7 @@ def link_documents_to_fights() -> int:
             MATCH (f:Fight)
             WHERE f.page_name IS NOT NULL
             MATCH (d:Document)
-            WHERE d.source_file ENDS WITH (f.page_name + '.html')
+            WHERE d.source_file ENDS WITH ('fights/' + f.page_name + '.html')
             MERGE (f)-[:HAS_DOCUMENT]->(d)
             RETURN count(*) AS created
             """
