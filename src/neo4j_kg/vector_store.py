@@ -427,3 +427,61 @@ def link_documents_to_fights(session: Session) -> int:
     count = result.single()["created"]
     logger.info(f"Linked {count} Fight nodes to their Documents")
     return count
+
+
+def link_documents_to_shops(session: Session) -> int:
+    """
+    Link Shop nodes to their wiki page Documents.
+
+    Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
+
+    Returns:
+        Number of relationships created
+    """
+    logger.info("Linking Shop nodes to Documents...")
+
+    total = 0
+    shop_docs = [
+        ("The Woolly Snail", "shops/The_Woolly_Snail.html"),
+        ("Charm Merchant", "shops/Charm_Merchant.html"),
+    ]
+    for shop_name, doc_suffix in shop_docs:
+        query = """
+        MATCH (d:Document)
+        WHERE d.source_file ENDS WITH $doc_suffix
+        MATCH (s:Shop {name: $shop_name})
+        MERGE (s)-[:HAS_DOCUMENT]->(d)
+        RETURN count(*) AS created
+        """
+        result = session.run(query, doc_suffix=doc_suffix, shop_name=shop_name)
+        count = result.single()["created"]
+        total += count
+
+    logger.info(f"Linked {total} Shop-Document relationships")
+    return total
+
+
+def link_documents_to_bling(session: Session) -> int:
+    """
+    Link Bling node to the Bling wiki page Document.
+
+    Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
+
+    Returns:
+        Number of relationships created
+    """
+    logger.info("Linking Bling node to Document...")
+
+    query = """
+    MATCH (d:Document)
+    WHERE d.source_file ENDS WITH 'bling/Bling.html'
+    MATCH (b:Bling)
+    MERGE (b)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) AS created
+    """
+    result = session.run(query)
+    count = result.single()["created"]
+    logger.info(f"Linked {count} Bling-Document relationships")
+    return count

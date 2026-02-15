@@ -4,6 +4,7 @@ from src.data_processing.leaders import parse_leaders_page
 from src.data_processing.stats import parse_stats_page, StatInfo
 from src.data_processing.keywords import parse_keywords_page, KeywordInfo
 from src.data_processing.charms import parse_charms_page, CharmInfo
+from src.data_processing.bling import parse_bling_page, parse_shop_page, parse_clunker_prices, EnemyBlingDrop, ShopListing
 from src.data_processing.map import parse_map_page, get_fight_page_mapping, ZoneInfo, MapEventInfo, FightSlotInfo
 from src.data_processing.fights import parse_fight_enemies
 from src.data_processing.shades import parse_shades_page, SummonInfo
@@ -104,3 +105,36 @@ async def scrape_fight_pages(fight_page_mapping: dict[str, str]) -> dict[str, Li
     total = sum(len(e) for e in fight_enemies.values())
     logger.info(f"Finished {len(page_slugs)} fight pages ({total} total enemy entries)")
     return fight_enemies
+
+
+async def scrape_bling(boss_names: List[str], miniboss_names: List[str]) -> List[EnemyBlingDrop]:
+    """Parse the Bling page for enemy drop values (from cache or web)."""
+    html = await _get_html("Bling", "bling")
+    if not html:
+        return []
+
+    drops = parse_bling_page(html, boss_names, miniboss_names)
+    logger.info(f"Parsed {len(drops)} enemy bling drops")
+    return drops
+
+
+async def scrape_shop(page_name: str, subdir: str) -> List[ShopListing]:
+    """Parse a shop page for item/charm listings (from cache or web)."""
+    html = await _get_html(page_name, subdir)
+    if not html:
+        return []
+
+    listings = parse_shop_page(html)
+    logger.info(f"Parsed {len(listings)} listings from {page_name}")
+    return listings
+
+
+async def scrape_clunker_prices() -> List[ShopListing]:
+    """Parse the Clunkers page for clunker shop prices (from cache or web)."""
+    html = await _get_html("Clunkers", "clunkers_page")
+    if not html:
+        return []
+
+    listings = parse_clunker_prices(html)
+    logger.info(f"Parsed {len(listings)} clunker prices")
+    return listings

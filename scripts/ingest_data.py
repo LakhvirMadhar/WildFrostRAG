@@ -37,6 +37,7 @@ from src.data_processing.enrichment import enrich_cards_with_tribes
 from src.data_processing.html_splitter import process_html_files
 from src.data_processing.stats import StatInfo
 from src.data_processing.keywords import KeywordInfo
+from src.data_processing.bling import EnemyBlingDrop, ShopListing
 from src.data_processing.charms import CharmInfo
 from src.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
 from src.data_processing.shades import SummonInfo
@@ -47,9 +48,11 @@ from src.neo4j_kg.charms import create_charms_from_parsed, create_charm_tribe_re
 from src.neo4j_kg.map import create_map_graph
 from src.neo4j_kg.fights import create_fight_enemy_relationships
 from src.neo4j_kg.shades import create_summon_relationships
+from src.neo4j_kg.bling import create_bling_and_shops, create_drops_bling_relationships, create_shop_sells_relationships
 from src.scraping.wiki_scraper import scrape_wiki_page, clean_name_for_url, load_cached_html
 from src.scraping.domain_scrapers import (
     scrape_leaders, scrape_stats, scrape_keywords, scrape_charms,
+    scrape_bling, scrape_shop, scrape_clunker_prices,
     scrape_shades, scrape_map, scrape_fight_pages,
 )
 from src.neo4j_kg.vector_store import (
@@ -60,7 +63,9 @@ from src.neo4j_kg.vector_store import (
     link_documents_to_charms,
     link_documents_to_shades,
     link_documents_to_map,
-    link_documents_to_fights
+    link_documents_to_fights,
+    link_documents_to_shops,
+    link_documents_to_bling,
 )
 from src.neo4j_kg.neo4j_indexes import (
     create_fulltext_index,
@@ -80,6 +85,10 @@ class PipelineData:
     cards: List[CardInfo] = field(default_factory=list)
     stats: List[StatInfo] = field(default_factory=list)
     keywords: List[KeywordInfo] = field(default_factory=list)
+    bling_drops: List[EnemyBlingDrop] = field(default_factory=list)
+    woolly_snail_listings: List[ShopListing] = field(default_factory=list)
+    charm_merchant_listings: List[ShopListing] = field(default_factory=list)
+    clunker_prices: List[ShopListing] = field(default_factory=list)
     charms: List[CharmInfo] = field(default_factory=list)
     summons: List[SummonInfo] = field(default_factory=list)
     zones: List[ZoneInfo] = field(default_factory=list)
@@ -197,6 +206,18 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
     # Scrape keywords page
     keywords = await scrape_keywords()
 
+    # Scrape bling page (needs boss/miniboss names from schema)
+    boss_names = card_type_schema.get("bosses", [])
+    miniboss_names = card_type_schema.get("minibosses", [])
+    bling_drops = await scrape_bling(boss_names, miniboss_names)
+
+    # Scrape shop pages
+    woolly_snail_listings = await scrape_shop("The_Woolly_Snail", "shops")
+    charm_merchant_listings = await scrape_shop("Charm_Merchant", "shops")
+
+    # Scrape clunker prices (from Clunkers page)
+    clunker_prices = await scrape_clunker_prices()
+
     # Scrape charms page
     charms = await scrape_charms()
 
@@ -216,6 +237,10 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
         cards=all_cards,
         stats=stats,
         keywords=keywords,
+        bling_drops=bling_drops,
+        woolly_snail_listings=woolly_snail_listings,
+        charm_merchant_listings=charm_merchant_listings,
+        clunker_prices=clunker_prices,
         charms=charms,
         summons=summons,
         zones=zones,
@@ -313,6 +338,35 @@ def stage_3_populate_graph(data: PipelineData) -> None:
             if data.summons:
                 summon_count = session.execute_write(create_summon_relationships, data.summons)
                 logger.info(f"Created {summon_count} SUMMONS relationships")
+
+            # Bling economy: Bling node, Shop nodes, DROPS_BLING and SELLS relationships
+            session.execute_write(create_bling_and_shops)
+            if data.bling_drops:
+                drop_count = session.execute_write(create_drops_bling_relationships, data.bling_drops)
+                logger.info(f"Created {drop_count} DROPS_BLING relationships")
+            if data.woolly_snail_listings:
+                snail_count = session.execute_write(
+                    create_shop_sells_relationships, "The Woolly Snail", data.woolly_snail_listings, "Card"
+                )
+                logger.info(f"Created {snail_count} Woolly Snail SELLS relationships")
+            if data.charm_merchant_listings:
+                charm_shop_count = session.execute_write(
+                    create_shop_sells_relationships, "Charm Merchant", data.charm_merchant_listings, "Charm"
+                )
+                logger.info(f"Created {charm_shop_count} Charm Merchant SELLS Charm relationships")
+
+            # Charm Merchant also sells Items and Clunkers (with charms attached)
+            # Items use Woolly Snail base prices, Clunkers use Clunkers page prices
+            if data.woolly_snail_listings:
+                cm_item_count = session.execute_write(
+                    create_shop_sells_relationships, "Charm Merchant", data.woolly_snail_listings, "Card"
+                )
+                logger.info(f"Created {cm_item_count} Charm Merchant SELLS Item relationships")
+            if data.clunker_prices:
+                cm_clunker_count = session.execute_write(
+                    create_shop_sells_relationships, "Charm Merchant", data.clunker_prices, "Card"
+                )
+                logger.info(f"Created {cm_clunker_count} Charm Merchant SELLS Clunker relationships")
     finally:
         driver.close()
 
@@ -421,6 +475,16 @@ def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = Tr
             logger.info("Linking fight nodes to fight page documents...")
             fight_link_count = link_documents_to_fights(session)
             logger.info(f"Linked {fight_link_count} fight nodes to their documents")
+
+            # Link Shop nodes to their wiki page Documents
+            logger.info("Linking shop nodes to documents...")
+            shop_link_count = link_documents_to_shops(session)
+            logger.info(f"Linked {shop_link_count} shop nodes to their documents")
+
+            # Link Bling node to its wiki page Document
+            logger.info("Linking bling node to document...")
+            bling_link_count = link_documents_to_bling(session)
+            logger.info(f"Linked {bling_link_count} bling node to its document")
 
     finally:
         driver.close()
