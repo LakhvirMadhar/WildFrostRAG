@@ -38,6 +38,7 @@ from src.data_processing.html_splitter import process_html_files
 from src.data_processing.stats import StatInfo
 from src.data_processing.keywords import KeywordInfo
 from src.data_processing.bling import EnemyBlingDrop, ShopListing
+from src.data_processing.bells import BellInfo
 from src.data_processing.charms import CharmInfo
 from src.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
 from src.data_processing.shades import SummonInfo
@@ -49,10 +50,11 @@ from src.neo4j_kg.map import create_map_graph
 from src.neo4j_kg.fights import create_fight_enemy_relationships
 from src.neo4j_kg.shades import create_summon_relationships
 from src.neo4j_kg.bling import create_bling_and_shops, create_drops_bling_relationships, create_shop_sells_relationships
+from src.neo4j_kg.bells import create_bells_from_parsed
 from src.scraping.wiki_scraper import scrape_wiki_page, clean_name_for_url, load_cached_html
 from src.scraping.domain_scrapers import (
     scrape_leaders, scrape_stats, scrape_keywords, scrape_charms,
-    scrape_bling, scrape_shop, scrape_clunker_prices,
+    scrape_bling, scrape_shop, scrape_clunker_prices, scrape_bells,
     scrape_shades, scrape_map, scrape_fight_pages,
 )
 from src.neo4j_kg.vector_store import (
@@ -66,6 +68,7 @@ from src.neo4j_kg.vector_store import (
     link_documents_to_fights,
     link_documents_to_shops,
     link_documents_to_bling,
+    link_documents_to_bells,
 )
 from src.neo4j_kg.neo4j_indexes import (
     create_fulltext_index,
@@ -89,6 +92,7 @@ class PipelineData:
     woolly_snail_listings: List[ShopListing] = field(default_factory=list)
     charm_merchant_listings: List[ShopListing] = field(default_factory=list)
     clunker_prices: List[ShopListing] = field(default_factory=list)
+    bells: List[BellInfo] = field(default_factory=list)
     charms: List[CharmInfo] = field(default_factory=list)
     summons: List[SummonInfo] = field(default_factory=list)
     zones: List[ZoneInfo] = field(default_factory=list)
@@ -218,6 +222,9 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
     # Scrape clunker prices (from Clunkers page)
     clunker_prices = await scrape_clunker_prices()
 
+    # Scrape bells page
+    bells = await scrape_bells()
+
     # Scrape charms page
     charms = await scrape_charms()
 
@@ -241,6 +248,7 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
         woolly_snail_listings=woolly_snail_listings,
         charm_merchant_listings=charm_merchant_listings,
         clunker_prices=clunker_prices,
+        bells=bells,
         charms=charms,
         summons=summons,
         zones=zones,
@@ -338,6 +346,11 @@ def stage_3_populate_graph(data: PipelineData) -> None:
             if data.summons:
                 summon_count = session.execute_write(create_summon_relationships, data.summons)
                 logger.info(f"Created {summon_count} SUMMONS relationships")
+
+            # Create Bell nodes
+            if data.bells:
+                bell_count = session.execute_write(create_bells_from_parsed, data.bells)
+                logger.info(f"Created {bell_count} Bell nodes")
 
             # Bling economy: Bling node, Shop nodes, DROPS_BLING and SELLS relationships
             session.execute_write(create_bling_and_shops)
@@ -485,6 +498,11 @@ def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = Tr
             logger.info("Linking bling node to document...")
             bling_link_count = link_documents_to_bling(session)
             logger.info(f"Linked {bling_link_count} bling node to its document")
+
+            # Link Bell nodes to their wiki page Document
+            logger.info("Linking bell nodes to document...")
+            bell_link_count = link_documents_to_bells(session)
+            logger.info(f"Linked {bell_link_count} bell nodes to their document")
 
     finally:
         driver.close()

@@ -111,7 +111,7 @@ def create_shop_sells_relationships(tx, shop_name: str, listings: List[ShopListi
     Returns:
         Number of relationships created
     """
-    listing_data = [{"card_name": l.card_name, "base_price": l.base_price} for l in listings]
+    listing_data = [{"card_name": item.card_name, "base_price": item.base_price} for item in listings]
 
     # Use dynamic label matching via property name
     if target_label == "Charm":

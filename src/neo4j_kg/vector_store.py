@@ -485,3 +485,28 @@ def link_documents_to_bling(session: Session) -> int:
     count = result.single()["created"]
     logger.info(f"Linked {count} Bling-Document relationships")
     return count
+
+
+def link_documents_to_bells(session: Session) -> int:
+    """
+    Link Bell nodes to the Bells wiki page Document.
+
+    Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
+
+    Returns:
+        Number of relationships created
+    """
+    logger.info("Linking Bell nodes to Document...")
+
+    query = """
+    MATCH (d:Document)
+    WHERE d.source_file ENDS WITH 'bells/Bells.html'
+    MATCH (b:Bell)
+    MERGE (b)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) AS created
+    """
+    result = session.run(query)
+    count = result.single()["created"]
+    logger.info(f"Linked {count} Bell-Document relationships")
+    return count

@@ -5,6 +5,7 @@ from src.data_processing.stats import parse_stats_page, StatInfo
 from src.data_processing.keywords import parse_keywords_page, KeywordInfo
 from src.data_processing.charms import parse_charms_page, CharmInfo
 from src.data_processing.bling import parse_bling_page, parse_shop_page, parse_clunker_prices, EnemyBlingDrop, ShopListing
+from src.data_processing.bells import parse_bells_page, BellInfo
 from src.data_processing.map import parse_map_page, get_fight_page_mapping, ZoneInfo, MapEventInfo, FightSlotInfo
 from src.data_processing.fights import parse_fight_enemies
 from src.data_processing.shades import parse_shades_page, SummonInfo
@@ -138,3 +139,14 @@ async def scrape_clunker_prices() -> List[ShopListing]:
     listings = parse_clunker_prices(html)
     logger.info(f"Parsed {len(listings)} clunker prices")
     return listings
+
+
+async def scrape_bells() -> List[BellInfo]:
+    """Parse the Bells page (from cache or web)."""
+    html = await _get_html("Bells", "bells")
+    if not html:
+        return []
+
+    bells = parse_bells_page(html)
+    logger.info(f"Parsed {len(bells)} bells")
+    return bells
