@@ -248,21 +248,19 @@ def stage_3_populate_graph(data: PipelineData) -> None:
                 charm_count = session.execute_write(create_charms_from_parsed, data.charms)
                 logger.info(f"Created {charm_count} Charm nodes")
 
-        # Convert CardInfo objects to dictionaries
-        cards_dict_data = [card.to_dict() for card in data.cards]
-        logger.info(f"Ingesting {len(cards_dict_data)} cards into Neo4j graph...")
+            # Convert CardInfo objects to dictionaries
+            cards_dict_data = [card.to_dict() for card in data.cards]
+            logger.info(f"Ingesting {len(cards_dict_data)} cards into Neo4j graph...")
 
-        # Creates Tribes, Cards, Crowns, Stats relationships, etc.
-        # NOTE: create_neo4j_data still manages its own driver internally
-        create_neo4j_data(cards_dict_data)
+            # Creates Tribes, Cards, Crowns, Stats relationships, etc.
+            create_neo4j_data(session, cards_dict_data)
 
-        # Charm-Tribe relationships (Tribes must exist first)
-        # Map graph (Map, Zone, MapEvent, Fight nodes + relationships)
-        with driver.session() as session:
+            # Charm-Tribe relationships (Tribes must exist first from create_neo4j_data)
             if data.charms:
                 tribe_count = session.execute_write(create_charm_tribe_relationships, data.charms)
                 logger.info(f"Created {tribe_count} Charm-Tribe relationships")
 
+            # Map graph (Map, Zone, MapEvent, Fight nodes + relationships)
             if data.zones or data.map_events or data.fight_slots:
                 counts = session.execute_write(create_map_graph, data.zones, data.map_events, data.fight_slots, data.fight_page_mapping)
                 logger.info(f"Map graph created: {counts}")
