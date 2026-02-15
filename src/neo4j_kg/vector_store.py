@@ -3,11 +3,14 @@ Neo4j vector store operations for WildFrostRAG.
 
 This module handles ingestion of document embeddings into Neo4j and
 vector similarity search operations.
+
+Pipeline functions (ingest, link) accept a Neo4j Session via dependency
+injection — the caller (ingest_data.py) manages driver lifecycle.
 """
 
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from neo4j import GraphDatabase
+from neo4j import GraphDatabase, Session
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
 from src.utils.config import settings
@@ -15,6 +18,7 @@ from src.utils.logger import logger
 
 
 def ingest_documents_into_neo4j(
+    session: Session,
     document_chunks: List[Document],
     url_lookup: Optional[Dict[str, str]] = None,
     chunk_label: str = "Document",
@@ -28,6 +32,7 @@ def ingest_documents_into_neo4j(
     Uses MERGE to avoid duplicates.
 
     Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
         document_chunks: List of LangChain Document objects
         url_lookup: Optional dict mapping filename to wiki URL
         chunk_label: Node label to use in Neo4j (default: "Document")
@@ -40,56 +45,46 @@ def ingest_documents_into_neo4j(
     if url_lookup is None:
         url_lookup = {}
 
-    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    # Cypher query - text, metadata, and source URL
+    cypher_query = f"""
+    UNWIND $data AS item
+    MERGE (d:{chunk_label} {{
+        {text_property}: item.text
+    }})
+    ON CREATE SET
+        d.source_file = item.source_file,
+        d.title = item.title,
+        d.source_url = item.source_url
+    """
 
-    try:
-        driver.verify_connectivity()
-        logger.info("Connection to Neo4j successful")
+    # Prepare data without embeddings
+    data_to_ingest = []
+    for chunk in document_chunks:
+        full_path = chunk.metadata.get('source', 'unknown')
 
-        with driver.session() as session:
-            # Cypher query - text, metadata, and source URL
-            cypher_query = f"""
-            UNWIND $data AS item
-            MERGE (d:{chunk_label} {{
-                {text_property}: item.text
-            }})
-            ON CREATE SET
-                d.source_file = item.source_file,
-                d.title = item.title,
-                d.source_url = item.source_url
-            """
+        # Extract filename and make path relative to data/
+        filename = Path(full_path).name if full_path else ''
 
-            # Prepare data without embeddings
-            data_to_ingest = []
-            for chunk in document_chunks:
-                full_path = chunk.metadata.get('source', 'unknown')
+        # Convert to relative path (data/structured_outputs/...)
+        source_file = full_path
+        if full_path and 'data' in full_path:
+            data_idx = full_path.find('data')
+            source_file = full_path[data_idx:].replace('\\', '/')
 
-                # Extract filename and make path relative to data/
-                filename = Path(full_path).name if full_path else ''
+        # Derive title from filename (without extension)
+        title = Path(filename).stem if filename else 'unknown'
 
-                # Convert to relative path (data/structured_outputs/...)
-                source_file = full_path
-                if full_path and 'data' in full_path:
-                    data_idx = full_path.find('data')
-                    source_file = full_path[data_idx:].replace('\\', '/')
+        source_url = url_lookup.get(filename, '')
 
-                # Derive title from filename (without extension)
-                title = Path(filename).stem if filename else 'unknown'
+        data_to_ingest.append({
+            "text": chunk.page_content,
+            "source_file": source_file,
+            "title": title,
+            "source_url": source_url
+        })
 
-                source_url = url_lookup.get(filename, '')
-
-                data_to_ingest.append({
-                    "text": chunk.page_content,
-                    "source_file": source_file,
-                    "title": title,
-                    "source_url": source_url
-                })
-
-            session.run(cypher_query, parameters={"data": data_to_ingest})
-            logger.info("Data ingestion complete")
-
-    finally:
-        driver.close()
+    session.run(cypher_query, parameters={"data": data_to_ingest})
+    logger.info("Data ingestion complete")
 
 
 def create_embedding_index(
@@ -222,152 +217,128 @@ def get_retrieved_chunks(
         driver.close()
 
 
-def link_documents_to_cards() -> int:
+def link_documents_to_cards(session: Session) -> int:
     """
     Link Document nodes to Card nodes in the knowledge graph.
 
-    This function creates HAS_DOCUMENT relationships between Card nodes
-    and Document nodes by matching the source_file property of Documents
-    to the card_name property of Cards.
+    Creates HAS_DOCUMENT relationships between Card nodes and Document nodes
+    by matching the source_file property of Documents to the card_name property of Cards.
+
+    Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
 
     Returns:
         Number of relationships created
-
-    Example:
-        After ingesting documents and cards:
-        >>> count = link_documents_to_cards()
-        >>> print(f"Created {count} Card-Document relationships")
     """
     logger.info("Linking Document nodes to Card nodes...")
 
-    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    link_query = """
+    MATCH (d:Document)
+    MATCH (c:Card)
+    WHERE d.source_file ENDS WITH c.filename
+    MERGE (c)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) as relationships_created
+    """
 
-    try:
-        with driver.session() as session:
-            # Match exactly on the filename property we now store on the Card node
-            # This handles cases where card_name has special chars (e.g. "Lil' Gazi" -> "Lil Gazi.html")
-            link_query = """
-            MATCH (d:Document)
-            MATCH (c:Card)
-            WHERE d.source_file ENDS WITH c.filename
-            MERGE (c)-[:HAS_DOCUMENT]->(d)
-            RETURN count(*) as relationships_created
-            """
+    result = session.run(link_query)
+    record = result.single()
+    count = record["relationships_created"] if record else 0
 
-            result = session.run(link_query)
-            record = result.single()
-            count = record["relationships_created"] if record else 0
-
-            logger.info(f"Created {count} Card-Document relationships")
-            return count
-
-    finally:
-        driver.close()
+    logger.info(f"Created {count} Card-Document relationships")
+    return count
 
 
-def link_documents_to_crowns() -> int:
+def link_documents_to_crowns(session: Session) -> int:
     """
     Link Crown nodes to the Crowns Document node.
 
     Both Crown and Cursed Crown nodes get linked to the same Crowns.html document.
+
+    Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
 
     Returns:
         Number of relationships created
     """
     logger.info("Linking Crown nodes to Document...")
 
-    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    link_query = """
+    MATCH (d:Document)
+    WHERE d.source_file ENDS WITH 'crowns/Crowns.html'
+    MATCH (crown:Crown)
+    MERGE (crown)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) as relationships_created
+    """
 
-    try:
-        with driver.session() as session:
-            link_query = """
-            MATCH (d:Document)
-            WHERE d.source_file ENDS WITH 'crowns/Crowns.html'
-            MATCH (crown:Crown)
-            MERGE (crown)-[:HAS_DOCUMENT]->(d)
-            RETURN count(*) as relationships_created
-            """
+    result = session.run(link_query)
+    record = result.single()
+    count = record["relationships_created"] if record else 0
 
-            result = session.run(link_query)
-            record = result.single()
-            count = record["relationships_created"] if record else 0
-
-            logger.info(f"Created {count} Crown-Document relationships")
-            return count
-
-    finally:
-        driver.close()
+    logger.info(f"Created {count} Crown-Document relationships")
+    return count
 
 
-def link_documents_to_stats() -> int:
+def link_documents_to_stats(session: Session) -> int:
     """
     Link Stat nodes to the Stats Document node.
 
     All Stat nodes get linked to the same Stats.html document.
+
+    Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
 
     Returns:
         Number of relationships created
     """
     logger.info("Linking Stat nodes to Document...")
 
-    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    link_query = """
+    MATCH (d:Document)
+    WHERE d.source_file ENDS WITH 'stats/Stats.html'
+    MATCH (stat:Stat)
+    MERGE (stat)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) as relationships_created
+    """
 
-    try:
-        with driver.session() as session:
-            link_query = """
-            MATCH (d:Document)
-            WHERE d.source_file ENDS WITH 'stats/Stats.html'
-            MATCH (stat:Stat)
-            MERGE (stat)-[:HAS_DOCUMENT]->(d)
-            RETURN count(*) as relationships_created
-            """
+    result = session.run(link_query)
+    record = result.single()
+    count = record["relationships_created"] if record else 0
 
-            result = session.run(link_query)
-            record = result.single()
-            count = record["relationships_created"] if record else 0
-
-            logger.info(f"Created {count} Stat-Document relationships")
-            return count
-
-    finally:
-        driver.close()
+    logger.info(f"Created {count} Stat-Document relationships")
+    return count
 
 
-def link_documents_to_charms() -> int:
+def link_documents_to_charms(session: Session) -> int:
     """
     Link Charm nodes to the Charms Document node.
 
     All Charm nodes get linked to the same Charms.html document.
+
+    Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
 
     Returns:
         Number of relationships created
     """
     logger.info("Linking Charm nodes to Document...")
 
-    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    link_query = """
+    MATCH (d:Document)
+    WHERE d.source_file ENDS WITH 'charms/Charms.html'
+    MATCH (charm:Charm)
+    MERGE (charm)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) as relationships_created
+    """
 
-    try:
-        with driver.session() as session:
-            link_query = """
-            MATCH (d:Document)
-            WHERE d.source_file ENDS WITH 'charms/Charms.html'
-            MATCH (charm:Charm)
-            MERGE (charm)-[:HAS_DOCUMENT]->(d)
-            RETURN count(*) as relationships_created
-            """
+    result = session.run(link_query)
+    record = result.single()
+    count = record["relationships_created"] if record else 0
 
-            result = session.run(link_query)
-            record = result.single()
-            count = record["relationships_created"] if record else 0
-
-            logger.info(f"Created {count} Charm-Document relationships")
-            return count
-
-    finally:
-        driver.close()
+    logger.info(f"Created {count} Charm-Document relationships")
+    return count
 
 
-def link_documents_to_shades() -> int:
+def link_documents_to_shades(session: Session) -> int:
     """
     Link shade Card nodes to the Shades.html overview Document.
 
@@ -375,96 +346,84 @@ def link_documents_to_shades() -> int:
     link_documents_to_cards(). This additionally links them to the aggregate
     Shades page which contains summoning mechanics and summon conditions.
 
+    Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
+
     Returns:
         Number of relationships created
     """
     logger.info("Linking shade cards to Shades overview Document...")
 
-    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
-
-    try:
-        with driver.session() as session:
-            query = """
-            MATCH (d:Document)
-            WHERE d.source_file ENDS WITH 'shades/Shades.html'
-            MATCH (c:Card)-[:HAS_CARD_TYPE]->(ct:CardType {name: 'shades'})
-            MERGE (c)-[:HAS_DOCUMENT]->(d)
-            RETURN count(*) AS created
-            """
-            result = session.run(query)
-            count = result.single()["created"]
-            logger.info(f"Linked {count} shade cards to Shades overview document")
-            return count
-
-    finally:
-        driver.close()
+    query = """
+    MATCH (d:Document)
+    WHERE d.source_file ENDS WITH 'shades/Shades.html'
+    MATCH (c:Card)-[:HAS_CARD_TYPE]->(ct:CardType {name: 'shades'})
+    MERGE (c)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) AS created
+    """
+    result = session.run(query)
+    count = result.single()["created"]
+    logger.info(f"Linked {count} shade cards to Shades overview document")
+    return count
 
 
-def link_documents_to_map() -> int:
+def link_documents_to_map(session: Session) -> int:
     """
     Link Map, Zone, and MapEvent nodes to the Map Document node.
 
     Fight nodes are NOT linked here - they get their own fight page documents
     via link_documents_to_fights().
 
+    Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
+
     Returns:
         Number of relationships created
     """
     logger.info("Linking map nodes to Document...")
 
-    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    total = 0
+    for label in ['Map', 'Zone', 'MapEvent']:
+        query = f"""
+        MATCH (d:Document)
+        WHERE d.source_file ENDS WITH 'maps/Map.html'
+        MATCH (n:{label})
+        MERGE (n)-[:HAS_DOCUMENT]->(d)
+        RETURN count(*) as created
+        """
+        result = session.run(query)
+        count = result.single()["created"]
+        total += count
+        logger.info(f"  Linked {count} {label} nodes to Map document")
 
-    try:
-        total = 0
-        with driver.session() as session:
-            for label in ['Map', 'Zone', 'MapEvent']:
-                query = f"""
-                MATCH (d:Document)
-                WHERE d.source_file ENDS WITH 'maps/Map.html'
-                MATCH (n:{label})
-                MERGE (n)-[:HAS_DOCUMENT]->(d)
-                RETURN count(*) as created
-                """
-                result = session.run(query)
-                count = result.single()["created"]
-                total += count
-                logger.info(f"  Linked {count} {label} nodes to Map document")
-
-        logger.info(f"Created {total} map-Document relationships")
-        return total
-
-    finally:
-        driver.close()
+    logger.info(f"Created {total} map-Document relationships")
+    return total
 
 
-def link_documents_to_fights() -> int:
+def link_documents_to_fights(session: Session) -> int:
     """
     Link Fight nodes to their individual fight page Document nodes.
 
     Each Fight has a page_name property (e.g., "Infernoko_Fight") that
     corresponds to the source_file of its Document (e.g., "Infernoko_Fight.html").
 
+    Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
+
     Returns:
         Number of relationships created
     """
     logger.info("Linking fight nodes to their Documents...")
 
-    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
-
-    try:
-        with driver.session() as session:
-            query = """
-            MATCH (f:Fight)
-            WHERE f.page_name IS NOT NULL
-            MATCH (d:Document)
-            WHERE d.source_file ENDS WITH ('fights/' + f.page_name + '.html')
-            MERGE (f)-[:HAS_DOCUMENT]->(d)
-            RETURN count(*) AS created
-            """
-            result = session.run(query)
-            count = result.single()["created"]
-            logger.info(f"Linked {count} Fight nodes to their Documents")
-            return count
-
-    finally:
-        driver.close()
+    query = """
+    MATCH (f:Fight)
+    WHERE f.page_name IS NOT NULL
+    MATCH (d:Document)
+    WHERE d.source_file ENDS WITH ('fights/' + f.page_name + '.html')
+    MERGE (f)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) AS created
+    """
+    result = session.run(query)
+    count = result.single()["created"]
+    logger.info(f"Linked {count} Fight nodes to their Documents")
+    return count

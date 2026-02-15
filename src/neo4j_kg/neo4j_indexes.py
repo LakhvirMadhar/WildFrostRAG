@@ -68,6 +68,7 @@ def create_vector_index(
 
 
 def create_fulltext_index(
+    session,
     index_name: str,
     node_label: str = "Document",
     text_property: str = "text"
@@ -78,6 +79,7 @@ def create_fulltext_index(
     Uses Neo4j's Lucene-based full-text indexing capabilities.
 
     Args:
+        session: Active Neo4j session (caller manages driver lifecycle)
         index_name: Name for the full-text index
         node_label: Node label to index (default: "Document")
         text_property: Property containing text content (default: "text")
@@ -88,30 +90,20 @@ def create_fulltext_index(
     """
     logger.info(f"Creating full-text index '{index_name}' in Neo4j")
 
-    driver = GraphDatabase.driver(
-        settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
-    )
+    # Check if index already exists
+    index_exists_query = "SHOW INDEXES YIELD name WHERE name = $name"
+    if session.run(index_exists_query, name=index_name).single():
+        logger.info(f"Full-text index '{index_name}' already exists. Skipping creation.")
+        return
 
-    try:
-        with driver.session() as session:
-            # Check if index already exists
-            index_exists_query = "SHOW INDEXES YIELD name WHERE name = $name"
-            if session.run(index_exists_query, name=index_name).single():
-                logger.info(f"Full-text index '{index_name}' already exists. Skipping creation.")
-                return
+    # Create the full-text index using Neo4j 5.x syntax
+    create_query = f"""
+    CREATE FULLTEXT INDEX `{index_name}` IF NOT EXISTS
+    FOR (n:{node_label}) ON EACH [n.{text_property}]
+    """
 
-            # Create the full-text index using Neo4j 5.x syntax
-            create_query = f"""
-            CREATE FULLTEXT INDEX `{index_name}` IF NOT EXISTS
-            FOR (n:{node_label}) ON EACH [n.{text_property}]
-            """
-
-            session.run(create_query)
-            logger.info(f"Full-text index '{index_name}' successfully created")
-
-    finally:
-        driver.close()
+    session.run(create_query)
+    logger.info(f"Full-text index '{index_name}' successfully created")
 
 
 def wait_for_index_population(seconds: int = 5) -> None:

@@ -389,23 +389,17 @@ def stage_3_populate_graph(data: PipelineData) -> None:
             if data.charms:
                 charm_count = session.execute_write(create_charms_from_parsed, data.charms)
                 logger.info(f"Created {charm_count} Charm nodes")
-    finally:
-        driver.close()
 
-    # Convert CardInfo objects to dictionaries
-    cards_dict_data = [card.to_dict() for card in data.cards]
-    logger.info(f"Ingesting {len(cards_dict_data)} cards into Neo4j graph...")
+        # Convert CardInfo objects to dictionaries
+        cards_dict_data = [card.to_dict() for card in data.cards]
+        logger.info(f"Ingesting {len(cards_dict_data)} cards into Neo4j graph...")
 
-    # Creates Tribes, Cards, Crowns, Stats relationships, etc.
-    create_neo4j_data(cards_dict_data)
+        # Creates Tribes, Cards, Crowns, Stats relationships, etc.
+        # NOTE: create_neo4j_data still manages its own driver internally
+        create_neo4j_data(cards_dict_data)
 
-    # Charm-Tribe relationships (Tribes must exist first)
-    # Map graph (Map, Zone, MapEvent, Fight nodes + relationships)
-    driver = GraphDatabase.driver(
-        settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
-    )
-    try:
+        # Charm-Tribe relationships (Tribes must exist first)
+        # Map graph (Map, Zone, MapEvent, Fight nodes + relationships)
         with driver.session() as session:
             if data.charms:
                 tribe_count = session.execute_write(create_charm_tribe_relationships, data.charms)
@@ -469,58 +463,70 @@ def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = Tr
     }
     logger.info(f"Built URL lookup with {len(url_lookup)} entries")
 
-    # Ingest into Neo4j (no embeddings)
-    logger.info("Ingesting documents into Neo4j...")
-    ingest_documents_into_neo4j(
-        document_chunks=all_document_chunks,
-        url_lookup=url_lookup
+    # Single driver for all document operations
+    driver = GraphDatabase.driver(
+        settings.neo4j_uri.get_secret_value(),
+        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
     )
+    try:
+        with driver.session() as session:
+            # Ingest into Neo4j (no embeddings)
+            logger.info("Ingesting documents into Neo4j...")
+            ingest_documents_into_neo4j(
+                session=session,
+                document_chunks=all_document_chunks,
+                url_lookup=url_lookup
+            )
 
-    # Create full-text search index
-    logger.info("Creating full-text search index...")
-    create_fulltext_index(
-        index_name=settings.fulltext_index_name,
-        node_label="Document",
-        text_property="text"
-    )
+            # Create full-text search index
+            logger.info("Creating full-text search index...")
+            create_fulltext_index(
+                session=session,
+                index_name=settings.fulltext_index_name,
+                node_label="Document",
+                text_property="text"
+            )
 
-    # Wait for index to populate
-    wait_for_index_population(seconds=5)
+            # Wait for index to populate
+            wait_for_index_population(seconds=5)
 
-    # Link Document nodes to Card nodes in the knowledge graph
-    logger.info("Linking documents to cards in knowledge graph...")
-    link_count = link_documents_to_cards()
-    logger.info(f"Linked {link_count} documents to cards")
+            # Link Document nodes to Card nodes in the knowledge graph
+            logger.info("Linking documents to cards in knowledge graph...")
+            link_count = link_documents_to_cards(session)
+            logger.info(f"Linked {link_count} documents to cards")
 
-    # Link Document nodes to Crown nodes
-    logger.info("Linking documents to crowns in knowledge graph...")
-    crown_link_count = link_documents_to_crowns()
-    logger.info(f"Linked {crown_link_count} documents to crowns")
+            # Link Document nodes to Crown nodes
+            logger.info("Linking documents to crowns in knowledge graph...")
+            crown_link_count = link_documents_to_crowns(session)
+            logger.info(f"Linked {crown_link_count} documents to crowns")
 
-    # Link Document nodes to Stat nodes
-    logger.info("Linking documents to stats in knowledge graph...")
-    stat_link_count = link_documents_to_stats()
-    logger.info(f"Linked {stat_link_count} documents to stats")
+            # Link Document nodes to Stat nodes
+            logger.info("Linking documents to stats in knowledge graph...")
+            stat_link_count = link_documents_to_stats(session)
+            logger.info(f"Linked {stat_link_count} documents to stats")
 
-    # Link Document nodes to Charm nodes
-    logger.info("Linking documents to charms in knowledge graph...")
-    charm_link_count = link_documents_to_charms()
-    logger.info(f"Linked {charm_link_count} documents to charms")
+            # Link Document nodes to Charm nodes
+            logger.info("Linking documents to charms in knowledge graph...")
+            charm_link_count = link_documents_to_charms(session)
+            logger.info(f"Linked {charm_link_count} documents to charms")
 
-    # Link shade Card nodes to Shades.html overview Document
-    logger.info("Linking shade cards to Shades overview document...")
-    shade_link_count = link_documents_to_shades()
-    logger.info(f"Linked {shade_link_count} shade cards to Shades overview document")
+            # Link shade Card nodes to Shades.html overview Document
+            logger.info("Linking shade cards to Shades overview document...")
+            shade_link_count = link_documents_to_shades(session)
+            logger.info(f"Linked {shade_link_count} shade cards to Shades overview document")
 
-    # Link Document nodes to Map nodes (Map, Zone, MapEvent)
-    logger.info("Linking documents to map nodes in knowledge graph...")
-    map_link_count = link_documents_to_map()
-    logger.info(f"Linked {map_link_count} documents to map nodes")
+            # Link Document nodes to Map nodes (Map, Zone, MapEvent)
+            logger.info("Linking documents to map nodes in knowledge graph...")
+            map_link_count = link_documents_to_map(session)
+            logger.info(f"Linked {map_link_count} documents to map nodes")
 
-    # Link Fight nodes to their individual fight page Documents
-    logger.info("Linking fight nodes to fight page documents...")
-    fight_link_count = link_documents_to_fights()
-    logger.info(f"Linked {fight_link_count} fight nodes to their documents")
+            # Link Fight nodes to their individual fight page Documents
+            logger.info("Linking fight nodes to fight page documents...")
+            fight_link_count = link_documents_to_fights(session)
+            logger.info(f"Linked {fight_link_count} fight nodes to their documents")
+
+    finally:
+        driver.close()
 
     logger.info("Document ingestion complete")
 
