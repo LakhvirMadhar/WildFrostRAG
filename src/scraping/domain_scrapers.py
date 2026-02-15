@@ -7,18 +7,21 @@ from src.data_processing.map import parse_map_page, get_fight_page_mapping, Zone
 from src.data_processing.fights import parse_fight_enemies
 from src.data_processing.shades import parse_shades_page, SummonInfo
 from src.data_processing.cards import CardInfo
-from src.scraping.wiki_scraper import scrape_wiki_page
+from src.scraping.wiki_scraper import scrape_wiki_page, load_cached_html
 from src.utils.logger import logger
 
 
-async def scrape_leaders() -> List[CardInfo]:
-    """
-    Scrape and parse the Leaders page.
+async def _get_html(page_name: str, output_subdir: str) -> str | None:
+    """Load HTML from cache if available, otherwise scrape it."""
+    html = load_cached_html(page_name, output_subdir)
+    if html:
+        return html
+    return await scrape_wiki_page(page_name, output_subdir)
 
-    Returns:
-        List of CardInfo objects for all leaders
-    """
-    html = await scrape_wiki_page("Leaders", "leaders")
+
+async def scrape_leaders() -> List[CardInfo]:
+    """Parse the Leaders page (from cache or web)."""
+    html = await _get_html("Leaders", "leaders")
     if not html:
         return []
 
@@ -28,13 +31,8 @@ async def scrape_leaders() -> List[CardInfo]:
 
 
 async def scrape_stats() -> List[StatInfo]:
-    """
-    Scrape and parse the Stats page.
-
-    Returns:
-        List of StatInfo objects for all stats
-    """
-    html = await scrape_wiki_page("Stats", "stats")
+    """Parse the Stats page (from cache or web)."""
+    html = await _get_html("Stats", "stats")
     if not html:
         return []
 
@@ -44,13 +42,8 @@ async def scrape_stats() -> List[StatInfo]:
 
 
 async def scrape_charms() -> List[CharmInfo]:
-    """
-    Scrape and parse the Charms page.
-
-    Returns:
-        List of CharmInfo objects for all charms
-    """
-    html = await scrape_wiki_page("Charms", "charms")
+    """Parse the Charms page (from cache or web)."""
+    html = await _get_html("Charms", "charms")
     if not html:
         return []
 
@@ -60,13 +53,8 @@ async def scrape_charms() -> List[CharmInfo]:
 
 
 async def scrape_shades() -> List[SummonInfo]:
-    """
-    Scrape and parse the Shades page for summoning relationships.
-
-    Returns:
-        List of SummonInfo objects linking summoner cards to shades
-    """
-    html = await scrape_wiki_page("Shades", "shades")
+    """Parse the Shades page for summoning relationships (from cache or web)."""
+    html = await _get_html("Shades", "shades")
     if not html:
         return []
 
@@ -76,13 +64,8 @@ async def scrape_shades() -> List[SummonInfo]:
 
 
 async def scrape_map() -> tuple[List[ZoneInfo], List[MapEventInfo], List[FightSlotInfo], dict[str, str]]:
-    """
-    Scrape and parse the Map page.
-
-    Returns:
-        Tuple of (zones, map_events, fight_slots, fight_page_mapping)
-    """
-    html = await scrape_wiki_page("Map", "maps")
+    """Parse the Map page (from cache or web)."""
+    html = await _get_html("Map", "maps")
     if not html:
         return [], [], [], {}
 
@@ -94,28 +77,18 @@ async def scrape_map() -> tuple[List[ZoneInfo], List[MapEventInfo], List[FightSl
 
 
 async def scrape_fight_pages(fight_page_mapping: dict[str, str]) -> dict[str, List[str]]:
-    """
-    Scrape individual fight pages and parse enemy names from each.
-
-    Each fight page is saved to data/structured_outputs/fights/{page_slug}.html.
-
-    Args:
-        fight_page_mapping: Display name -> wiki page slug mapping
-
-    Returns:
-        Dict mapping page_slug -> list of enemy card names
-    """
+    """Parse individual fight pages and extract enemy names (from cache or web)."""
     page_slugs = list(set(fight_page_mapping.values()))
-    logger.info(f"Scraping {len(page_slugs)} fight pages...")
+    logger.info(f"Processing {len(page_slugs)} fight pages...")
 
     fight_enemies = {}
     for page_slug in page_slugs:
-        html = await scrape_wiki_page(page_slug, "fights")
+        html = await _get_html(page_slug, "fights")
         if html:
             enemies = parse_fight_enemies(html)
             fight_enemies[page_slug] = enemies
             logger.info(f"  {page_slug}: {len(enemies)} enemies")
 
     total = sum(len(e) for e in fight_enemies.values())
-    logger.info(f"Finished scraping {len(page_slugs)} fight pages ({total} total enemy entries)")
+    logger.info(f"Finished {len(page_slugs)} fight pages ({total} total enemy entries)")
     return fight_enemies

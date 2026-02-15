@@ -37,3 +37,25 @@ async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
     logger.info(f"Saved {page_name} HTML to {output_path}")
 
     return html
+
+
+def load_cached_html(page_name: str, output_subdir: str) -> str | None:
+    """
+    Load a previously scraped wiki page from disk.
+
+    Args:
+        page_name: Name of the wiki page (e.g., "Crowns", "Leaders", "Stats")
+        output_subdir: Subdirectory under structured_outputs_dir where HTML was saved
+
+    Returns:
+        HTML content if file exists, None otherwise
+    """
+    path = settings.structured_outputs_dir / output_subdir / f'{page_name}.html'
+    if not path.exists():
+        logger.warning(f"Cached HTML not found: {path}")
+        return None
+
+    with open(path, 'r', encoding='utf-8') as f:
+        html = f.read()
+    logger.info(f"Loaded cached {page_name} from {path}")
+    return html

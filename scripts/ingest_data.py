@@ -45,10 +45,10 @@ from src.neo4j_kg.charms import create_charms_from_parsed, create_charm_tribe_re
 from src.neo4j_kg.map import create_map_graph
 from src.neo4j_kg.fights import create_fight_enemy_relationships
 from src.neo4j_kg.shades import create_summon_relationships
-from src.scraping.wiki_scraper import scrape_wiki_page, clean_name_for_url
+from src.scraping.wiki_scraper import scrape_wiki_page, clean_name_for_url, load_cached_html
 from src.scraping.domain_scrapers import (
     scrape_leaders, scrape_stats, scrape_charms,
-    scrape_shades, scrape_map, scrape_fight_pages
+    scrape_shades, scrape_map, scrape_fight_pages,
 )
 from src.neo4j_kg.vector_store import (
     ingest_documents_into_neo4j,
@@ -86,17 +86,24 @@ class PipelineData:
     fight_enemies: dict[str, list[str]] = field(default_factory=dict)
 
 
-async def stage_1_scrape_cards() -> PipelineData:
+async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
     """
-    Stage 1: Web Scraping
+    Stage 1: Data Collection
 
-    Scrapes card data from the Wildfrost wiki and saves HTML files.
+    Loads card data from cache if available, otherwise scrapes from wiki.
+    When skip_scrape=True, only loads from cache (no network requests).
+
+    Args:
+        skip_scrape: If True, only use cached HTML files (no web requests)
 
     Returns:
         PipelineData containing all scraped and parsed data
     """
     logger.info("=" * 60)
-    logger.info("STAGE 1: WEB SCRAPING")
+    if skip_scrape:
+        logger.info("STAGE 1: LOADING FROM CACHE (--skip-scrape)")
+    else:
+        logger.info("STAGE 1: WEB SCRAPING")
     logger.info("=" * 60)
 
     # Generate card type schema
@@ -127,46 +134,59 @@ async def stage_1_scrape_cards() -> PipelineData:
 
     logger.info(f"Created {len(card_infos)} CardInfo objects")
 
-    # Scrape all card pages
-    urls = [card.card_url for card in card_infos]
-    logger.info(f"Scraping {len(urls)} card pages...")
-
-    html_outputs = await scrape_multiple_links(
-        urls,
-        max_concurrent=settings.max_concurrent_requests
-    )
-
-    # Parse HTML and create CardInfo objects (may return multiple for multi-phase cards)
+    # Load card pages from cache, scrape any missing (unless skip_scrape)
     all_cards: List[CardInfo] = []
     successful_pages = 0
+    cards_to_scrape = []  # (index, card_info) for cards not in cache
 
-    for card_info, html in tqdm(zip(card_infos, html_outputs), total=len(card_infos), desc="Parsing HTML", unit="page"):
-        if html is None:
-            continue
+    for card_info in card_infos:
+        html_path = card_info.save_path()
+        if os.path.exists(html_path):
+            with open(html_path, 'r', encoding='utf-8') as f:
+                html = f.read()
+            parsed_cards = CardInfo.parse_html_multi_phase(
+                html=html, card_type=card_info.card_type, card_url=card_info.card_url
+            )
+            if parsed_cards:
+                successful_pages += 1
+                all_cards.extend(parsed_cards)
+        else:
+            cards_to_scrape.append(card_info)
 
-        # Use parse_html_multi_phase which handles multi-phase cards
-        parsed_cards = CardInfo.parse_html_multi_phase(
-            html=html,
-            card_type=card_info.card_type,
-            card_url=card_info.card_url
+    logger.info(f"Loaded {successful_pages} card pages from cache")
+
+    # Scrape any cards not found in cache
+    if cards_to_scrape and not skip_scrape:
+        logger.info(f"Scraping {len(cards_to_scrape)} missing card pages...")
+        urls = [card.card_url for card in cards_to_scrape]
+        html_outputs = await scrape_multiple_links(
+            urls, max_concurrent=settings.max_concurrent_requests
         )
 
-        if parsed_cards:
-            successful_pages += 1
-            # Save HTML for each parsed card
-            for card in parsed_cards:
-                card.save_html()
-            all_cards.extend(parsed_cards)
+        for card_info, html in tqdm(zip(cards_to_scrape, html_outputs), total=len(cards_to_scrape), desc="Parsing HTML", unit="page"):
+            if html is None:
+                continue
+            parsed_cards = CardInfo.parse_html_multi_phase(
+                html=html, card_type=card_info.card_type, card_url=card_info.card_url
+            )
+            if parsed_cards:
+                successful_pages += 1
+                for card in parsed_cards:
+                    card.save_html()
+                all_cards.extend(parsed_cards)
+    elif cards_to_scrape:
+        logger.warning(f"{len(cards_to_scrape)} card HTML files not found in cache (--skip-scrape)")
 
-    logger.info(f"Successfully scraped {successful_pages}/{len(card_infos)} pages")
-    logger.info(f"Created {len(all_cards)} CardInfo objects (including multi-phase cards)")
+    logger.info(f"Total: {successful_pages}/{len(card_infos)} card pages, {len(all_cards)} CardInfo objects")
 
-    # Scrape leaders (separate page with different structure)
+    # Domain pages (cache-or-scrape handled automatically by _get_html)
     leader_cards = await scrape_leaders()
     all_cards.extend(leader_cards)
 
-    # Scrape crowns page (for Document node, Crown nodes are hardcoded)
-    await scrape_wiki_page("Crowns", "crowns")
+    # Crowns page (for Document node, Crown nodes are hardcoded)
+    if not load_cached_html("Crowns", "crowns"):
+        if not skip_scrape:
+            await scrape_wiki_page("Crowns", "crowns")
 
     # Scrape stats page
     stats = await scrape_stats()
@@ -440,13 +460,8 @@ async def main():
     # Ensure directories exist
     settings.create_directories()
 
-    # Stage 1: Scrape (or load existing data)
-    if args.skip_scrape:
-        logger.info("Skipping web scraping (--skip-scrape flag set)")
-        # TODO: Load CardInfo objects from existing HTML files
-        # For now, we'll need to scrape to get the CardInfo objects
-        logger.warning("Loading from existing files not yet implemented, running scrape anyway")
-    pipeline_data = await stage_1_scrape_cards()
+    # Stage 1: Scrape (or load from cache)
+    pipeline_data = await stage_1_scrape_cards(skip_scrape=args.skip_scrape)
 
     # Stage 2: Enrich
     stage_2_enrich_data(pipeline_data.cards)
