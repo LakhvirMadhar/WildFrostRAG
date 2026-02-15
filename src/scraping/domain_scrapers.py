@@ -2,6 +2,7 @@ from typing import List
 
 from src.data_processing.leaders import parse_leaders_page
 from src.data_processing.stats import parse_stats_page, StatInfo
+from src.data_processing.keywords import parse_keywords_page, KeywordInfo
 from src.data_processing.charms import parse_charms_page, CharmInfo
 from src.data_processing.map import parse_map_page, get_fight_page_mapping, ZoneInfo, MapEventInfo, FightSlotInfo
 from src.data_processing.fights import parse_fight_enemies
@@ -39,6 +40,17 @@ async def scrape_stats() -> List[StatInfo]:
     stats = parse_stats_page(html)
     logger.info(f"Parsed {len(stats)} stats")
     return stats
+
+
+async def scrape_keywords() -> List[KeywordInfo]:
+    """Parse the Keywords page (from cache or web)."""
+    html = await _get_html("Keywords", "keywords")
+    if not html:
+        return []
+
+    keywords = parse_keywords_page(html)
+    logger.info(f"Parsed {len(keywords)} keywords")
+    return keywords
 
 
 async def scrape_charms() -> List[CharmInfo]:

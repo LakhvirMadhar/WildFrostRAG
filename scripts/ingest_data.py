@@ -36,18 +36,20 @@ from src.data_processing.generate_schemas import generate_card_type_html_schema
 from src.data_processing.enrichment import enrich_cards_with_tribes
 from src.data_processing.html_splitter import process_html_files
 from src.data_processing.stats import StatInfo
+from src.data_processing.keywords import KeywordInfo
 from src.data_processing.charms import CharmInfo
 from src.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
 from src.data_processing.shades import SummonInfo
 from src.neo4j_kg.graph_builder import create_neo4j_data, clear_database
 from src.neo4j_kg.stats import create_stats_from_parsed
+from src.neo4j_kg.keywords import create_keywords_from_parsed, create_card_keyword_relationships, create_charm_keyword_relationships
 from src.neo4j_kg.charms import create_charms_from_parsed, create_charm_tribe_relationships
 from src.neo4j_kg.map import create_map_graph
 from src.neo4j_kg.fights import create_fight_enemy_relationships
 from src.neo4j_kg.shades import create_summon_relationships
 from src.scraping.wiki_scraper import scrape_wiki_page, clean_name_for_url, load_cached_html
 from src.scraping.domain_scrapers import (
-    scrape_leaders, scrape_stats, scrape_charms,
+    scrape_leaders, scrape_stats, scrape_keywords, scrape_charms,
     scrape_shades, scrape_map, scrape_fight_pages,
 )
 from src.neo4j_kg.vector_store import (
@@ -77,6 +79,7 @@ class PipelineData:
     """
     cards: List[CardInfo] = field(default_factory=list)
     stats: List[StatInfo] = field(default_factory=list)
+    keywords: List[KeywordInfo] = field(default_factory=list)
     charms: List[CharmInfo] = field(default_factory=list)
     summons: List[SummonInfo] = field(default_factory=list)
     zones: List[ZoneInfo] = field(default_factory=list)
@@ -191,6 +194,9 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
     # Scrape stats page
     stats = await scrape_stats()
 
+    # Scrape keywords page
+    keywords = await scrape_keywords()
+
     # Scrape charms page
     charms = await scrape_charms()
 
@@ -209,6 +215,7 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
     return PipelineData(
         cards=all_cards,
         stats=stats,
+        keywords=keywords,
         charms=charms,
         summons=summons,
         zones=zones,
@@ -263,6 +270,11 @@ def stage_3_populate_graph(data: PipelineData) -> None:
                 count = session.execute_write(create_stats_from_parsed, data.stats)
                 logger.info(f"Created {count} Stat nodes")
 
+            # Create Keyword nodes
+            if data.keywords:
+                count = session.execute_write(create_keywords_from_parsed, data.keywords)
+                logger.info(f"Created {count} Keyword nodes")
+
             # Create Charm nodes (tribe relationships after create_neo4j_data, which creates Tribes)
             if data.charms:
                 charm_count = session.execute_write(create_charms_from_parsed, data.charms)
@@ -274,6 +286,15 @@ def stage_3_populate_graph(data: PipelineData) -> None:
 
             # Creates Tribes, Cards, Crowns, Stats relationships, etc.
             create_neo4j_data(session, cards_dict_data)
+
+            # Card-Keyword relationships (Cards and Keywords must exist first)
+            if data.keywords:
+                kw_rel_count = session.execute_write(create_card_keyword_relationships, cards_dict_data)
+                logger.info(f"Created {kw_rel_count} Card-Keyword relationships")
+
+                # Charm-Keyword relationships (Charms and Keywords must exist first)
+                charm_kw_count = session.execute_write(create_charm_keyword_relationships)
+                logger.info(f"Created {charm_kw_count} Charm-Keyword relationships")
 
             # Charm-Tribe relationships (Tribes must exist first from create_neo4j_data)
             if data.charms:
