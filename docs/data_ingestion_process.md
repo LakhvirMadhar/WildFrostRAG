@@ -11,7 +11,7 @@ sequenceDiagram
     participant Enrichment as src/data_processing/enrichment.py
     participant HTMLSplitter as src/data_processing/html_splitter.py
     participant EmbedGen as src/embeddings/generator.py
-    participant Neo4jUtils as src/neo4j_kg/neo4j_utils.py
+    participant GraphBuilder as src/neo4j_kg/graph_builder.py
     participant VectorStore as src/neo4j_kg/vector_store.py
     participant Config as src/utils/config.py
     participant Logger as src/utils/logger.py
@@ -27,8 +27,8 @@ sequenceDiagram
     Enrichment-->>Cards: 9. Return enriched data
     IngestScript->>EmbedGen: 10. Generate embeddings
     EmbedGen-->>IngestScript: 11. Return embeddings
-    IngestScript->>Neo4jUtils: 12. Create graph nodes
-    Neo4jUtils-->>IngestScript: 13. Nodes created
+    IngestScript->>GraphBuilder: 12. Create graph nodes
+    GraphBuilder-->>IngestScript: 13. Nodes created
     IngestScript->>VectorStore: 14. Store embeddings in vector index
     VectorStore-->>IngestScript: 15. Embeddings stored
     IngestScript->>Logger: 16. Log process completion

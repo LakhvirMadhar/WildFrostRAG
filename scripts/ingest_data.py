@@ -20,7 +20,6 @@ Usage:
     python -m scripts.ingest_data --no-chunking      # Ingest full documents (no splitting)
     python -m scripts.ingest_data --clear-db         # Clear database before running
 """
-import re
 import argparse
 import asyncio
 import os
@@ -36,17 +35,20 @@ from src.data_processing.cards import CardInfo, CardType
 from src.data_processing.generate_schemas import generate_card_type_html_schema
 from src.data_processing.enrichment import enrich_cards_with_tribes
 from src.data_processing.html_splitter import process_html_files
-from src.data_processing.leaders import parse_leaders_page
-from src.data_processing.stats import parse_stats_page, StatInfo
-from src.data_processing.charms import parse_charms_page, CharmInfo
-from src.data_processing.map import parse_map_page, get_fight_page_mapping, ZoneInfo, MapEventInfo, FightSlotInfo
-from src.data_processing.fights import parse_fight_enemies
-from src.data_processing.shades import parse_shades_page, SummonInfo
-from src.neo4j_kg.neo4j_utils import (
-    create_neo4j_data, clear_database, create_stats_from_parsed,
-    create_charms_from_parsed, create_charm_tribe_relationships,
-    create_map_graph, create_fight_enemy_relationships,
-    create_summon_relationships
+from src.data_processing.stats import StatInfo
+from src.data_processing.charms import CharmInfo
+from src.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
+from src.data_processing.shades import SummonInfo
+from src.neo4j_kg.graph_builder import create_neo4j_data, clear_database
+from src.neo4j_kg.stats import create_stats_from_parsed
+from src.neo4j_kg.charms import create_charms_from_parsed, create_charm_tribe_relationships
+from src.neo4j_kg.map import create_map_graph
+from src.neo4j_kg.fights import create_fight_enemy_relationships
+from src.neo4j_kg.shades import create_summon_relationships
+from src.scraping.wiki_scraper import scrape_wiki_page, clean_name_for_url
+from src.scraping.domain_scrapers import (
+    scrape_leaders, scrape_stats, scrape_charms,
+    scrape_shades, scrape_map, scrape_fight_pages
 )
 from src.neo4j_kg.vector_store import (
     ingest_documents_into_neo4j,
@@ -82,150 +84,6 @@ class PipelineData:
     fight_slots: List[FightSlotInfo] = field(default_factory=list)
     fight_page_mapping: dict[str, str] = field(default_factory=dict)
     fight_enemies: dict[str, list[str]] = field(default_factory=dict)
-
-
-def clean_name_for_url(name: str) -> str:
-    """Clean card name for use in URLs by replacing spaces with underscores."""
-    return re.sub(r'\s+', '_', name)
-
-
-async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
-    """
-    Scrape a wiki page and save HTML.
-
-    Args:
-        page_name: Name of the wiki page (e.g., "Crowns", "Leaders", "Stats")
-        output_subdir: Subdirectory under structured_outputs_dir to save the HTML
-
-    Returns:
-        HTML content if successful, None otherwise
-    """
-    logger.info(f"Scraping {page_name} page...")
-    url = f"{settings.wildfrost_wiki_base_url}/{page_name}"
-    html_list = await scrape_multiple_links([url], max_concurrent=1)
-    html = html_list[0] if html_list else None
-
-    if not html:
-        logger.warning(f"Failed to scrape {page_name} page")
-        return None
-
-    output_path = settings.structured_outputs_dir / output_subdir / f'{page_name}.html'
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(html)
-    logger.info(f"Saved {page_name} HTML to {output_path}")
-
-    return html
-
-
-async def scrape_leaders() -> List[CardInfo]:
-    """
-    Scrape and parse the Leaders page.
-
-    Returns:
-        List of CardInfo objects for all leaders
-    """
-    html = await scrape_wiki_page("Leaders", "leaders")
-    if not html:
-        return []
-
-    leader_cards = parse_leaders_page(html)
-    logger.info(f"Parsed {len(leader_cards)} leader cards")
-    return leader_cards
-
-
-async def scrape_stats() -> List[StatInfo]:
-    """
-    Scrape and parse the Stats page.
-
-    Returns:
-        List of StatInfo objects for all stats
-    """
-    html = await scrape_wiki_page("Stats", "stats")
-    if not html:
-        return []
-
-    stats = parse_stats_page(html)
-    logger.info(f"Parsed {len(stats)} stats")
-    return stats
-
-
-async def scrape_charms() -> List[CharmInfo]:
-    """
-    Scrape and parse the Charms page.
-
-    Returns:
-        List of CharmInfo objects for all charms
-    """
-    html = await scrape_wiki_page("Charms", "charms")
-    if not html:
-        return []
-
-    charms = parse_charms_page(html)
-    logger.info(f"Parsed {len(charms)} charms")
-    return charms
-
-
-async def scrape_shades() -> List[SummonInfo]:
-    """
-    Scrape and parse the Shades page for summoning relationships.
-
-    Returns:
-        List of SummonInfo objects linking summoner cards to shades
-    """
-    html = await scrape_wiki_page("Shades", "shades")
-    if not html:
-        return []
-
-    summons = parse_shades_page(html)
-    logger.info(f"Parsed {len(summons)} summoning relationships")
-    return summons
-
-
-async def scrape_map() -> tuple[List[ZoneInfo], List[MapEventInfo], List[FightSlotInfo], dict[str, str]]:
-    """
-    Scrape and parse the Map page.
-
-    Returns:
-        Tuple of (zones, map_events, fight_slots, fight_page_mapping)
-    """
-    html = await scrape_wiki_page("Map", "maps")
-    if not html:
-        return [], [], [], {}
-
-    zones, map_events, fight_slots = parse_map_page(html)
-    fight_page_mapping = get_fight_page_mapping(html)
-    logger.info(f"Parsed {len(zones)} zones, {len(map_events)} map events, {len(fight_slots)} fight slots")
-    logger.info(f"Extracted {len(fight_page_mapping)} fight page mappings")
-    return zones, map_events, fight_slots, fight_page_mapping
-
-
-async def scrape_fight_pages(fight_page_mapping: dict[str, str]) -> dict[str, List[str]]:
-    """
-    Scrape individual fight pages and parse enemy names from each.
-
-    Each fight page is saved to data/structured_outputs/fights/{page_slug}.html.
-
-    Args:
-        fight_page_mapping: Display name → wiki page slug mapping
-
-    Returns:
-        Dict mapping page_slug → list of enemy card names
-    """
-    page_slugs = list(set(fight_page_mapping.values()))
-    logger.info(f"Scraping {len(page_slugs)} fight pages...")
-
-    fight_enemies = {}
-    for page_slug in page_slugs:
-        html = await scrape_wiki_page(page_slug, "fights")
-        if html:
-            enemies = parse_fight_enemies(html)
-            fight_enemies[page_slug] = enemies
-            logger.info(f"  {page_slug}: {len(enemies)} enemies")
-
-    total = sum(len(e) for e in fight_enemies.values())
-    logger.info(f"Finished scraping {len(page_slugs)} fight pages ({total} total enemy entries)")
-    return fight_enemies
 
 
 async def stage_1_scrape_cards() -> PipelineData:
