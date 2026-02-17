@@ -50,7 +50,7 @@ from src.neo4j_kg.map import create_map_graph
 from src.neo4j_kg.fights import create_fight_enemy_relationships
 from src.neo4j_kg.shades import create_summon_relationships
 from src.neo4j_kg.bling import create_bling_and_shops, create_drops_bling_relationships, create_shop_sells_relationships
-from src.neo4j_kg.bells import create_bells_from_parsed
+from src.neo4j_kg.bells import create_bells_from_parsed, create_bell_relationships
 from src.scraping.wiki_scraper import scrape_wiki_page, clean_name_for_url, load_cached_html
 from src.scraping.domain_scrapers import (
     scrape_leaders, scrape_stats, scrape_keywords, scrape_charms,
@@ -143,7 +143,7 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
             cleaned_name = clean_name_for_url(card_name)
             card_info = CardInfo(
                 card_name=card_name,
-                card_type=CardType(card_type),
+                card_type=CardType.from_schema_key(card_type),
                 card_url=f'{settings.wildfrost_wiki_base_url}/{cleaned_name}'
             )
             card_infos.append(card_info)
@@ -347,10 +347,12 @@ def stage_3_populate_graph(data: PipelineData) -> None:
                 summon_count = session.execute_write(create_summon_relationships, data.summons)
                 logger.info(f"Created {summon_count} SUMMONS relationships")
 
-            # Create Bell nodes
+            # Create Bell nodes and linking relationships
             if data.bells:
                 bell_count = session.execute_write(create_bells_from_parsed, data.bells)
                 logger.info(f"Created {bell_count} Bell nodes")
+                bell_rel_count = session.execute_write(create_bell_relationships)
+                logger.info(f"Created {bell_rel_count} bell linking relationships")
 
             # Bling economy: Bling node, Shop nodes, DROPS_BLING and SELLS relationships
             session.execute_write(create_bling_and_shops)

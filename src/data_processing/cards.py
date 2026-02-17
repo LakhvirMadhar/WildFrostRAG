@@ -36,8 +36,9 @@ class CardType(Enum):
     SHADES = ('shades', [])
     CLUNKERS = ('clunkers', [])
     ITEMS = ('items', [])
-    ENEMIES = ('enemies', [])
-    ENEMY_CLUNKERS = ('enemy_clunkers', ['enemies', 'clunkers'])  # inherits from both
+    ENEMIES = ('enemies', [])  # abstract parent — no direct cards
+    NON_BOSS_ENEMIES = ('non_boss_enemies', ['enemies'])  # regular enemies
+    ENEMY_CLUNKERS = ('enemy_clunkers', ['non_boss_enemies', 'clunkers'])  # inherits from both
     MINIBOSSES = ('minibosses', ['enemies'])  # minibosses are a subtype of enemies
     BOSSES = ('bosses', ['enemies'])  # bosses are a subtype of enemies
     
@@ -48,6 +49,17 @@ class CardType(Enum):
         obj.parents = parents or []
         return obj
     
+    # Wiki schema uses "enemies" for regular enemies; we split it into non_boss_enemies.
+    # Remap lives here so the enum owns the external-to-internal translation.
+    _SCHEMA_REMAP = {
+        "enemies": "non_boss_enemies",
+    }
+
+    @classmethod
+    def from_schema_key(cls, key: str) -> 'CardType':
+        """Resolve a wiki schema key to a CardType, applying remaps."""
+        return cls(cls._SCHEMA_REMAP.get(key, key))
+
     @property
     def has_parents(self) -> bool:
         """Check if this card type has parent types"""
@@ -386,7 +398,7 @@ class CardInfo:
     def _detect_variant_card_type(card_name: str, default_type: 'CardType') -> 'CardType':
         """Detect card type from name suffix for variant cards."""
         if card_name.endswith("(Enemy)"):
-            return CardType.ENEMIES
+            return CardType.NON_BOSS_ENEMIES
         elif card_name.endswith("(Companion)"):
             return CardType.COMPANIONS
         return default_type

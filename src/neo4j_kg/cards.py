@@ -97,8 +97,8 @@ def create_card_type_hierarchy(tx):
     """
     query = """
     UNWIND $hierarchies AS hierarchy
-    MATCH (child:CardType {name: hierarchy.child})
-    MATCH (parent:CardType {name: hierarchy.parent})
+    MERGE (child:CardType {name: hierarchy.child})
+    MERGE (parent:CardType {name: hierarchy.parent})
     MERGE (child)-[:SUBTYPE_OF]->(parent)
     """
 
