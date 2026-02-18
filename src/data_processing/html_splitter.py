@@ -6,6 +6,8 @@ from typing import List
 from langchain_core.documents import Document
 from tqdm import tqdm
 
+from src.data_processing.text_utils import clean_element_text
+
 # Elements to remove from HTML before processing
 UNWANTED_SELECTORS = [
     'navbox',          # Custom navboxes
@@ -18,16 +20,18 @@ UNWANTED_SELECTORS = [
     'mw-editsection',  # "Edit" links
     'toc',             # Table of Contents
     'script',          # JavaScript blocks
+    'siteSub',         # "From Wildfrost Wiki"
+    'jump-to-nav',     # Empty jump-to-nav container
+    'mw-jump-link',    # "Jump to navigation" / "Jump to search"
+    'mw-collapsible',  # Collapsible card art containers (image-only)
+    'head',            # <head> tag (title, meta, scripts — no body text)
 ]
 
 
-def _get_cell_text(cell: Tag) -> str:
-    """Extract clean text from a table cell."""
-    text = cell.get_text(separator=' ', strip=True)
-    return re.sub(r'\s+', ' ', text).strip()
+_get_cell_text = clean_element_text
 
 
-def _convert_infobox_to_text(table: Tag) -> str:
+def _convert_infobox_to_text(table: Tag, line_sep: str = '\n') -> str:
     """
     Convert a card infobox (vertical key-value table) into readable text.
 
@@ -86,10 +90,10 @@ def _convert_infobox_to_text(table: Tag) -> str:
             lines.append(text)
         i += 1
 
-    return '\n'.join(lines)
+    return line_sep.join(lines)
 
 
-def _convert_data_table_to_text(table: Tag) -> str:
+def _convert_data_table_to_text(table: Tag, line_sep: str = '\n') -> str:
     """
     Convert a multi-column data table (like Charm list) into readable text.
 
@@ -112,7 +116,7 @@ def _convert_data_table_to_text(table: Tag) -> str:
         if i == 0 and row.find('th'):
             lines.append('')
 
-    return '\n'.join(lines)
+    return line_sep.join(lines)
 
 
 def _is_infobox(table: Tag) -> bool:
@@ -120,15 +124,15 @@ def _is_infobox(table: Tag) -> bool:
     return table.get('id') == 'infobox'
 
 
-def _convert_table_to_text(table: Tag) -> str:
+def _convert_table_to_text(table: Tag, line_sep: str = '\n') -> str:
     """
     Convert an HTML table into readable structured text.
 
     Detects card infoboxes vs data tables and formats accordingly.
     """
     if _is_infobox(table):
-        return _convert_infobox_to_text(table)
-    return _convert_data_table_to_text(table)
+        return _convert_infobox_to_text(table, line_sep)
+    return _convert_data_table_to_text(table, line_sep)
 
 
 def _extract_clean_text(soup: BeautifulSoup) -> str:
@@ -136,27 +140,76 @@ def _extract_clean_text(soup: BeautifulSoup) -> str:
     Extract clean text from parsed HTML, preserving structure for tables,
     lists, paragraphs, and headings.
     """
-    # Convert tables to structured text before extracting
-    for table in soup.find_all('table'):
-        table_text = _convert_table_to_text(table)
-        table.replace_with(table_text)
+    # Block marker: survives the newline-to-space replacement later.
+    # All intentional line breaks use this; raw \n is a pretty-print artifact.
+    BM = '\u2029'
+    BM2 = BM + BM  # blank line separator
 
-    # Add newlines after block elements for readability
-    for tag_name in ['p', 'h1', 'h2', 'h3', 'h4', 'li', 'br']:
+    # Move all infoboxes right before the first <h2> so intro text comes first.
+    # Wiki pages float infoboxes right; in plain text we want:
+    #   # Card Name
+    #   Card is a Clunker that can be obtained...  (intro paragraphs)
+    #   <all infobox fields>                       (stats for each phase)
+    #   ## Strategy
+    infoboxes = soup.find_all('table', id='infobox')
+    if infoboxes:
+        first_h2 = soup.find('h2')
+        if first_h2:
+            for ib in reversed(infoboxes):
+                first_h2.insert_before(ib)
+
+    # Convert tables to structured text (using block marker for line breaks)
+    # Add blank line after each table so it doesn't run into the next paragraph.
+    for table in soup.find_all('table'):
+        table_text = _convert_table_to_text(table, line_sep=BM)
+        table.replace_with(BM + table_text + BM2)
+
+    # Remove images (icon PNGs aren't useful as text)
+    for img in soup.find_all('img'):
+        img.decompose()
+
+    # Flatten inline elements: replace each tag with its stripped text
+    # so pretty-printed newlines inside <a>\n  Clunker\n</a> collapse
+    # to just "Clunker" flowing inline with the paragraph.
+    from bs4 import NavigableString
+    for tag in soup.find_all(['a', 'span', 'b', 'i', 'strong', 'em', 'small', 'code']):
+        text_content = tag.get_text(separator=' ', strip=True)
+        tag.replace_with(NavigableString(f' {text_content} '))
+
+    # Convert headers to markdown and mark block boundaries
+    header_md = {'h1': '# ', 'h2': '## ', 'h3': '### ', 'h4': '#### '}
+    for tag_name, prefix in header_md.items():
         for tag in soup.find_all(tag_name):
-            tag.append('\n')
+            heading_text = tag.get_text(separator=' ', strip=True)
+            tag.replace_with(NavigableString(f'{BM2}{prefix}{heading_text}{BM2}'))
+
+    for tag_name in ['p', 'li', 'br']:
+        for tag in soup.find_all(tag_name):
+            tag.append(BM)
 
     text = soup.get_text()
 
-    # Collapse runs of 3+ newlines into 2
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    # Collapse runs of spaces (but not newlines) within lines
+    # Replace all raw newlines (pretty-print artifacts) with spaces
+    text = text.replace('\n', ' ')
+    # Restore intentional line breaks from block markers
+    text = text.replace(BM, '\n')
+    # Collapse whitespace within lines
     text = re.sub(r'[^\S\n]+', ' ', text)
-    # Strip leading/trailing whitespace per line
+    # Remove spaces before punctuation (artifact of inline flattening)
+    text = re.sub(r' ([.,;:!?])', r'\1', text)
+    # Strip each line, collapse multiple blank lines into one
     lines = [line.strip() for line in text.splitlines()]
-    text = '\n'.join(lines)
-    # Remove leading/trailing blank lines
-    text = text.strip()
+    result_lines = []
+    prev_empty = False
+    for line in lines:
+        if not line:
+            if not prev_empty:
+                result_lines.append('')
+            prev_empty = True
+        else:
+            result_lines.append(line)
+            prev_empty = False
+    text = '\n'.join(result_lines).strip()
 
     return text
 

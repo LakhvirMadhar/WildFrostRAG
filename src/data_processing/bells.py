@@ -8,16 +8,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
-import re
-
 from bs4 import BeautifulSoup
 
+from src.data_processing.text_utils import clean_element_text
 from src.utils.logger import logger
 
-
-def _clean_text(cell) -> str:
-    """Extract text with spaces between inline elements, collapse whitespace."""
-    return re.sub(r"\s+", " ", cell.get_text(separator=" ")).strip()
+_clean_text = clean_element_text
 
 
 class BellCategory(Enum):

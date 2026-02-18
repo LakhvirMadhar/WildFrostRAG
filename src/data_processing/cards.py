@@ -26,6 +26,13 @@ def get_base_name(card_name: str) -> str:
     return re.sub(r'\s*\([^)]*\)\s*$', '', card_name).strip()
 
 
+# Wiki schema uses "enemies" for regular enemies; we split it into non_boss_enemies.
+# Lives at module level because dicts inside an Enum body become enum members.
+_SCHEMA_REMAP = {
+    "enemies": "non_boss_enemies",
+}
+
+
 class CardType(Enum):
     """
     What type is the card
@@ -50,15 +57,11 @@ class CardType(Enum):
         return obj
     
     # Wiki schema uses "enemies" for regular enemies; we split it into non_boss_enemies.
-    # Remap lives here so the enum owns the external-to-internal translation.
-    _SCHEMA_REMAP = {
-        "enemies": "non_boss_enemies",
-    }
-
+    # Remap lives outside the enum body (module-level) to avoid becoming a member.
     @classmethod
     def from_schema_key(cls, key: str) -> 'CardType':
         """Resolve a wiki schema key to a CardType, applying remaps."""
-        return cls(cls._SCHEMA_REMAP.get(key, key))
+        return cls(_SCHEMA_REMAP.get(key, key))
 
     @property
     def has_parents(self) -> bool:
