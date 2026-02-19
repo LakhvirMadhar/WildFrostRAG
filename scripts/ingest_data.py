@@ -51,11 +51,12 @@ from src.neo4j_kg.fights import create_fight_enemy_relationships
 from src.neo4j_kg.shades import create_summon_relationships
 from src.neo4j_kg.bling import create_bling_and_shops, create_drops_bling_relationships, create_shop_sells_relationships
 from src.neo4j_kg.bells import create_bells_from_parsed, create_bell_relationships
-from src.scraping.wiki_scraper import scrape_wiki_page, clean_name_for_url, load_cached_html
+from src.scraping.wiki_scraper import clean_name_for_url
 from src.scraping.domain_scrapers import (
     scrape_leaders, scrape_stats, scrape_keywords, scrape_charms,
     scrape_bling, scrape_shop, scrape_clunker_prices, scrape_bells,
     scrape_shades, scrape_map, scrape_fight_pages,
+    scrape_crowns, scrape_getting_started,
 )
 from src.neo4j_kg.vector_store import (
     ingest_documents_into_neo4j,
@@ -100,33 +101,19 @@ class PipelineData:
     fight_slots: List[FightSlotInfo] = field(default_factory=list)
     fight_page_mapping: dict[str, str] = field(default_factory=dict)
     fight_enemies: dict[str, list[str]] = field(default_factory=dict)
+    page_urls: dict[str, str] = field(default_factory=dict)  # filename -> wiki URL
 
 
-async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
+async def _load_card_pages(skip_scrape: bool) -> tuple[List[CardInfo], dict]:
     """
-    Stage 1: Data Collection
-
-    Loads card data from cache if available, otherwise scrapes from wiki.
-    When skip_scrape=True, only loads from cache (no network requests).
-
-    Args:
-        skip_scrape: If True, only use cached HTML files (no web requests)
+    Generate card type schema and load/scrape individual card pages.
 
     Returns:
-        PipelineData containing all scraped and parsed data
+        Tuple of (all parsed CardInfo objects, card_type_schema dict)
     """
-    logger.info("=" * 60)
-    if skip_scrape:
-        logger.info("STAGE 1: LOADING FROM CACHE (--skip-scrape)")
-    else:
-        logger.info("STAGE 1: WEB SCRAPING")
-    logger.info("=" * 60)
-
-    # Generate card type schema
     logger.info("Generating card type schema...")
     card_type_schema = generate_card_type_html_schema()
 
-    # Save schema to file
     schema_path = settings.schemas_dir / 'card_type_schema.json'
     settings.schemas_dir.mkdir(parents=True, exist_ok=True)
     with open(schema_path, 'w', encoding='utf-8') as f:
@@ -141,19 +128,18 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
 
         for card_name in cards:
             cleaned_name = clean_name_for_url(card_name)
-            card_info = CardInfo(
+            card_infos.append(CardInfo(
                 card_name=card_name,
                 card_type=CardType.from_schema_key(card_type),
                 card_url=f'{settings.wildfrost_wiki_base_url}/{cleaned_name}'
-            )
-            card_infos.append(card_info)
+            ))
 
     logger.info(f"Created {len(card_infos)} CardInfo objects")
 
-    # Load card pages from cache, scrape any missing (unless skip_scrape)
+    # Load card pages from cache, scrape any missing
     all_cards: List[CardInfo] = []
     successful_pages = 0
-    cards_to_scrape = []  # (index, card_info) for cards not in cache
+    cards_to_scrape = []
 
     for card_info in card_infos:
         html_path = card_info.save_path()
@@ -171,7 +157,6 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
 
     logger.info(f"Loaded {successful_pages} card pages from cache")
 
-    # Scrape any cards not found in cache
     if cards_to_scrape and not skip_scrape:
         logger.info(f"Scraping {len(cards_to_scrape)} missing card pages...")
         urls = [card.card_url for card in cards_to_scrape]
@@ -194,54 +179,67 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
         logger.warning(f"{len(cards_to_scrape)} card HTML files not found in cache (--skip-scrape)")
 
     logger.info(f"Total: {successful_pages}/{len(card_infos)} card pages, {len(all_cards)} CardInfo objects")
+    return all_cards, card_type_schema
 
-    # Domain pages (cache-or-scrape handled automatically by _get_html)
-    leader_cards = await scrape_leaders()
-    all_cards.extend(leader_cards)
 
-    # Crowns page (for Document node, Crown nodes are hardcoded)
-    if not load_cached_html("Crowns", "crowns"):
-        if not skip_scrape:
-            await scrape_wiki_page("Crowns", "crowns")
+async def _scrape_domain_pages(card_type_schema: dict) -> PipelineData:
+    """
+    Scrape all domain pages (leaders, stats, keywords, shops, etc.).
 
-    # Scrape stats page
-    stats = await scrape_stats()
+    Collects parsed data and page URLs from each scraper into PipelineData.
 
-    # Scrape keywords page
-    keywords = await scrape_keywords()
+    Args:
+        card_type_schema: Schema dict used to extract boss/miniboss names for bling scraping
+    """
+    page_urls = {}
 
-    # Scrape bling page (needs boss/miniboss names from schema)
+    leader_cards, leader_urls = await scrape_leaders()
+    page_urls.update(leader_urls)
+
+    _, crowns_urls = await scrape_crowns()
+    page_urls.update(crowns_urls)
+
+    _, getting_started_urls = await scrape_getting_started()
+    page_urls.update(getting_started_urls)
+
+    stats, stats_urls = await scrape_stats()
+    page_urls.update(stats_urls)
+
+    keywords, keywords_urls = await scrape_keywords()
+    page_urls.update(keywords_urls)
+
     boss_names = card_type_schema.get("bosses", [])
     miniboss_names = card_type_schema.get("minibosses", [])
-    bling_drops = await scrape_bling(boss_names, miniboss_names)
+    bling_drops, bling_urls = await scrape_bling(boss_names, miniboss_names)
+    page_urls.update(bling_urls)
 
-    # Scrape shop pages
-    woolly_snail_listings = await scrape_shop("The_Woolly_Snail", "shops")
-    charm_merchant_listings = await scrape_shop("Charm_Merchant", "shops")
+    woolly_snail_listings, woolly_urls = await scrape_shop("The_Woolly_Snail", "shops")
+    page_urls.update(woolly_urls)
+    charm_merchant_listings, charm_merchant_urls = await scrape_shop("Charm_Merchant", "shops")
+    page_urls.update(charm_merchant_urls)
 
-    # Scrape clunker prices (from Clunkers page)
-    clunker_prices = await scrape_clunker_prices()
+    clunker_prices, clunker_urls = await scrape_clunker_prices()
+    page_urls.update(clunker_urls)
 
-    # Scrape bells page
-    bells = await scrape_bells()
+    bells, bell_urls = await scrape_bells()
+    page_urls.update(bell_urls)
 
-    # Scrape charms page
-    charms = await scrape_charms()
+    charms, charm_urls = await scrape_charms()
+    page_urls.update(charm_urls)
 
-    # Scrape shades page (summoning relationships)
-    summons = await scrape_shades()
+    summons, shades_urls = await scrape_shades()
+    page_urls.update(shades_urls)
 
-    # Scrape map page
-    zones, map_events, fight_slots, fight_page_mapping = await scrape_map()
+    zones, map_events, fight_slots, fight_page_mapping, map_urls = await scrape_map()
+    page_urls.update(map_urls)
 
-    # Scrape individual fight pages and parse enemy names
     fight_enemies = {}
     if fight_page_mapping:
-        fight_enemies = await scrape_fight_pages(fight_page_mapping)
+        fight_enemies, fight_urls = await scrape_fight_pages(fight_page_mapping)
+        page_urls.update(fight_urls)
 
-    logger.info(f"Total cards: {len(all_cards)}")
     return PipelineData(
-        cards=all_cards,
+        cards=leader_cards,
         stats=stats,
         keywords=keywords,
         bling_drops=bling_drops,
@@ -256,7 +254,49 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
         fight_slots=fight_slots,
         fight_page_mapping=fight_page_mapping,
         fight_enemies=fight_enemies,
+        page_urls=page_urls,
     )
+
+
+async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
+    """
+    Stage 1: Data Collection
+
+    Loads card data from cache if available, otherwise scrapes from wiki.
+    When skip_scrape=True, only loads from cache (no network requests).
+
+    Args:
+        skip_scrape: If True, only use cached HTML files (no web requests)
+
+    Returns:
+        PipelineData containing all scraped and parsed data
+    """
+    logger.info("=" * 60)
+    if skip_scrape:
+        logger.info("STAGE 1: LOADING FROM CACHE (--skip-scrape)")
+    else:
+        logger.info("STAGE 1: WEB SCRAPING")
+    logger.info("=" * 60)
+
+    all_cards, card_type_schema = await _load_card_pages(skip_scrape)
+
+    # Domain pages (leaders, stats, keywords, shops, etc.)
+    pipeline_data = await _scrape_domain_pages(card_type_schema)
+
+    # Merge card pages into pipeline data
+    # Leader cards come from _scrape_domain_pages, all other cards from _load_card_pages
+    pipeline_data.cards = all_cards + pipeline_data.cards
+
+    # Card page URLs — built from all_cards (includes variants from parse_html_multi_phase)
+    card_page_urls = {
+        f"{card.sanitized_name()}.html": card.card_url
+        for card in all_cards
+    }
+    pipeline_data.page_urls.update(card_page_urls)
+
+    logger.info(f"Total cards: {len(pipeline_data.cards)}")
+    logger.info(f"Built page URL mapping with {len(pipeline_data.page_urls)} entries")
+    return pipeline_data
 
 
 def stage_2_enrich_data(card_infos: List[CardInfo]) -> None:
@@ -388,7 +428,7 @@ def stage_3_populate_graph(data: PipelineData) -> None:
     logger.info("Graph population complete")
 
 
-def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = True) -> None:
+def stage_4_document_ingestion(pipeline_data: PipelineData, split_text: bool = True) -> None:
     """
     Stage 4: Document Ingestion
 
@@ -397,7 +437,7 @@ def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = Tr
     Use add_embeddings.py separately to add embeddings.
 
     Args:
-        card_infos: List of CardInfo objects (used to find HTML files)
+        pipeline_data: Pipeline data containing cards and fight_page_mapping
         split_text: If True, splits documents into chunks. If False, ingests full documents.
     """
     logger.info("=" * 60)
@@ -422,12 +462,8 @@ def stage_4_document_ingestion(card_infos: List[CardInfo], split_text: bool = Tr
     all_document_chunks = process_html_files(all_html_filepaths, split_text=split_text)
     logger.info(f"Created {len(all_document_chunks)} document objects")
 
-    # Build filename -> URL lookup from card_infos
-    url_lookup = {
-        f"{card.sanitized_name()}.html": card.card_url
-        for card in card_infos
-    }
-    logger.info(f"Built URL lookup with {len(url_lookup)} entries")
+    url_lookup = pipeline_data.page_urls
+    logger.info(f"URL lookup has {len(url_lookup)} entries")
 
     # Single driver for all document operations
     driver = GraphDatabase.driver(
@@ -581,7 +617,7 @@ async def main():
     if not args.skip_vectors:
         # If --no-chunking is passed, split_text should be False
         split_text = not args.no_chunking
-        stage_4_document_ingestion(pipeline_data.cards, split_text=split_text)
+        stage_4_document_ingestion(pipeline_data, split_text=split_text)
     else:
         logger.info("Skipping document ingestion (--skip-vectors flag set)")
 

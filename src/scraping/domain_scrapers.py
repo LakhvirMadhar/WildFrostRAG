@@ -11,142 +11,172 @@ from src.data_processing.fights import parse_fight_enemies
 from src.data_processing.shades import parse_shades_page, SummonInfo
 from src.data_processing.cards import CardInfo
 from src.scraping.wiki_scraper import scrape_wiki_page, load_cached_html
+from src.utils.config import settings
 from src.utils.logger import logger
 
+# Type alias: maps HTML filename -> wiki URL
+PageUrls = dict[str, str]
 
-async def _get_html(page_name: str, output_subdir: str) -> str | None:
-    """Load HTML from cache if available, otherwise scrape it."""
+
+async def _get_html(page_name: str, output_subdir: str) -> tuple[str | None, PageUrls]:
+    """
+    Load HTML from cache if available, otherwise scrape it.
+
+    Returns:
+        Tuple of (html_content, page_urls). HTML is None if scraping failed.
+        page_urls maps the output filename to the wiki URL (e.g. {"Leaders.html": "https://..."}).
+    """
+    url = f"{settings.wildfrost_wiki_base_url}/{page_name}"
+    urls = {f"{page_name}.html": url}
     html = load_cached_html(page_name, output_subdir)
     if html:
-        return html
-    return await scrape_wiki_page(page_name, output_subdir)
+        return html, urls
+    return await scrape_wiki_page(page_name, output_subdir), urls
 
 
-async def scrape_leaders() -> List[CardInfo]:
+async def scrape_leaders() -> tuple[List[CardInfo], PageUrls]:
     """Parse the Leaders page (from cache or web)."""
-    html = await _get_html("Leaders", "leaders")
+    html, urls = await _get_html("Leaders", "leaders")
     if not html:
-        return []
+        return [], urls
 
     leader_cards = parse_leaders_page(html)
     logger.info(f"Parsed {len(leader_cards)} leader cards")
-    return leader_cards
+    return leader_cards, urls
 
 
-async def scrape_stats() -> List[StatInfo]:
+async def scrape_stats() -> tuple[List[StatInfo], PageUrls]:
     """Parse the Stats page (from cache or web)."""
-    html = await _get_html("Stats", "stats")
+    html, urls = await _get_html("Stats", "stats")
     if not html:
-        return []
+        return [], urls
 
     stats = parse_stats_page(html)
     logger.info(f"Parsed {len(stats)} stats")
-    return stats
+    return stats, urls
 
 
-async def scrape_keywords() -> List[KeywordInfo]:
+async def scrape_keywords() -> tuple[List[KeywordInfo], PageUrls]:
     """Parse the Keywords page (from cache or web)."""
-    html = await _get_html("Keywords", "keywords")
+    html, urls = await _get_html("Keywords", "keywords")
     if not html:
-        return []
+        return [], urls
 
     keywords = parse_keywords_page(html)
     logger.info(f"Parsed {len(keywords)} keywords")
-    return keywords
+    return keywords, urls
 
 
-async def scrape_charms() -> List[CharmInfo]:
+async def scrape_charms() -> tuple[List[CharmInfo], PageUrls]:
     """Parse the Charms page (from cache or web)."""
-    html = await _get_html("Charms", "charms")
+    html, urls = await _get_html("Charms", "charms")
     if not html:
-        return []
+        return [], urls
 
     charms = parse_charms_page(html)
     logger.info(f"Parsed {len(charms)} charms")
-    return charms
+    return charms, urls
 
 
-async def scrape_shades() -> List[SummonInfo]:
+async def scrape_shades() -> tuple[List[SummonInfo], PageUrls]:
     """Parse the Shades page for summoning relationships (from cache or web)."""
-    html = await _get_html("Shades", "shades")
+    html, urls = await _get_html("Shades", "shades")
     if not html:
-        return []
+        return [], urls
 
     summons = parse_shades_page(html)
     logger.info(f"Parsed {len(summons)} summoning relationships")
-    return summons
+    return summons, urls
 
 
-async def scrape_map() -> tuple[List[ZoneInfo], List[MapEventInfo], List[FightSlotInfo], dict[str, str]]:
+async def scrape_map() -> tuple[List[ZoneInfo], List[MapEventInfo], List[FightSlotInfo], dict[str, str], PageUrls]:
     """Parse the Map page (from cache or web)."""
-    html = await _get_html("Map", "maps")
+    html, urls = await _get_html("Map", "maps")
     if not html:
-        return [], [], [], {}
+        return [], [], [], {}, urls
 
     zones, map_events, fight_slots = parse_map_page(html)
     fight_page_mapping = get_fight_page_mapping(html)
     logger.info(f"Parsed {len(zones)} zones, {len(map_events)} map events, {len(fight_slots)} fight slots")
     logger.info(f"Extracted {len(fight_page_mapping)} fight page mappings")
-    return zones, map_events, fight_slots, fight_page_mapping
+    return zones, map_events, fight_slots, fight_page_mapping, urls
 
 
-async def scrape_fight_pages(fight_page_mapping: dict[str, str]) -> dict[str, List[str]]:
-    """Parse individual fight pages and extract enemy names (from cache or web)."""
+async def scrape_fight_pages(fight_page_mapping: dict[str, str]) -> tuple[dict[str, List[str]], PageUrls]:
+    """Parse individual fight pages and extract enemy names (from cache or web).
+
+    Returns:
+        Tuple of (fight_enemies dict, page_urls dict mapping filename -> URL)
+    """
     page_slugs = list(set(fight_page_mapping.values()))
     logger.info(f"Processing {len(page_slugs)} fight pages...")
 
     fight_enemies = {}
+    page_urls: PageUrls = {}
     for page_slug in page_slugs:
-        html = await _get_html(page_slug, "fights")
+        html, slug_urls = await _get_html(page_slug, "fights")
         if html:
             enemies = parse_fight_enemies(html)
             fight_enemies[page_slug] = enemies
+            page_urls.update(slug_urls)
             logger.info(f"  {page_slug}: {len(enemies)} enemies")
 
     total = sum(len(e) for e in fight_enemies.values())
     logger.info(f"Finished {len(page_slugs)} fight pages ({total} total enemy entries)")
-    return fight_enemies
+    return fight_enemies, page_urls
 
 
-async def scrape_bling(boss_names: List[str], miniboss_names: List[str]) -> List[EnemyBlingDrop]:
+async def scrape_bling(boss_names: List[str], miniboss_names: List[str]) -> tuple[List[EnemyBlingDrop], PageUrls]:
     """Parse the Bling page for enemy drop values (from cache or web)."""
-    html = await _get_html("Bling", "bling")
+    html, urls = await _get_html("Bling", "bling")
     if not html:
-        return []
+        return [], urls
 
     drops = parse_bling_page(html, boss_names, miniboss_names)
     logger.info(f"Parsed {len(drops)} enemy bling drops")
-    return drops
+    return drops, urls
 
 
-async def scrape_shop(page_name: str, subdir: str) -> List[ShopListing]:
+async def scrape_shop(page_name: str, subdir: str) -> tuple[List[ShopListing], PageUrls]:
     """Parse a shop page for item/charm listings (from cache or web)."""
-    html = await _get_html(page_name, subdir)
+    html, urls = await _get_html(page_name, subdir)
     if not html:
-        return []
+        return [], urls
 
     listings = parse_shop_page(html)
     logger.info(f"Parsed {len(listings)} listings from {page_name}")
-    return listings
+    return listings, urls
 
 
-async def scrape_clunker_prices() -> List[ShopListing]:
+async def scrape_clunker_prices() -> tuple[List[ShopListing], PageUrls]:
     """Parse the Clunkers page for clunker shop prices (from cache or web)."""
-    html = await _get_html("Clunkers", "clunkers_page")
+    html, urls = await _get_html("Clunkers", "clunkers_page")
     if not html:
-        return []
+        return [], urls
 
     listings = parse_clunker_prices(html)
     logger.info(f"Parsed {len(listings)} clunker prices")
-    return listings
+    return listings, urls
 
 
-async def scrape_bells() -> List[BellInfo]:
+async def scrape_bells() -> tuple[List[BellInfo], PageUrls]:
     """Parse the Bells page (from cache or web)."""
-    html = await _get_html("Bells", "bells")
+    html, urls = await _get_html("Bells", "bells")
     if not html:
-        return []
+        return [], urls
 
     bells = parse_bells_page(html)
     logger.info(f"Parsed {len(bells)} bells")
-    return bells
+    return bells, urls
+
+
+async def scrape_crowns() -> tuple[None, PageUrls]:
+    """Fetch the Crowns page (from cache or web). No structured parsing."""
+    _, urls = await _get_html("Crowns", "crowns")
+    return None, urls
+
+
+async def scrape_getting_started() -> tuple[None, PageUrls]:
+    """Fetch the Getting Started page (from cache or web). No structured parsing."""
+    _, urls = await _get_html("Getting_Started", "getting_started")
+    return None, urls
