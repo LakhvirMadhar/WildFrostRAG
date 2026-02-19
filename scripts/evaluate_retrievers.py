@@ -41,6 +41,7 @@ from src.rag.retrievers import (
     VectorThenCypherRetriever,
 )
 from src.rag.retrievers.hybrid_retrievers import HybridRetriever
+from src.embeddings.query_embedders import get_query_embed_fn
 from src.utils.logger import logger
 from src.utils.config import settings
 from src.utils.experiment_utils import (
@@ -52,6 +53,7 @@ from src.utils.experiment_utils import (
     save_individual_results
 )
 from src.experiment_tracker import ExperimentRegistry
+from src.gui.auto_annotator import run_auto_annotation
 
 
 # Retriever types that use vector embeddings
@@ -73,16 +75,19 @@ def get_retriever(retriever_type: str, driver: Driver, embedder: str = "hf", **k
     """
     index_name = _get_vector_index_name(retriever_type, embedder)
 
+    # Build embed_fn only for vector-based retrievers
+    embed_fn = get_query_embed_fn(embedder) if retriever_type in VECTOR_BASED_RETRIEVERS else None
+
     retriever_factory = {
-        'vector': lambda: Neo4jVectorSearch(driver, index_name=index_name),
+        'vector': lambda: Neo4jVectorSearch(driver, embed_fn, index_name=index_name),
         'fulltext': lambda: Neo4jFullTextSearch(driver),
         'bm25': lambda: BM25Retriever(driver),
-        'bm25_vector': lambda: BM25VectorHybridRetriever(driver, index_name=index_name),
-        'fulltext_vector': lambda: FulltextVectorHybridRetriever(driver, index_name=index_name),
-        'bm25_fulltext_vector': lambda: BM25FulltextVectorHybridRetriever(driver, index_name=index_name),
+        'bm25_vector': lambda: BM25VectorHybridRetriever(driver, embed_fn, index_name=index_name),
+        'fulltext_vector': lambda: FulltextVectorHybridRetriever(driver, embed_fn, index_name=index_name),
+        'bm25_fulltext_vector': lambda: BM25FulltextVectorHybridRetriever(driver, embed_fn, index_name=index_name),
         'text2cypher': lambda: Text2CypherRetriever(driver, **kwargs),
-        'text2cypher_vector': lambda: Text2CypherVectorHybridRetriever(driver, index_name=index_name, **kwargs),
-        'vector_then_cypher': lambda: VectorThenCypherRetriever(driver, index_name=index_name, **kwargs),
+        'text2cypher_vector': lambda: Text2CypherVectorHybridRetriever(driver, embed_fn, index_name=index_name, **kwargs),
+        'vector_then_cypher': lambda: VectorThenCypherRetriever(driver, embed_fn, index_name=index_name, **kwargs),
     }
 
     if retriever_type not in retriever_factory:
@@ -165,6 +170,43 @@ async def _process_single_query(
     return result_entry, cypher_entry, individual_entry
 
 
+async def _process_all_queries(
+    df: pd.DataFrame,
+    retriever: Any,
+    retriever_type: str,
+    k: int
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """
+    Process all queries in the dataframe through the retriever.
+
+    Returns:
+        Tuple of (results, cypher_queries, individual_results)
+    """
+    results = []
+    cypher_queries = []
+    individual_results_list = []
+
+    for idx, row in df.iterrows():
+        query = row['query']
+        if pd.isna(query) or query == '':
+            continue
+
+        logger.info(f"Processing query {idx + 1}/{len(df)}: '{query}'")
+        query_id = row.get('query_id', idx)
+
+        result, cypher_entry, individual_entry = await _process_single_query(
+            retriever, retriever_type, query, query_id, k
+        )
+        results.append(result)
+
+        if cypher_entry:
+            cypher_queries.append(cypher_entry)
+        if individual_entry:
+            individual_results_list.append(individual_entry)
+
+    return results, cypher_queries, individual_results_list
+
+
 def _get_embedder_config_kwargs(retriever_type: str, embedder: str) -> dict:
     """Get embedder configuration for config file (only for vector-based retrievers)."""
     if retriever_type not in VECTOR_BASED_RETRIEVERS:
@@ -229,6 +271,7 @@ async def run_retriever(
     k: int = 10,
     description: str = "",
     embedder: str = "hf",
+    queries_json_path: Path | None = None,
     **kwargs
 ) -> list[dict]:
     """
@@ -262,27 +305,9 @@ async def run_retriever(
     logger.info(f"Experiment ID: {retriever_type}/{experiment_id}")
 
     # Process queries
-    results = []
-    cypher_queries = []
-    individual_results_list = []
-
-    for idx, row in df.iterrows():
-        query = row['query']
-        if pd.isna(query) or query == '':
-            continue
-
-        logger.info(f"Processing query {idx + 1}/{len(df)}: '{query}'")
-        query_id = row.get('query_id', idx)
-
-        result, cypher_entry, individual_entry = await _process_single_query(
-            retriever, retriever_type, query, query_id, k
-        )
-        results.append(result)
-
-        if cypher_entry:
-            cypher_queries.append(cypher_entry)
-        if individual_entry:
-            individual_results_list.append(individual_entry)
+    results, cypher_queries, individual_results_list = await _process_all_queries(
+        df, retriever, retriever_type, k
+    )
 
     # Build and save config
     total_queries = len([r for _, r in df.iterrows() if not pd.isna(r.get('query', '')) and r.get('query', '') != ''])
@@ -306,6 +331,10 @@ async def run_retriever(
         experiment_dir, config, results, cypher_queries, individual_results_list,
         retriever, retriever_type, experiment_id, run_num, kwargs
     )
+
+    # Auto-annotate relevance based on URL matching with ground truth
+    annotation_summary = run_auto_annotation(experiment_dir, queries_json_path)
+    logger.info(f"Auto-annotation: {annotation_summary['auto_annotated']} chunks annotated")
 
     logger.info("Experiment completed successfully!")
     logger.info(f"Retrieval ID: {retriever_type}/{experiment_id}")
@@ -339,6 +368,8 @@ def parse_args() -> argparse.Namespace:
                         help="Path to input CSV file with queries")
     parser.add_argument("--embedder", type=str, default="hf",
                         help="Embedding provider (e.g., 'hf', 'openai')")
+    parser.add_argument("--queries-json", type=str, default=None,
+                        help="Path to queries JSON with doc_references for auto-annotation")
     return parser.parse_args()
 
 
@@ -406,6 +437,8 @@ async def main():
         retriever = get_retriever(args.retriever, driver, embedder=args.embedder, **retriever_kwargs)
         logger.info(f"Using {args.retriever} retriever")
 
+        queries_json = Path(args.queries_json) if args.queries_json else None
+
         results = await run_retriever(
             df=df,
             retriever=retriever,
@@ -415,6 +448,7 @@ async def main():
             k=args.k,
             description=args.description,
             embedder=args.embedder,
+            queries_json_path=queries_json,
             **config_kwargs
         )
 

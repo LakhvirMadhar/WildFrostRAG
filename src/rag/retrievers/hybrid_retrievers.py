@@ -11,7 +11,7 @@ Available hybrid retrievers:
 - Text2CypherVectorHybridRetriever: Text2Cypher + Vector (async, with fallback)
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from neo4j import Driver
 from src.rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
 from src.rag.retrievers.bm25_retriever import BM25Retriever
@@ -152,17 +152,18 @@ class BM25VectorHybridRetriever(HybridRetriever):
     A specific hybrid retriever that combines BM25 search and vector search.
     """
 
-    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None, index_name: Optional[str] = None):
+    def __init__(self, driver: Driver, embed_fn: Callable[[str], list[float]], neo4j_database: Optional[str] = None, index_name: Optional[str] = None):
         """
         Initialize the BM25 and vector hybrid retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
+            embed_fn: Query embedding function for vector search
             neo4j_database: Optional database name (default: None uses default database)
             index_name: Optional vector index name (default: uses settings.vector_index_name)
         """
         bm25_retriever = BM25Retriever(driver, neo4j_database)
-        vector_retriever = Neo4jVectorSearch(driver, neo4j_database, index_name=index_name or settings.vector_index_name)
+        vector_retriever = Neo4jVectorSearch(driver, embed_fn, neo4j_database, index_name=index_name or settings.vector_index_name)
 
         super().__init__(
             retrievers=[bm25_retriever, vector_retriever],
@@ -177,17 +178,18 @@ class FulltextVectorHybridRetriever(HybridRetriever):
     A specific hybrid retriever that combines fulltext search and vector search.
     """
 
-    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None, index_name: Optional[str] = None):
+    def __init__(self, driver: Driver, embed_fn: Callable[[str], list[float]], neo4j_database: Optional[str] = None, index_name: Optional[str] = None):
         """
         Initialize the fulltext and vector hybrid retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
+            embed_fn: Query embedding function for vector search
             neo4j_database: Optional database name (default: None uses default database)
             index_name: Optional vector index name (default: uses settings.vector_index_name)
         """
         fulltext_retriever = Neo4jFullTextSearch(driver, neo4j_database)
-        vector_retriever = Neo4jVectorSearch(driver, neo4j_database, index_name=index_name or settings.vector_index_name)
+        vector_retriever = Neo4jVectorSearch(driver, embed_fn, neo4j_database, index_name=index_name or settings.vector_index_name)
 
         super().__init__(
             retrievers=[fulltext_retriever, vector_retriever],
@@ -202,18 +204,19 @@ class BM25FulltextVectorHybridRetriever(HybridRetriever):
     A specific hybrid retriever that combines BM25, fulltext, and vector search.
     """
 
-    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None, index_name: Optional[str] = None):
+    def __init__(self, driver: Driver, embed_fn: Callable[[str], list[float]], neo4j_database: Optional[str] = None, index_name: Optional[str] = None):
         """
         Initialize the BM25, fulltext, and vector hybrid retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
+            embed_fn: Query embedding function for vector search
             neo4j_database: Optional database name (default: None uses default database)
             index_name: Optional vector index name (default: uses settings.vector_index_name)
         """
         bm25_retriever = BM25Retriever(driver, neo4j_database)
         fulltext_retriever = Neo4jFullTextSearch(driver, neo4j_database)
-        vector_retriever = Neo4jVectorSearch(driver, neo4j_database, index_name=index_name or settings.vector_index_name)
+        vector_retriever = Neo4jVectorSearch(driver, embed_fn, neo4j_database, index_name=index_name or settings.vector_index_name)
 
         super().__init__(
             retrievers=[bm25_retriever, fulltext_retriever, vector_retriever],
@@ -237,6 +240,7 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
     def __init__(
         self,
         driver: Driver,
+        embed_fn: Callable[[str], list[float]],
         text2cypher_prompt: VersionedPrompt,
         neo4j_database: Optional[str] = None,
         index_name: Optional[str] = None,
@@ -246,13 +250,14 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
 
         Args:
             driver: Neo4j driver instance
+            embed_fn: Query embedding function for vector search
             text2cypher_prompt: VersionedPrompt for Text2Cypher LLM
             neo4j_database: Optional database name
             index_name: Vector index name (default: from settings)
         """
         # Create component retrievers
         self.text2cypher = Text2CypherRetriever(driver, text2cypher_prompt, neo4j_database)
-        self.vector = Neo4jVectorSearch(driver, neo4j_database, index_name=index_name or settings.vector_index_name)
+        self.vector = Neo4jVectorSearch(driver, embed_fn, neo4j_database, index_name=index_name or settings.vector_index_name)
 
         # Store for config tracking
         self.text2cypher_prompt_version = text2cypher_prompt.prompt_version_name

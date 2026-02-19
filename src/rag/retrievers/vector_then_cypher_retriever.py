@@ -9,11 +9,10 @@ The name "VectorThenCypher" makes the order explicit:
 2. Cypher traversal SECOND (enrich with graph data)
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from neo4j import Driver
 from src.utils.config import settings
 from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
-from src.rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
 
 
 class VectorThenCypherRetriever(BaseNeo4jRetriever):
@@ -59,6 +58,7 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
     def __init__(
         self,
         driver: Driver,
+        embed_fn: Callable[[str], list[float]],
         neo4j_database: Optional[str] = None,
         index_name: Optional[str] = None,
         traversal_pattern: str = "full_card_context"
@@ -68,11 +68,13 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
 
         Args:
             driver: Neo4j driver instance
+            embed_fn: Function that encodes a query string into a list of floats
             neo4j_database: Optional database name
             index_name: Vector index name (default: from settings)
             traversal_pattern: Either a key from TRAVERSAL_PATTERNS or custom Cypher
         """
         super().__init__(driver, neo4j_database)
+        self._embed_fn = embed_fn
         self.index_name = index_name or settings.vector_index_name
         self.pattern_name = traversal_pattern
         self.traversal_pattern = self._resolve_pattern(traversal_pattern)
@@ -103,9 +105,8 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         Returns:
             List of enriched results with Card/Tribe/CardType data
         """
-        # Step 1: Embed the query (reuse cached model from Neo4jVectorSearch)
-        model = Neo4jVectorSearch.get_embedding_model()
-        query_embedding = model.encode(query).tolist()
+        # Step 1: Embed the query
+        query_embedding = self._embed_fn(query)
 
         # Step 2: Build combined vector search + traversal query
         combined_query = f"""

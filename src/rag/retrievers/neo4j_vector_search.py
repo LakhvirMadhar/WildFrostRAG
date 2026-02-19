@@ -6,9 +6,8 @@ This module provides various retrieval strategies using Neo4j:
 - Future implementations: BM25, Hybrid, Text2Cypher, Graph RAG
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from neo4j import Driver
-from sentence_transformers import SentenceTransformer
 from src.utils.config import settings
 from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
@@ -19,12 +18,10 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
     This corresponds to the 'Cosine Similarity' approach in the research goals.
     """
 
-    _instance = None
-    _embedding_model = None
-
     def __init__(
         self,
         driver: Driver,
+        embed_fn: Callable[[str], list[float]],
         neo4j_database: Optional[str] = None,
         index_name: Optional[str] = None
     ):
@@ -33,23 +30,14 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
+            embed_fn: Function that encodes a query string into a list of floats.
+                      Use get_query_embed_fn() from src.embeddings.query_embedders.
             neo4j_database: Optional database name (default: None uses default database)
             index_name: Optional vector index name (default: uses settings.vector_index_name)
         """
         super().__init__(driver, neo4j_database)
+        self._embed_fn = embed_fn
         self.index_name = index_name or settings.vector_index_name
-
-    @classmethod
-    def get_embedding_model(cls):
-        """
-        Lazy load the embedding model to avoid overhead on import.
-
-        Returns:
-            Loaded SentenceTransformer model instance
-        """
-        if cls._embedding_model is None:
-            cls._embedding_model = SentenceTransformer(settings.embedding_model_name)
-        return cls._embedding_model
 
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """
@@ -67,8 +55,7 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
             List of dictionaries containing retrieved chunks with their metadata and scores
         """
         # Step 1: Embed the user's query
-        model = self.get_embedding_model()
-        query_embedding = model.encode(query).tolist()
+        query_embedding = self._embed_fn(query)
 
         # Step 2: Perform vector similarity search
         search_query = """

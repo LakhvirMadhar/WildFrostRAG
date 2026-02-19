@@ -15,7 +15,7 @@ def create_chunk_widget(
     chunk: Dict[str, Any],
     chunk_idx: int,
     is_relevant: bool = False,
-    is_expanded: bool = True,
+    is_expanded: bool = False,
     font_size: int = 14,
     on_relevance_change: Optional[Callable[[bool], None]] = None,
     on_toggle: Optional[Callable[[bool], None]] = None,
@@ -253,7 +253,7 @@ def create_chunks_summary(
 
     # Add doc_references if provided
     if doc_references:
-        refs_list = ''.join([f'<a href="{url}" target="_blank" style="color: #1565c0; margin-right: 10px;">{Path(url).name}</a>' for url in doc_references])
+        refs_list = ''.join([f'<a href="{url}" target="_blank" style="color: #1565c0; margin-right: 10px;">{url}</a>' for url in doc_references])
         metrics_html += f'''
         <div style="margin-top: 8px;">
             <b>Expected Sources:</b> {refs_list}

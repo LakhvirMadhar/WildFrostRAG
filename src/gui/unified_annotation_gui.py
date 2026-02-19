@@ -505,24 +505,26 @@ class UnifiedAnnotationGUI:
         def on_toggle(new_expanded: bool):
             self._chunk_expanded[chunk_key] = new_expanded
 
-        is_expanded = self._chunk_expanded.get(chunk_key, True)
+        # Use cached expanded state if user toggled, otherwise let create_chunk_widget default
+        kwargs = {}
+        if chunk_key in self._chunk_expanded:
+            kwargs['is_expanded'] = self._chunk_expanded[chunk_key]
 
         return create_chunk_widget(
             chunk=chunk,
             chunk_idx=chunk_idx,
             is_relevant=is_relevant,
-            is_expanded=is_expanded,
             font_size=self.chunk_text_size,
             on_relevance_change=on_relevance_change,
             on_toggle=on_toggle,
-            show_detailed_metadata=True
+            show_detailed_metadata=True,
+            **kwargs
         )
 
     def _update_progress(self):
         """Update progress display."""
-        validated = sum(1 for q in self.queries if self._annotations_cache.get(q.query_id, {}).get('validation'))
         total = len(self.queries)
-        self.progress_label.value = f'<span style="font-size: 14px;">{self.current_index + 1} / {total} (Validated: {validated})</span>'
+        self.progress_label.value = f'<span style="font-size: 14px;">{self.current_index + 1} / {total}</span>'
 
     def get_validation_summary(self) -> Dict[str, int]:
         """Get summary of validation status."""

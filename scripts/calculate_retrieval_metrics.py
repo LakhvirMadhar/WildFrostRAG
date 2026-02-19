@@ -1,146 +1,203 @@
 #!/usr/bin/env python3
 """
-Calculate Retrieval Metrics from Manual Evaluation for WildFrostRAG.
+Calculate retrieval metrics from annotations for WildFrostRAG.
 
-This script calculates retrieval metrics based on manually annotated relevance judgments:
-1. Loads manually evaluated results from JSON files
-2. Calculates retrieval metrics (Hit@k, MRR, etc.) based on manual relevance judgments
-3. Saves calculated metrics to output files
+Reads results.json (flat array) and annotations.json (separate file)
+from an experiment directory, joins on (query_id, chunk_index), and
+computes standard IR metrics (Hit@k, Precision@k, Recall@k, MRR).
 
 Usage:
-    python -m scripts.calculate_retrieval_metrics --input-path outputs/retrievers/run_1/vector_no/results.json
+    python -m scripts.calculate_retrieval_metrics --experiment-path outputs/run_1/retrievals/bm25/001
 """
 
 import argparse
 import json
-import os
 import sys
+from datetime import datetime
 from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent))
+
 from src.rag.evaluation.retrieval_metrics import (
     hit_at_k,
     mrr,
     calculate_precision_at_k,
-    calculate_recall_at_k
+    calculate_recall_at_k,
 )
 from src.utils.logger import logger
 
 
-def calculate_metrics_from_manual_annotations(results_file_path: str, output_path: str = None):
+DEFAULT_K_VALUES = [1, 3, 5, 10]
+
+
+def _build_relevance_map(annotations: dict, query_id: int) -> dict[int, bool]:
     """
-    Calculate retrieval metrics based on manually annotated relevance judgments.
+    Build chunk_index -> is_relevant map from annotations for a single query.
+
+    Returns:
+        Dict mapping chunk_index to is_relevant bool
+    """
+    query_ann = annotations.get(str(query_id), {})
+    relevance_list = query_ann.get('relevance_annotations', [])
+    return {
+        ann['chunk_index']: ann.get('is_relevant', False)
+        for ann in relevance_list
+        if 'chunk_index' in ann
+    }
+
+
+def calculate_metrics(experiment_path: Path, k_values: list[int] | None = None) -> dict:
+    """
+    Calculate retrieval metrics for an experiment.
 
     Args:
-        results_file_path: Path to the JSON file containing retrieval results with manual annotations
-        output_path: Path to save the calculated metrics (optional, defaults to input path + _metrics)
+        experiment_path: Path to experiment directory containing results.json and annotations.json
+
+    Returns:
+        Metrics dict with aggregate and per-query metrics
     """
-    # Load the results file
-    with open(results_file_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
+    results_path = experiment_path / 'results.json'
+    annotations_path = experiment_path / 'annotations.json'
+    config_path = experiment_path / 'config.json'
 
-    results = data.get('results', [])
-    metadata = data.get('metadata', {})
+    if not results_path.exists():
+        logger.error(f"results.json not found at {experiment_path}")
+        sys.exit(1)
 
-    # Validate that the file contains relevance annotations
-    if not results or 'relevance_annotations' not in results[0]:
-        logger.error(f"The file {results_file_path} does not contain manual relevance annotations.")
-        logger.error("Please ensure the results were manually evaluated first.")
-        return
+    if not annotations_path.exists():
+        logger.error(f"annotations.json not found at {experiment_path}")
+        logger.error("Run auto-annotation or manual annotation first.")
+        sys.exit(1)
 
-    # Calculate metrics for each query result
-    all_query_metrics = []
+    # Load flat results array
+    with open(results_path, 'r', encoding='utf-8') as f:
+        results = json.load(f)
+
+    # Load annotations
+    with open(annotations_path, 'r', encoding='utf-8') as f:
+        annotations = json.load(f)
+
+    # Load config for metadata
+    config = {}
+    if config_path.exists():
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+    if k_values is None:
+        k_values = DEFAULT_K_VALUES
+
+    # Calculate per-query metrics
+    per_query_metrics = []
+    unannotated_queries = []
+
     for result in results:
-        query = result['query']
-        retrieved_chunks = result['retrieved_chunks']
-        relevance_annotations = result.get('relevance_annotations', [])
+        query_id = result.get('query_id')
+        query = result.get('query', '')
+        chunks = result.get('retrieved_chunks', [])
+        n_chunks = len(chunks)
 
-        # Validate that we have relevance annotations for this query
-        if not relevance_annotations:
-            logger.warning(f"No relevance annotations found for query: {query}")
-            continue
+        # Build relevance map from annotations
+        relevance_map = _build_relevance_map(annotations, query_id)
 
-        # Extract relevance judgments (assuming binary relevance: 0 for non-relevant, 1 for relevant)
-        # The relevance_annotations should contain relevance scores for each retrieved chunk
-        # Format: [{'chunk_id': ..., 'relevance': 0 or 1}, ...]
-        relevance_judgments = []
-        for chunk, annotation in zip(retrieved_chunks, relevance_annotations):
-            relevance = annotation.get('relevance', 0)  # Default to 0 if not specified
-            relevance_judgments.append(relevance)
+        if not relevance_map:
+            unannotated_queries.append(query_id)
 
-        # Calculate metrics for this query
+        # retrieved_ids = chunk indices in rank order
+        retrieved_ids = list(range(n_chunks))
+        # relevant_ids = indices of chunks annotated as relevant
+        # Unannotated queries get an empty list -> all metrics = 0 (treated as failure)
+        relevant_ids = [idx for idx in range(n_chunks) if relevance_map.get(idx, False)]
+
         query_metrics = {
-            'query_id': result.get('query_id'),
+            'query_id': query_id,
             'query': query,
-            'metrics': {}
+            'n_chunks': n_chunks,
+            'n_relevant': len(relevant_ids),
+            'metrics': {},
         }
 
-        # Calculate metrics at different k values
-        k_values = [1, 3, 5, 10]
         for k in k_values:
-            # Create lists of relevant IDs for metric calculation
-            retrieved_ids = list(range(len(relevance_judgments[:k])))  # Use indices as IDs
-            relevant_ids = [i for i, rel in enumerate(relevance_judgments) if rel > 0]
+            query_metrics['metrics'][f'hit@{k}'] = hit_at_k(retrieved_ids, relevant_ids, k)
+            query_metrics['metrics'][f'precision@{k}'] = calculate_precision_at_k(retrieved_ids, relevant_ids, k)
+            query_metrics['metrics'][f'recall@{k}'] = calculate_recall_at_k(retrieved_ids, relevant_ids, k)
 
-            # Calculate metrics
-            hit_k = hit_at_k(retrieved_ids, relevant_ids, k)
-            precision_k = calculate_precision_at_k(retrieved_ids, relevant_ids, k)
-            recall_k = calculate_recall_at_k(retrieved_ids, relevant_ids, k)
-
-            query_metrics['metrics'][f'hit@{k}'] = hit_k
-            query_metrics['metrics'][f'precision@{k}'] = precision_k
-            query_metrics['metrics'][f'recall@{k}'] = recall_k
-
-        # Calculate MRR for this query (using all results)
-        retrieved_ids = list(range(len(relevance_judgments)))
-        relevant_ids = [i for i, rel in enumerate(relevance_judgments) if rel > 0]
         query_metrics['metrics']['mrr'] = mrr(retrieved_ids, relevant_ids)
+        per_query_metrics.append(query_metrics)
 
-        all_query_metrics.append(query_metrics)
+    if unannotated_queries:
+        logger.warning(f"Skipped {len(unannotated_queries)} unannotated queries: {unannotated_queries}")
 
     # Calculate aggregate metrics
     aggregate_metrics = {}
-    if all_query_metrics:
-        for metric_name in ['hit@1', 'hit@3', 'hit@5', 'hit@10', 'precision@1', 'precision@3', 'precision@5', 'precision@10', 'recall@1', 'recall@3', 'recall@5', 'recall@10', 'mrr']:
-            values = [qm['metrics'].get(metric_name, 0) for qm in all_query_metrics]
-            if values:
-                aggregate_metrics[f'avg_{metric_name}'] = sum(values) / len(values)
+    if per_query_metrics:
+        metric_names = []
+        for k in k_values:
+            metric_names.extend([f'hit@{k}', f'precision@{k}', f'recall@{k}'])
+        metric_names.append('mrr')
 
-    # Prepare final metrics data
+        for name in metric_names:
+            values = [qm['metrics'][name] for qm in per_query_metrics]
+            aggregate_metrics[f'avg_{name}'] = sum(values) / len(values)
+
+    # Build output
     metrics_data = {
-        'input_file': results_file_path,
-        'metadata': metadata,
+        'experiment_path': str(experiment_path),
+        'retriever_type': config.get('retriever_type', 'unknown'),
+        'timestamp': datetime.now().isoformat(),
+        'total_queries': len(results),
+        'annotated_queries': len(per_query_metrics),
+        'unannotated_queries': len(unannotated_queries),
         'aggregate_metrics': aggregate_metrics,
-        'per_query_metrics': all_query_metrics
+        'per_query_metrics': per_query_metrics,
     }
 
-    # Determine output path
-    if output_path is None:
-        input_path = Path(results_file_path)
-        output_path = input_path.parent / f"{input_path.stem}_metrics.json"
-
-    # Save metrics to file
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(metrics_data, f, indent=4, default=str)
-
-    logger.info(f"Calculated metrics saved to {output_path}")
-    logger.info(f"Aggregate metrics: {aggregate_metrics}")
+    return metrics_data
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Calculate retrieval metrics from manually annotated results")
-    parser.add_argument("--input-path", type=str, required=True,
-                       help="Path to the JSON file containing retrieval results with manual annotations")
-    parser.add_argument("--output-path", type=str,
-                       help="Path to save calculated metrics (optional, defaults to input path + _metrics)")
+    parser = argparse.ArgumentParser(
+        description="Calculate retrieval metrics from annotations"
+    )
+    parser.add_argument(
+        "--experiment-path", type=str, required=True,
+        help="Path to experiment directory (e.g., outputs/run_1/retrievals/bm25/001)"
+    )
+    parser.add_argument(
+        "--k-values", type=str, default=None,
+        help="Comma-separated k values for Hit@k, Precision@k, Recall@k (default: 1,3,5,10)"
+    )
 
     args = parser.parse_args()
+    experiment_path = Path(args.experiment_path)
+    k_values = [int(k.strip()) for k in args.k_values.split(',')] if args.k_values else None
 
-    # Check if input file exists
-    if not os.path.exists(args.input_path):
-        logger.error(f"Input file {args.input_path} not found.")
+    if not experiment_path.exists():
+        logger.error(f"Experiment path does not exist: {experiment_path}")
         sys.exit(1)
 
-    # Calculate metrics
-    calculate_metrics_from_manual_annotations(args.input_path, args.output_path)
+    metrics_data = calculate_metrics(experiment_path, k_values)
+
+    # Save metrics
+    output_path = experiment_path / 'metrics.json'
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(metrics_data, f, indent=2, default=str)
+
+    logger.info(f"Metrics saved to {output_path}")
+
+    # Print summary
+    agg = metrics_data['aggregate_metrics']
+    print(f"\nMetrics for {experiment_path}")
+    print(f"  Queries: {metrics_data['annotated_queries']}/{metrics_data['total_queries']} annotated")
+    if agg:
+        used_k = k_values or DEFAULT_K_VALUES
+        for k in used_k:
+            print(f"  Hit@{k}:{' ' * (8 - len(str(k)))}{agg.get(f'avg_hit@{k}', 0):.3f}")
+        print(f"  MRR:         {agg.get('avg_mrr', 0):.3f}")
+        print(f"  Precision@1: {agg.get('avg_precision@1', 0):.3f}")
+        max_k = max(used_k)
+        print(f"  Recall@{max_k}:{' ' * (5 - len(str(max_k)))}{agg.get(f'avg_recall@{max_k}', 0):.3f}")
+    else:
+        print("  No metrics calculated (no annotated queries)")
 
 
 if __name__ == "__main__":

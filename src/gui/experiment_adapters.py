@@ -186,7 +186,9 @@ class ExperimentDataAdapter(ABC):
         self._save_annotations(annotations)
         logger.debug(f"Saved annotation for query {query_id}")
 
-    def save_chunk_relevance(self, query_id: int, chunk_idx: int, is_relevant: bool) -> None:
+    def save_chunk_relevance(
+        self, query_id: int, chunk_idx: int, is_relevant: bool, auto_populated: bool = False
+    ) -> None:
         """
         Save relevance annotation for a specific chunk.
 
@@ -194,6 +196,7 @@ class ExperimentDataAdapter(ABC):
             query_id: The query ID
             chunk_idx: Index of the chunk
             is_relevant: Whether the chunk is relevant
+            auto_populated: Whether this annotation was auto-populated (URL matching)
         """
         annotations = self._load_annotations()
 
@@ -211,16 +214,21 @@ class ExperimentDataAdapter(ABC):
             if ann.get('chunk_id') == chunk_id:
                 ann['is_relevant'] = is_relevant
                 ann['updated_at'] = datetime.now().isoformat()
+                if auto_populated:
+                    ann['auto_populated'] = True
                 found = True
                 break
 
         if not found:
-            relevance.append({
+            entry = {
                 'chunk_id': chunk_id,
                 'chunk_index': chunk_idx,
                 'is_relevant': is_relevant,
                 'created_at': datetime.now().isoformat()
-            })
+            }
+            if auto_populated:
+                entry['auto_populated'] = True
+            relevance.append(entry)
 
         annotations[str(query_id)]['relevance_annotations'] = relevance
         annotations[str(query_id)]['updated_at'] = datetime.now().isoformat()
