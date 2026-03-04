@@ -43,7 +43,7 @@ from src.data_processing.charms import CharmInfo
 from src.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
 from src.data_processing.shades import SummonInfo
 from src.neo4j_kg.graph_builder import create_neo4j_data, clear_database
-from src.neo4j_kg.stats import create_stats_from_parsed
+from src.neo4j_kg.stats import create_stats_from_parsed, add_keyword_label_to_stats
 from src.neo4j_kg.keywords import create_keywords_from_parsed, create_card_keyword_relationships, create_charm_keyword_relationships
 from src.neo4j_kg.charms import create_charms_from_parsed, create_charm_tribe_relationships
 from src.neo4j_kg.map import create_map_graph
@@ -342,6 +342,9 @@ def stage_3_populate_graph(data: PipelineData) -> None:
             if data.stats:
                 count = session.execute_write(create_stats_from_parsed, data.stats)
                 logger.info(f"Created {count} Stat nodes")
+
+                # Add :Keyword label to stats that are also game mechanics (e.g., Frost, Shroom)
+                session.execute_write(add_keyword_label_to_stats)
 
             # Create Keyword nodes
             if data.keywords:

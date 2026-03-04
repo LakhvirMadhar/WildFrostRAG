@@ -142,6 +142,31 @@ def create_card_stat_relationships(tx, cards_data):
     return len(set(c['card_name'] for c in stats_with_value + stats_no_value))
 
 
+# Stats that are passive traits only — NOT game mechanics that cards "apply"
+STATS_NOT_KEYWORDS = {'Reaction', 'Resist Snow'}
+
+
+def add_keyword_label_to_stats(tx):
+    """
+    Add :Keyword label to Stat nodes that also function as keywords.
+
+    Stats like Frost, Shroom, Bom etc. are both numeric stats AND game mechanics
+    that cards actively "apply". Adding the :Keyword label lets them be found
+    by MATCH (k:Keyword) alongside traditional keywords like Barrage or Consume.
+
+    Excludes passive-only stats (Reaction, Resist Snow) that are never "applied".
+    """
+    result = tx.run("""
+        MATCH (s:Stat)
+        WHERE NOT s.name IN $exclude
+        SET s:Keyword
+        RETURN count(s) AS labeled
+    """, exclude=list(STATS_NOT_KEYWORDS))
+    count = result.single()["labeled"]
+    logger.info(f"Added :Keyword label to {count} Stat nodes")
+    return count
+
+
 def create_stats_from_parsed(tx, stats: List[StatInfo]):
     """
     Create Stat nodes from parsed StatInfo objects.
