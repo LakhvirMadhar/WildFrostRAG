@@ -178,7 +178,8 @@ class FulltextVectorHybridRetriever(HybridRetriever):
     A specific hybrid retriever that combines fulltext search and vector search.
     """
 
-    def __init__(self, driver: Driver, embed_fn: Callable[[str], list[float]], neo4j_database: Optional[str] = None, index_name: Optional[str] = None):
+    def __init__(self, driver: Driver, embed_fn: Callable[[str], list[float]], neo4j_database: Optional[str] = None,
+                 index_name: Optional[str] = None, remove_stopwords: bool = False):
         """
         Initialize the fulltext and vector hybrid retriever.
 
@@ -187,8 +188,9 @@ class FulltextVectorHybridRetriever(HybridRetriever):
             embed_fn: Query embedding function for vector search
             neo4j_database: Optional database name (default: None uses default database)
             index_name: Optional vector index name (default: uses settings.vector_index_name)
+            remove_stopwords: Whether to remove stop words from fulltext queries
         """
-        fulltext_retriever = Neo4jFullTextSearch(driver, neo4j_database)
+        fulltext_retriever = Neo4jFullTextSearch(driver, neo4j_database, remove_stopwords=remove_stopwords)
         vector_retriever = Neo4jVectorSearch(driver, embed_fn, neo4j_database, index_name=index_name or settings.vector_index_name)
 
         super().__init__(

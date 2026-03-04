@@ -39,6 +39,7 @@ from src.rag.retrievers import (
     Text2CypherRetriever,
     Text2CypherVectorHybridRetriever,
     VectorThenCypherRetriever,
+    FulltextThenCypherRetriever,
 )
 from src.rag.retrievers.hybrid_retrievers import HybridRetriever
 from src.embeddings.query_embedders import get_query_embed_fn
@@ -60,7 +61,8 @@ from src.gui.auto_annotator import run_auto_annotation
 VECTOR_BASED_RETRIEVERS = ['vector', 'bm25_vector', 'fulltext_vector', 'bm25_fulltext_vector', 'vector_then_cypher', 'text2cypher_vector']
 
 
-def get_retriever(retriever_type: str, driver: Driver, embedder: str = "hf", **kwargs) -> Any:
+def get_retriever(retriever_type: str, driver: Driver, embedder: str = "hf",
+                  sw_query: bool = True, sw_docs: bool = True, **kwargs) -> Any:
     """
     Factory function to create the appropriate retriever based on type.
 
@@ -68,6 +70,8 @@ def get_retriever(retriever_type: str, driver: Driver, embedder: str = "hf", **k
         retriever_type: Type of retriever to create
         driver: Neo4j driver instance
         embedder: Embedding provider name (for vector-based retrievers)
+        sw_query: Remove stop words from queries (BM25 + fulltext)
+        sw_docs: Remove stop words from documents (BM25 only)
         **kwargs: Additional arguments passed to the retriever constructor
 
     Returns:
@@ -80,14 +84,15 @@ def get_retriever(retriever_type: str, driver: Driver, embedder: str = "hf", **k
 
     retriever_factory = {
         'vector': lambda: Neo4jVectorSearch(driver, embed_fn, index_name=index_name),
-        'fulltext': lambda: Neo4jFullTextSearch(driver),
-        'bm25': lambda: BM25Retriever(driver),
+        'fulltext': lambda: Neo4jFullTextSearch(driver, remove_stopwords=sw_query),
+        'bm25': lambda: BM25Retriever(driver, remove_stopwords_query=sw_query, remove_stopwords_docs=sw_docs),
         'bm25_vector': lambda: BM25VectorHybridRetriever(driver, embed_fn, index_name=index_name),
-        'fulltext_vector': lambda: FulltextVectorHybridRetriever(driver, embed_fn, index_name=index_name),
+        'fulltext_vector': lambda: FulltextVectorHybridRetriever(driver, embed_fn, index_name=index_name, remove_stopwords=sw_query),
         'bm25_fulltext_vector': lambda: BM25FulltextVectorHybridRetriever(driver, embed_fn, index_name=index_name),
         'text2cypher': lambda: Text2CypherRetriever(driver, **kwargs),
         'text2cypher_vector': lambda: Text2CypherVectorHybridRetriever(driver, embed_fn, index_name=index_name, **kwargs),
         'vector_then_cypher': lambda: VectorThenCypherRetriever(driver, embed_fn, index_name=index_name, **kwargs),
+        'fulltext_then_cypher': lambda: FulltextThenCypherRetriever(driver, remove_stopwords=sw_query),
     }
 
     if retriever_type not in retriever_factory:
@@ -349,7 +354,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-num", type=int, required=True, help="Experiment run number")
     parser.add_argument("--retriever", type=str,
                         choices=["vector", "fulltext", "bm25", "bm25_vector", "fulltext_vector",
-                                 "bm25_fulltext_vector", "text2cypher", "text2cypher_vector", "vector_then_cypher"],
+                                 "bm25_fulltext_vector", "text2cypher", "text2cypher_vector",
+                                 "vector_then_cypher", "fulltext_then_cypher"],
                         required=True, help="Retriever to run")
     parser.add_argument("--chunking", type=str, choices=["yes", "no"], default="no",
                         help="Whether chunking was used during ingestion")
@@ -370,6 +376,10 @@ def parse_args() -> argparse.Namespace:
                         help="Embedding provider (e.g., 'hf', 'openai')")
     parser.add_argument("--queries-json", type=str, default=None,
                         help="Path to queries JSON with doc_references for auto-annotation")
+    parser.add_argument("--sw-query", type=str, choices=["yes", "no"], default="yes",
+                        help="Remove stop words from queries (BM25 + fulltext)")
+    parser.add_argument("--sw-docs", type=str, choices=["yes", "no"], default="yes",
+                        help="Remove stop words from documents (BM25 only)")
     return parser.parse_args()
 
 
@@ -434,8 +444,21 @@ async def main():
             retriever_kwargs["text2cypher_prompt"] = prompt
             config_kwargs["text2cypher_prompt_version"] = prompt.prompt_version_name
 
-        retriever = get_retriever(args.retriever, driver, embedder=args.embedder, **retriever_kwargs)
-        logger.info(f"Using {args.retriever} retriever")
+        sw_query = args.sw_query == "yes"
+        sw_docs = args.sw_docs == "yes"
+        retriever = get_retriever(args.retriever, driver, embedder=args.embedder, sw_query=sw_query, sw_docs=sw_docs, **retriever_kwargs)
+
+        # Only record stopword flags relevant to the retriever type
+        # BM25-based: both sw_query and sw_docs apply
+        # Fulltext-based (no BM25): only sw_query applies (docs are in Lucene index)
+        # Vector/text2cypher only: neither applies
+        SW_QUERY_RETRIEVERS = {'bm25', 'fulltext', 'bm25_vector', 'fulltext_vector', 'bm25_fulltext_vector', 'fulltext_then_cypher'}
+        SW_DOCS_RETRIEVERS = {'bm25', 'bm25_vector', 'bm25_fulltext_vector'}
+        if args.retriever in SW_QUERY_RETRIEVERS:
+            config_kwargs["sw_query"] = sw_query
+        if args.retriever in SW_DOCS_RETRIEVERS:
+            config_kwargs["sw_docs"] = sw_docs
+        logger.info(f"Using {args.retriever} retriever (sw_query={sw_query}, sw_docs={sw_docs})")
 
         queries_json = Path(args.queries_json) if args.queries_json else None
 

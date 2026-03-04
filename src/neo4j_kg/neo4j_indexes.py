@@ -71,7 +71,8 @@ def create_fulltext_index(
     session,
     index_name: str,
     node_label: str = "Document",
-    text_property: str = "text"
+    text_property: str = "text",
+    analyzer: str = "standard-no-stop-words"
 ) -> None:
     """
     Create a full-text index in Neo4j for lexical search.
@@ -83,12 +84,14 @@ def create_fulltext_index(
         index_name: Name for the full-text index
         node_label: Node label to index (default: "Document")
         text_property: Property containing text content (default: "text")
+        analyzer: Lucene analyzer to use (default: "standard-no-stop-words").
+            Use "standard" for stop word removal.
 
     Note:
         If the index already exists, this function will skip creation
         and log a message.
     """
-    logger.info(f"Creating full-text index '{index_name}' in Neo4j")
+    logger.info(f"Creating full-text index '{index_name}' (analyzer={analyzer}) in Neo4j")
 
     # Check if index already exists
     index_exists_query = "SHOW INDEXES YIELD name WHERE name = $name"
@@ -100,6 +103,7 @@ def create_fulltext_index(
     create_query = f"""
     CREATE FULLTEXT INDEX `{index_name}` IF NOT EXISTS
     FOR (n:{node_label}) ON EACH [n.{text_property}]
+    OPTIONS {{indexConfig: {{`fulltext.analyzer`: '{analyzer}'}}}}
     """
 
     session.run(create_query)

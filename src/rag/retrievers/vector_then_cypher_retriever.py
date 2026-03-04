@@ -2,7 +2,7 @@
 VectorThenCypherRetriever for WildFrostRAG.
 
 Combines vector similarity search with graph traversal to enrich results
-with related Card, Tribe, and CardType data from the knowledge graph.
+with related Card, Tribe, CardType, Keyword, Stat, and other graph data.
 
 The name "VectorThenCypher" makes the order explicit:
 1. Vector search FIRST (find relevant documents)
@@ -10,50 +10,28 @@ The name "VectorThenCypher" makes the order explicit:
 """
 
 from typing import List, Dict, Any, Optional, Callable
+
 from neo4j import Driver
+
 from src.utils.config import settings
 from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
+from src.rag.retrievers.traversal_patterns import GRAPH_TRAVERSAL_QUERY
 
 
 class VectorThenCypherRetriever(BaseNeo4jRetriever):
     """
-    Retriever that combines vector search with predefined graph traversal patterns.
+    Retriever that combines vector search with graph traversal enrichment.
 
     This is the "Graph RAG" approach: use semantic similarity to find relevant
     Document nodes, then traverse the graph to enrich results with structured
-    Card/Tribe/CardType data.
+    Card/Tribe/CardType/Keyword/Stat data.
 
     Flow:
         1. Embed query
         2. Vector search finds relevant Document nodes
-        3. Cypher traversal enriches with Card -> Tribe -> CardType
+        3. Cypher traversal enriches with graph data
         4. Return combined results with rag_context
     """
-
-    # Predefined traversal patterns for Wildfrost knowledge graph
-    # Variable names become property prefixes (e.g., card_card_name, tribe_name)
-    TRAVERSAL_PATTERNS = {
-        "full_card_context": """
-            MATCH (doc)<-[:HAS_DOCUMENT]-(card:Card)
-            OPTIONAL MATCH (card)-[:BELONGS_TO_TRIBE]->(tribe:Tribe)
-            OPTIONAL MATCH (card)-[:HAS_CARD_TYPE]->(cardtype:CardType)
-            RETURN doc, card, tribe, cardtype, score
-            ORDER BY score DESC
-        """,
-        "card_only": """
-            MATCH (doc)<-[:HAS_DOCUMENT]-(card:Card)
-            RETURN doc, card, score
-            ORDER BY score DESC
-        """,
-        "with_stats": """
-            MATCH (doc)<-[:HAS_DOCUMENT]-(card:Card)
-            OPTIONAL MATCH (card)-[:BELONGS_TO_TRIBE]->(tribe:Tribe)
-            OPTIONAL MATCH (card)-[:HAS_CARD_TYPE]->(cardtype:CardType)
-            OPTIONAL MATCH (card)-[has_stat:HAS_STAT]->(stat:Stat)
-            RETURN doc, card, tribe, cardtype, collect({stat_name: stat.name, value: has_stat.value}) as stats, score
-            ORDER BY score DESC
-        """,
-    }
 
     def __init__(
         self,
@@ -61,7 +39,6 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         embed_fn: Callable[[str], list[float]],
         neo4j_database: Optional[str] = None,
         index_name: Optional[str] = None,
-        traversal_pattern: str = "full_card_context"
     ):
         """
         Initialize the VectorThenCypherRetriever.
@@ -71,28 +48,10 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
             embed_fn: Function that encodes a query string into a list of floats
             neo4j_database: Optional database name
             index_name: Vector index name (default: from settings)
-            traversal_pattern: Either a key from TRAVERSAL_PATTERNS or custom Cypher
         """
         super().__init__(driver, neo4j_database)
         self._embed_fn = embed_fn
         self.index_name = index_name or settings.vector_index_name
-        self.pattern_name = traversal_pattern
-        self.traversal_pattern = self._resolve_pattern(traversal_pattern)
-
-    def _resolve_pattern(self, pattern: str) -> str:
-        """
-        Resolve pattern name to Cypher query.
-
-        Args:
-            pattern: Either a key from TRAVERSAL_PATTERNS or custom Cypher
-
-        Returns:
-            Cypher query string for the traversal
-        """
-        if pattern in self.TRAVERSAL_PATTERNS:
-            return self.TRAVERSAL_PATTERNS[pattern]
-        # Assume it's custom Cypher if not a known pattern
-        return pattern
 
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """
@@ -103,26 +62,21 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
             k: Number of results to return
 
         Returns:
-            List of enriched results with Card/Tribe/CardType data
+            List of enriched results with Card/Tribe/CardType/Keyword/Stat data
         """
-        # Step 1: Embed the query
         query_embedding = self._embed_fn(query)
 
-        # Step 2: Build combined vector search + traversal query
         combined_query = f"""
         CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
         YIELD node as doc, score
-        {self.traversal_pattern}
+        {GRAPH_TRAVERSAL_QUERY}
         """
 
         params = {
             "index_name": self.index_name,
             "query_embedding": query_embedding,
-            "k": k
+            "k": k,
         }
 
-        # Step 3: Execute using base class _execute_query (handles any Cypher result)
-        # Base class _record_to_dict() prefixes properties: doc_text, card_card_name, tribe_name, etc.
-        # Base class _format_result_as_text() formats all properties dynamically
         results = self._execute_query(combined_query, params)
-        return self._add_metadata(results, f'vector_then_cypher_{self.pattern_name}')
+        return self._add_metadata(results, 'vector_then_cypher')

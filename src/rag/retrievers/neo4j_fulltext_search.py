@@ -6,6 +6,9 @@ capabilities, which are based on Apache Lucene.
 """
 
 from typing import List, Dict, Any, Optional
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
 from neo4j import Driver
 from src.utils.config import settings
 from src.utils.logger import logger
@@ -19,16 +22,40 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
     using Neo4j's Lucene-based full-text search as a proxy.
     """
 
-    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
+    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None,
+                 index_name: Optional[str] = None, remove_stopwords: bool = False):
         """
         Initialize the Neo4j full-text search retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
             neo4j_database: Optional database name (default: None uses default database)
+            index_name: Optional fulltext index name override (default: from settings)
+            remove_stopwords: Whether to remove stop words from queries before sending to Lucene
         """
         super().__init__(driver, neo4j_database)
-        self.index_name = settings.fulltext_index_name
+        self.index_name = index_name or settings.fulltext_index_name
+        self.remove_stopwords = remove_stopwords
+        if self.remove_stopwords:
+            self._initialize_nltk()
+
+    def _initialize_nltk(self):
+        """Initialize NLTK resources for stop word removal."""
+        try:
+            nltk.data.find('tokenizers/punkt')
+        except LookupError:
+            nltk.download('punkt')
+        try:
+            nltk.data.find('corpora/stopwords')
+        except LookupError:
+            nltk.download('stopwords')
+
+    def _preprocess_query(self, query: str) -> str:
+        """Remove stop words from query before sending to Lucene."""
+        tokens = word_tokenize(query.lower())
+        stop_words = set(stopwords.words('english'))
+        filtered = [token for token in tokens if token.isalpha() and token not in stop_words]
+        return " ".join(filtered)
 
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """
@@ -47,6 +74,11 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
         Returns:
             List of dictionaries containing retrieved chunks with their metadata and scores
         """
+        search_query_text = query
+        if self.remove_stopwords:
+            search_query_text = self._preprocess_query(query)
+            logger.debug(f"Fulltext query after stop word removal: '{search_query_text}'")
+
         # Perform full-text search (index must already exist)
         search_query = """
         CALL db.index.fulltext.queryNodes($index_name, $query)
@@ -58,7 +90,7 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
 
         params = {
             "index_name": self.index_name,
-            "query": query,
+            "query": search_query_text,
             "k": k
         }
 

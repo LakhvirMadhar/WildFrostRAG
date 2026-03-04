@@ -123,8 +123,8 @@ def run_auto_annotation(
                 skipped_existing += 1
                 continue
 
-            # Check URL match
-            source_url = chunk.get('source_url', '')
+            # Check URL match (doc_source_url when traversal prefixes with variable name)
+            source_url = chunk.get('source_url', '') or chunk.get('doc_source_url', '')
             if _url_matches(source_url, doc_refs):
                 adapter.save_chunk_relevance(
                     query_id, chunk_idx, True, auto_populated=True

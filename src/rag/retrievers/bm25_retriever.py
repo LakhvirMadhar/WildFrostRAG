@@ -31,13 +31,19 @@ class BM25Retriever(BaseNeo4jRetriever):
         'cache_key': None
     }
 
-    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
+    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None,
+                 remove_stopwords: bool = True,
+                 remove_stopwords_query: Optional[bool] = None,
+                 remove_stopwords_docs: Optional[bool] = None):
         """
         Initialize the BM25 retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
             neo4j_database: Optional database name (default: None uses default database)
+            remove_stopwords: Master flag — sets both query and docs (default: True)
+            remove_stopwords_query: Override for query preprocessing only
+            remove_stopwords_docs: Override for document preprocessing only
         """
         super().__init__(driver, neo4j_database)
         warnings.warn(
@@ -48,16 +54,16 @@ class BM25Retriever(BaseNeo4jRetriever):
             stacklevel=2
         )
         self.index_name = settings.bm25_index_name
+        # If specific overrides provided, use them; otherwise fall back to master flag
+        self.remove_stopwords_query = remove_stopwords_query if remove_stopwords_query is not None else remove_stopwords
+        self.remove_stopwords_docs = remove_stopwords_docs if remove_stopwords_docs is not None else remove_stopwords
         self.bm25_model = None
         self.documents = []
         self.node_data = []
         self._initialize_nltk()
 
     def _initialize_nltk(self):
-        """
-        Initialize NLTK resources for text preprocessing.
-        """
-        # Download required NLTK data if not already present
+        """Initialize NLTK resources for text preprocessing."""
         try:
             nltk.data.find('tokenizers/punkt')
         except LookupError:
@@ -68,21 +74,23 @@ class BM25Retriever(BaseNeo4jRetriever):
         except LookupError:
             nltk.download('stopwords')
 
-    def _preprocess_text(self, text: str) -> List[str]:
+    def _tokenize(self, text: str, remove_sw: bool) -> List[str]:
         """
-        Preprocess text for BM25 by tokenizing into words and removing stop words.
+        Tokenize text, optionally removing stop words.
 
         Args:
             text: Input text to tokenize
+            remove_sw: Whether to remove stop words
 
         Returns:
-            List of lowercase word tokens without stop words
+            List of lowercase word tokens
         """
-        # Use NLTK for better tokenization and stop word removal
         tokens = word_tokenize(text.lower())
-        stop_words = set(stopwords.words('english'))
-        # Filter out stop words and non-alphabetic tokens
-        tokens = [token for token in tokens if token.isalpha() and token not in stop_words]
+        if remove_sw:
+            stop_words = set(stopwords.words('english'))
+            tokens = [token for token in tokens if token.isalpha() and token not in stop_words]
+        else:
+            tokens = [token for token in tokens if token.isalpha()]
         return tokens
 
     def _load_documents_from_neo4j(self) -> None:
@@ -90,10 +98,8 @@ class BM25Retriever(BaseNeo4jRetriever):
         Load all documents from Neo4j to build the BM25 index.
         Uses class-level cache to avoid reloading for multiple instances.
         """
-        # Create cache key based on database and index name
-        cache_key = f"{self.neo4j_database}:{self.index_name}"
+        cache_key = f"{self.neo4j_database}:{self.index_name}:sw_docs={self.remove_stopwords_docs}"
 
-        # Check if we can use cached data
         if (BM25Retriever._shared_cache['cache_key'] == cache_key and
             BM25Retriever._shared_cache['bm25_model'] is not None):
             logger.info("Using cached BM25 index from previous instance")
@@ -105,7 +111,6 @@ class BM25Retriever(BaseNeo4jRetriever):
         logger.info("Loading all documents from Neo4j for BM25 indexing...")
 
         with self.driver.session(database=self.neo4j_database) as session:
-            # Query all documents
             query = f"""
             MATCH (d:{self.index_name})
             WHERE d.text IS NOT NULL
@@ -121,21 +126,17 @@ class BM25Retriever(BaseNeo4jRetriever):
                 text = record["text"]
                 node = record["d"]
 
-                # Preprocess the text for BM25
-                tokens = self._preprocess_text(text)
+                tokens = self._tokenize(text, self.remove_stopwords_docs)
                 self.documents.append(tokens)
 
-                # Store the full node data for retrieval
                 node_dict = {}
                 for key, value in node.items():
-                    if key != "embedding":  # Exclude the large vector
+                    if key != "embedding":
                         node_dict[key] = value
                 self.node_data.append(node_dict)
 
-            # Initialize the BM25 model with the documents
             self.bm25_model = BM25Okapi(self.documents)
 
-            # Update class-level cache
             BM25Retriever._shared_cache = {
                 'documents': self.documents,
                 'node_data': self.node_data,
@@ -157,22 +158,17 @@ class BM25Retriever(BaseNeo4jRetriever):
             List of dictionaries containing retrieved chunks with their metadata and scores
         """
         if self.bm25_model is None:
-            # Load documents from Neo4j on first search
             self._load_documents_from_neo4j()
 
-        # Preprocess the query
-        query_tokens = self._preprocess_text(query)
+        query_tokens = self._tokenize(query, self.remove_stopwords_query)
 
-        # Get BM25 scores for the query against all documents
         scores = self.bm25_model.get_scores(query_tokens)
 
-        # Get the top-k document indices and scores
         top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
 
-        # Build the results
         results = []
         for idx in top_indices:
-            score = float(scores[idx])  # Convert np.float64 to Python float
+            score = float(scores[idx])
             node_data = self.node_data[idx].copy()
             node_data["score"] = score
             results.append(node_data)

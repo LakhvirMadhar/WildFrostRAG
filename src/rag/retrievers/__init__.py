@@ -12,6 +12,7 @@ from .hybrid_retrievers import HybridRetriever, BM25VectorHybridRetriever, Fullt
 from .text2cypher_retriever import Text2CypherRetriever
 from .graph_rag_retriever import GraphRagRetriever
 from .vector_then_cypher_retriever import VectorThenCypherRetriever
+from .fulltext_then_cypher_retriever import FulltextThenCypherRetriever
 
 __all__ = [
     'BaseNeo4jRetriever',
@@ -26,4 +27,5 @@ __all__ = [
     'Text2CypherVectorHybridRetriever',
     'GraphRagRetriever',
     'VectorThenCypherRetriever',
+    'FulltextThenCypherRetriever',
 ]

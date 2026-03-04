@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
     # ===== Retrieval Configuration =====
     fulltext_index_name: str = "document-fulltext"
+    fulltext_index_name_sw: str = "document-fulltext-sw"  # With stop word removal
     bm25_index_name: str = "Document"
     rrf_k1: int = 60  # Smoothing parameter for Reciprocal Rank Fusion
 
