@@ -2,6 +2,27 @@ from src.data_processing.cards import CardType
 from src.data_processing.phase_config import RECRUITABLE_ENEMIES
 
 
+def _get_all_ancestors(card_type_value):
+    """Recursively resolve all ancestor CardTypes for a given type."""
+    type_to_parents = {ct.value: ct.parents for ct in CardType}
+    ancestors = []
+    queue = list(type_to_parents.get(card_type_value, []))
+    while queue:
+        parent = queue.pop(0)
+        if parent not in ancestors:
+            ancestors.append(parent)
+            queue.extend(type_to_parents.get(parent, []))
+    return ancestors
+
+
+def _enrich_cards_with_parent_types(cards_data):
+    """Add all ancestor CardType names to each card dict so the Cypher can link them."""
+    ancestor_cache = {ct.value: _get_all_ancestors(ct.value) for ct in CardType}
+    for card in cards_data:
+        card['parent_types'] = ancestor_cache.get(card.get('card_type'), [])
+    return cards_data
+
+
 def create_cards(tx, cards_data):
     """
     Bulk create card nodes in neo4j.
@@ -9,7 +30,12 @@ def create_cards(tx, cards_data):
     For multi-phase cards (like Infernoko Phase 1 and Phase 2), we use
     card_name + phase as the unique identifier. For single-phase cards,
     phase is null and we merge by card_name only.
+
+    Cards are linked to both their own CardType and all parent CardTypes
+    (e.g., a pet card gets HAS_CARD_TYPE edges to both 'pets' and 'companions').
     """
+    cards_data = _enrich_cards_with_parent_types(cards_data)
+
     # Separate phased and non-phased cards
     phased_cards = [c for c in cards_data if c.get('phase') is not None]
     non_phased_cards = [c for c in cards_data if c.get('phase') is None]
@@ -24,6 +50,10 @@ def create_cards(tx, cards_data):
         SET c += card
         MERGE (t:CardType {name: card.card_type})
         MERGE (c)-[:HAS_CARD_TYPE]->(t)
+        FOREACH (parent IN card.parent_types |
+            MERGE (pt:CardType {name: parent})
+            MERGE (c)-[:HAS_CARD_TYPE]->(pt)
+        )
         RETURN count(c) AS createdCount
         """
         result = tx.run(query, cards=non_phased_cards)
@@ -37,6 +67,10 @@ def create_cards(tx, cards_data):
         SET c += card
         MERGE (t:CardType {name: card.card_type})
         MERGE (c)-[:HAS_CARD_TYPE]->(t)
+        FOREACH (parent IN card.parent_types |
+            MERGE (pt:CardType {name: parent})
+            MERGE (c)-[:HAS_CARD_TYPE]->(pt)
+        )
         RETURN count(c) AS createdCount
         """
         result = tx.run(query, cards=phased_cards)
