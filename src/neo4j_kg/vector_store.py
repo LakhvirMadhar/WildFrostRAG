@@ -310,9 +310,11 @@ def link_documents_to_stats(session: Session) -> int:
 
 def link_documents_to_charms(session: Session) -> int:
     """
-    Link Charm nodes to the Charms Document node.
+    Link Charm nodes to their individual charm page Documents.
 
-    All Charm nodes get linked to the same Charms.html document.
+    Each Charm matches its own Document via the filename property
+    (same pattern as link_documents_to_cards). Additionally, all charms
+    link to the summary Charms.html for overview context.
 
     Args:
         session: Active Neo4j session (caller manages driver lifecycle)
@@ -320,22 +322,41 @@ def link_documents_to_charms(session: Session) -> int:
     Returns:
         Number of relationships created
     """
-    logger.info("Linking Charm nodes to Document...")
+    logger.info("Linking Charm nodes to Documents...")
 
-    link_query = """
+    total = 0
+
+    # Per-charm Documents (individual pages with Strategy sections)
+    per_charm_query = """
+    MATCH (d:Document)
+    MATCH (charm:Charm)
+    WHERE charm.filename IS NOT NULL
+      AND d.source_file ENDS WITH charm.filename
+    MERGE (charm)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) as relationships_created
+    """
+    result = session.run(per_charm_query)
+    record = result.single()
+    per_charm_count = record["relationships_created"] if record else 0
+    total += per_charm_count
+    logger.info(f"  Linked {per_charm_count} charms to individual Documents")
+
+    # Summary Charms.html (overview table with all charms)
+    summary_query = """
     MATCH (d:Document)
     WHERE d.source_file ENDS WITH 'charms/Charms.html'
     MATCH (charm:Charm)
     MERGE (charm)-[:HAS_DOCUMENT]->(d)
     RETURN count(*) as relationships_created
     """
-
-    result = session.run(link_query)
+    result = session.run(summary_query)
     record = result.single()
-    count = record["relationships_created"] if record else 0
+    summary_count = record["relationships_created"] if record else 0
+    total += summary_count
+    logger.info(f"  Linked {summary_count} charms to summary Charms.html")
 
-    logger.info(f"Created {count} Charm-Document relationships")
-    return count
+    logger.info(f"Created {total} total Charm-Document relationships")
+    return total
 
 
 def link_documents_to_shades(session: Session) -> int:

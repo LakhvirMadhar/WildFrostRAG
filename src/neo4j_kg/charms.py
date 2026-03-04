@@ -6,16 +6,7 @@ from src.data_processing.tribes import TribeExclusivity
 
 def create_charms_from_parsed(tx, charms: List[CharmInfo]):
     """Create Charm nodes from parsed CharmInfo objects."""
-    charm_data = [
-        {
-            'name': charm.name,
-            'description': charm.description,
-            'is_cursed': charm.is_cursed,
-            'unlock': charm.unlock,
-            'challenge': charm.challenge,
-        }
-        for charm in charms
-    ]
+    charm_data = [charm.to_dict() for charm in charms]
 
     query = """
     UNWIND $charms AS charm
@@ -23,7 +14,8 @@ def create_charms_from_parsed(tx, charms: List[CharmInfo]):
     SET c.description = charm.description,
         c.is_cursed = charm.is_cursed,
         c.unlock = charm.unlock,
-        c.challenge = charm.challenge
+        c.challenge = charm.challenge,
+        c.filename = charm.filename
     RETURN count(c) AS charmsCreated
     """
     result = tx.run(query, charms=charm_data)

@@ -54,6 +54,7 @@ from src.neo4j_kg.bells import create_bells_from_parsed, create_bell_relationshi
 from src.scraping.wiki_scraper import clean_name_for_url
 from src.scraping.domain_scrapers import (
     scrape_leaders, scrape_stats, scrape_keywords, scrape_charms,
+    scrape_individual_charm_pages,
     scrape_bling, scrape_shop, scrape_clunker_prices, scrape_bells,
     scrape_shades, scrape_map, scrape_fight_pages,
     scrape_crowns, scrape_getting_started,
@@ -226,6 +227,10 @@ async def _scrape_domain_pages(card_type_schema: dict) -> PipelineData:
 
     charms, charm_urls = await scrape_charms()
     page_urls.update(charm_urls)
+
+    # Scrape individual charm pages for per-charm Documents (Strategy sections, etc.)
+    individual_charm_urls = await scrape_individual_charm_pages(charms)
+    page_urls.update(individual_charm_urls)
 
     summons, shades_urls = await scrape_shades()
     page_urls.update(shades_urls)

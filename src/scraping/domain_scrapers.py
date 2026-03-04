@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 from src.data_processing.leaders import parse_leaders_page
@@ -11,6 +12,7 @@ from src.data_processing.fights import parse_fight_enemies
 from src.data_processing.shades import parse_shades_page, SummonInfo
 from src.data_processing.cards import CardInfo
 from src.scraping.wiki_scraper import scrape_wiki_page, load_cached_html
+from src.web_scraper.sitemap_scraper import scrape_multiple_links
 from src.utils.config import settings
 from src.utils.logger import logger
 
@@ -73,9 +75,51 @@ async def scrape_charms() -> tuple[List[CharmInfo], PageUrls]:
     if not html:
         return [], urls
 
-    charms = parse_charms_page(html)
+    charms = parse_charms_page(html, base_url=settings.wildfrost_wiki_base_url)
     logger.info(f"Parsed {len(charms)} charms")
     return charms, urls
+
+
+async def scrape_individual_charm_pages(charms: List[CharmInfo]) -> PageUrls:
+    """
+    Scrape individual charm wiki pages for per-charm Document content.
+
+    Checks cache first (via charm.save_path()), scrapes any missing pages.
+    Each charm's HTML is saved to data/structured_outputs/charms/{name}.html.
+
+    Args:
+        charms: List of CharmInfo objects (already parsed from summary page with charm_url set)
+
+    Returns:
+        PageUrls dict mapping filename -> wiki URL for each charm
+    """
+    page_urls: PageUrls = {}
+    charms_to_scrape: list[CharmInfo] = []
+
+    for charm in charms:
+        if not charm.charm_url:
+            continue
+        filename = f"{charm.sanitized_name()}.html"
+        page_urls[filename] = charm.charm_url
+
+        if os.path.exists(charm.save_path()):
+            continue
+        charms_to_scrape.append(charm)
+
+    logger.info(f"Individual charm pages: {len(charms) - len(charms_to_scrape)} cached, {len(charms_to_scrape)} to scrape")
+
+    if charms_to_scrape:
+        urls = [c.charm_url for c in charms_to_scrape]
+        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
+
+        for charm, html in zip(charms_to_scrape, htmls):
+            if html is None:
+                logger.warning(f"Failed to scrape individual page for {charm.name}")
+                continue
+            charm.charm_html = html
+            charm.save_html()
+
+    return page_urls
 
 
 async def scrape_shades() -> tuple[List[SummonInfo], PageUrls]:
