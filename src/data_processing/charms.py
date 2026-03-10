@@ -62,7 +62,7 @@ class CharmInfo:
         """Dict for Neo4j consumption. Excludes None/HTML, adds filename."""
         result = {}
         for k, v in self.__dict__.items():
-            if v is None or k in ('charm_html', 'charm_url'):
+            if v is None or k == 'charm_html':
                 continue
             if isinstance(v, Enum):
                 result[k] = v.value
