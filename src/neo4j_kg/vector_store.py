@@ -528,7 +528,10 @@ def link_documents_to_bling(session: Session) -> int:
 
 def link_documents_to_bells(session: Session) -> int:
     """
-    Link Bell nodes to the Bells wiki page Document.
+    Link Bell nodes to their individual bell page Documents.
+
+    Bells with individual wiki pages match their own Document via filename.
+    Additionally, all bells link to the summary Bells.html for overview context.
 
     Args:
         session: Active Neo4j session (caller manages driver lifecycle)
@@ -536,16 +539,34 @@ def link_documents_to_bells(session: Session) -> int:
     Returns:
         Number of relationships created
     """
-    logger.info("Linking Bell nodes to Document...")
+    logger.info("Linking Bell nodes to Documents...")
 
-    query = """
+    total = 0
+
+    # Per-bell Documents (individual pages with detailed effects)
+    per_bell_query = """
+    MATCH (d:Document)
+    MATCH (b:Bell)
+    WHERE b.filename IS NOT NULL
+      AND d.source_file ENDS WITH b.filename
+    MERGE (b)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) AS created
+    """
+    result = session.run(per_bell_query)
+    per_bell_count = result.single()["created"]
+    total += per_bell_count
+
+    # Summary Bells.html (overview table with all bells)
+    summary_query = """
     MATCH (d:Document)
     WHERE d.source_file ENDS WITH 'bells/Bells.html'
     MATCH (b:Bell)
     MERGE (b)-[:HAS_DOCUMENT]->(d)
     RETURN count(*) AS created
     """
-    result = session.run(query)
-    count = result.single()["created"]
-    logger.info(f"Linked {count} Bell-Document relationships")
-    return count
+    result = session.run(summary_query)
+    summary_count = result.single()["created"]
+    total += summary_count
+
+    logger.info(f"Created {total} Bell-Document relationships ({per_bell_count} per-bell + {summary_count} summary)")
+    return total

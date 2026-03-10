@@ -55,6 +55,7 @@ from src.scraping.wiki_scraper import clean_name_for_url
 from src.scraping.domain_scrapers import (
     scrape_leaders, scrape_stats, scrape_keywords, scrape_charms,
     scrape_individual_charm_pages, scrape_individual_stat_pages,
+    scrape_individual_bell_pages,
     scrape_bling, scrape_shop, scrape_clunker_prices, scrape_bells,
     scrape_shades, scrape_map, scrape_fight_pages,
     scrape_crowns, scrape_getting_started,
@@ -228,6 +229,10 @@ async def _scrape_domain_pages(card_type_schema: dict) -> PipelineData:
 
     bells, bell_urls = await scrape_bells()
     page_urls.update(bell_urls)
+
+    # Scrape individual bell pages for per-bell Documents
+    individual_bell_urls = await scrape_individual_bell_pages(bells)
+    page_urls.update(individual_bell_urls)
 
     charms, charm_urls = await scrape_charms()
     page_urls.update(charm_urls)
@@ -408,7 +413,7 @@ def stage_3_populate_graph(data: PipelineData) -> None:
 
             # Create Bell nodes and linking relationships
             if data.bells:
-                bell_count = session.execute_write(create_bells_from_parsed, data.bells, urls.get("Bells.html"))
+                bell_count = session.execute_write(create_bells_from_parsed, data.bells)
                 logger.info(f"Created {bell_count} Bell nodes")
                 bell_rel_count = session.execute_write(create_bell_relationships)
                 logger.info(f"Created {bell_rel_count} bell linking relationships")

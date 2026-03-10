@@ -251,9 +251,51 @@ async def scrape_bells() -> tuple[List[BellInfo], PageUrls]:
     if not html:
         return [], urls
 
-    bells = parse_bells_page(html)
+    bells = parse_bells_page(html, base_url=settings.wildfrost_wiki_base_url)
     logger.info(f"Parsed {len(bells)} bells")
     return bells, urls
+
+
+async def scrape_individual_bell_pages(bells: List[BellInfo]) -> PageUrls:
+    """
+    Scrape individual bell wiki pages for per-bell Document content.
+
+    Only bells with real wiki pages (not red links) get scraped.
+    Each bell's HTML is saved to data/structured_outputs/bells/{name}.html.
+
+    Args:
+        bells: List of BellInfo objects (already parsed from summary page with url set)
+
+    Returns:
+        PageUrls dict mapping filename -> wiki URL for each bell with a page
+    """
+    page_urls: PageUrls = {}
+    bells_to_scrape: list[BellInfo] = []
+
+    for bell in bells:
+        if not bell.url:
+            continue
+        filename = f"{bell.sanitized_name()}.html"
+        page_urls[filename] = bell.url
+
+        if os.path.exists(bell.save_path()):
+            continue
+        bells_to_scrape.append(bell)
+
+    logger.info(f"Individual bell pages: {len(page_urls)} have pages, {len(bells_to_scrape)} to scrape")
+
+    if bells_to_scrape:
+        urls = [b.url for b in bells_to_scrape]
+        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
+
+        for bell, html in zip(bells_to_scrape, htmls):
+            if html is None:
+                logger.warning(f"Failed to scrape individual page for {bell.name}")
+                continue
+            bell.bell_html = html
+            bell.save_html()
+
+    return page_urls
 
 
 async def scrape_crowns() -> tuple[None, PageUrls]:

@@ -70,14 +70,16 @@ _GLOOM_BELL_MAP_EVENTS = [
 ]
 
 
-def create_bells_from_parsed(tx, bells: List[BellInfo], url: str = None):
+def create_bells_from_parsed(tx, bells: List[BellInfo]):
     """
     Create Bell nodes, BellType nodes, and HAS_BELL_TYPE relationships.
+
+    Bells with individual wiki pages get their own URL; others get None
+    (they'll still link to the summary Bells.html Document).
 
     Args:
         tx: Neo4j transaction
         bells: List of BellInfo objects from parse_bells_page()
-        url: Wiki page URL for all bells (shared /Bells page)
 
     Returns:
         Number of Bell nodes created
@@ -90,6 +92,8 @@ def create_bells_from_parsed(tx, bells: List[BellInfo], url: str = None):
             "description": b.description,
             "notes": b.notes,
             "storm_strength": b.storm_strength,
+            "url": b.url,
+            "filename": f"{b.sanitized_name()}.html" if b.url else None,
         }
         for b in bells
     ]
@@ -101,12 +105,13 @@ def create_bells_from_parsed(tx, bells: List[BellInfo], url: str = None):
         bell.description = b.description,
         bell.notes = b.notes,
         bell.storm_strength = b.storm_strength,
-        bell.url = $url
+        bell.url = b.url,
+        bell.filename = b.filename
     MERGE (bt:BellType {name: b.bell_type})
     MERGE (bell)-[:HAS_BELL_TYPE]->(bt)
     RETURN count(bell) AS created
     """
-    result = tx.run(query, bells=bell_data, url=url)
+    result = tx.run(query, bells=bell_data)
     count = result.single()["created"]
     logger.info(f"Created {count} Bell nodes with BellType relationships")
     return count
