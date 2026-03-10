@@ -70,13 +70,14 @@ _GLOOM_BELL_MAP_EVENTS = [
 ]
 
 
-def create_bells_from_parsed(tx, bells: List[BellInfo]):
+def create_bells_from_parsed(tx, bells: List[BellInfo], url: str = None):
     """
     Create Bell nodes, BellType nodes, and HAS_BELL_TYPE relationships.
 
     Args:
         tx: Neo4j transaction
         bells: List of BellInfo objects from parse_bells_page()
+        url: Wiki page URL for all bells (shared /Bells page)
 
     Returns:
         Number of Bell nodes created
@@ -99,12 +100,13 @@ def create_bells_from_parsed(tx, bells: List[BellInfo]):
     SET bell.category = b.category,
         bell.description = b.description,
         bell.notes = b.notes,
-        bell.storm_strength = b.storm_strength
+        bell.storm_strength = b.storm_strength,
+        bell.url = $url
     MERGE (bt:BellType {name: b.bell_type})
     MERGE (bell)-[:HAS_BELL_TYPE]->(bt)
     RETURN count(bell) AS created
     """
-    result = tx.run(query, bells=bell_data)
+    result = tx.run(query, bells=bell_data, url=url)
     count = result.single()["created"]
     logger.info(f"Created {count} Bell nodes with BellType relationships")
     return count

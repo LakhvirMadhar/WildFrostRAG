@@ -87,7 +87,7 @@ def extract_other_stats(other_cell: Tag) -> Optional[str]:
     return text if text else None
 
 
-def parse_leader_table(table: Tag, tribe: TribeExclusivity, start_num: int) -> list[CardInfo]:
+def parse_leader_table(table: Tag, tribe: TribeExclusivity, start_num: int, url: str = "") -> list[CardInfo]:
     """
     Parse a single tribe's leader table.
 
@@ -136,7 +136,7 @@ def parse_leader_table(table: Tag, tribe: TribeExclusivity, start_num: int) -> l
         leader = CardInfo(
             card_name=f"{tribe_name} Leader #{i}",
             card_type=CardType.LEADER,
-            card_url="https://wildfrostwiki.com/Leaders",
+            url=url,
             card_description=f"Leader card for {tribe_name} tribe.",
             tribe_exclusivity=tribe,
             abilities_specific=ability_text if ability_text else None,
@@ -154,7 +154,7 @@ def parse_leader_table(table: Tag, tribe: TribeExclusivity, start_num: int) -> l
     return leaders
 
 
-def parse_leaders_page(html: str) -> list[CardInfo]:
+def parse_leaders_page(html: str, url: str = "") -> list[CardInfo]:
     """
     Parse the Leaders wiki page and extract all leader cards.
 
@@ -189,7 +189,7 @@ def parse_leaders_page(html: str) -> list[CardInfo]:
             continue
 
         # Parse this tribe's leaders
-        tribe_leaders = parse_leader_table(table, tribe_enum, start_num=1)
+        tribe_leaders = parse_leader_table(table, tribe_enum, start_num=1, url=url)
 
         logger.info(f"Parsed {len(tribe_leaders)} leaders for {tribe_name}")
         all_leaders.extend(tribe_leaders)

@@ -92,12 +92,12 @@ def sample_queries(
             card_info = CardInfo(
                 card_name=card_name,
                 card_type=c_type,
-                card_url=f'{base_url}/{cleaned_name}'
+                url=f'{base_url}/{cleaned_name}'
             )
             card_infos.append(card_info)
 
     # Extract URLs
-    urls = [card.card_url for card in card_infos]
+    urls = [card.url for card in card_infos]
 
     # Get random URLs (without replacement)
     random_urls = random.sample(urls, k=min(k, len(urls)))

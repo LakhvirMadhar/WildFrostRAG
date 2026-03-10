@@ -74,7 +74,7 @@ class CardType(Enum):
 class CardInfo:
     card_name: str
     card_type: CardType
-    card_url: str
+    url: str
     card_html: Optional[str] = None
 
     # Card Stats
@@ -371,7 +371,7 @@ class CardInfo:
         cls,
         card_data: dict,
         card_type: 'CardType',
-        card_url: str,
+        url: str,
         html: str,
         description: Optional[str],
         phase: Optional[int] = None,
@@ -382,7 +382,7 @@ class CardInfo:
         return cls(
             card_name=card_data['card_name'],
             card_type=card_type,
-            card_url=card_url,
+            url=url,
             card_html=html,
             card_description=description,
             health=card_data['stats'].get('health'),
@@ -422,7 +422,7 @@ class CardInfo:
         )
 
     @classmethod
-    def _parse_infoboxes(cls, soup: BeautifulSoup, card_url: str) -> list[dict]:
+    def _parse_infoboxes(cls, soup: BeautifulSoup, url: str) -> list[dict]:
         """Parse all infoboxes from HTML into a list of card data dicts."""
         infoboxes = soup.find_all('table', {'id': 'infobox'})
         parsed_cards: list[dict] = []
@@ -430,7 +430,7 @@ class CardInfo:
         for infobox in infoboxes:
             card_name = cls._extract_card_name_from_infobox(infobox)
             if not card_name:
-                logger.warning(f"Could not extract card name from infobox in {card_url}")
+                logger.warning(f"Could not extract card name from infobox in {url}")
                 continue
 
             parsed_cards.append({
@@ -447,7 +447,7 @@ class CardInfo:
         cls,
         html: str,
         card_type: 'CardType',
-        card_url: str,
+        url: str,
     ) -> list['CardInfo']:
         """
         Parse HTML that may contain multiple infoboxes (multi-phase cards).
@@ -461,7 +461,7 @@ class CardInfo:
         Args:
             html: The HTML content of the page
             card_type: The CardType for all cards on this page
-            card_url: The URL of the page
+            url: The URL of the page
 
         Returns:
             List of CardInfo objects, one per infobox
@@ -469,7 +469,7 @@ class CardInfo:
         soup = BeautifulSoup(html, 'html.parser')
 
         if not soup.find('table', {'id': 'infobox'}):
-            logger.warning(f"No infoboxes found in HTML for {card_url}")
+            logger.warning(f"No infoboxes found in HTML for {url}")
             return []
 
         # Extract description from meta tag (shared across all cards on page)
@@ -477,13 +477,13 @@ class CardInfo:
         description = description_tag.get("content", "") if description_tag else None
 
         # Parse all infoboxes
-        parsed_cards = cls._parse_infoboxes(soup, card_url)
+        parsed_cards = cls._parse_infoboxes(soup, url)
         if not parsed_cards:
             return []
 
         # Single infobox - no phases
         if len(parsed_cards) == 1:
-            return [cls._create_card(parsed_cards[0], card_type, card_url, html, description)]
+            return [cls._create_card(parsed_cards[0], card_type, url, html, description)]
 
         # Multiple infoboxes - group by base name
         base_name_groups: dict[str, list[dict]] = defaultdict(list)
@@ -495,13 +495,13 @@ class CardInfo:
         for base_name, group in base_name_groups.items():
             if len(group) == 1:
                 # Single card with this base name - no phases
-                result.append(cls._create_card(group[0], card_type, card_url, html, description))
+                result.append(cls._create_card(group[0], card_type, url, html, description))
 
             elif base_name in VARIANT_CARDS:
                 # Variant cards (e.g., Naked Gnome enemy/companion) - no phase linking
                 for card_data in group:
                     variant_type = cls._detect_variant_card_type(card_data['card_name'], card_type)
-                    result.append(cls._create_card(card_data, variant_type, card_url, html, description))
+                    result.append(cls._create_card(card_data, variant_type, url, html, description))
 
             else:
                 # Multiple cards with same base name - these are PHASES
@@ -509,7 +509,7 @@ class CardInfo:
                 total_phases = len(group_sorted)
                 for phase_num, card_data in enumerate(group_sorted, start=1):
                     result.append(cls._create_card(
-                        card_data, card_type, card_url, html, description,
+                        card_data, card_type, url, html, description,
                         phase=phase_num, total_phases=total_phases, base_name=base_name
                     ))
 

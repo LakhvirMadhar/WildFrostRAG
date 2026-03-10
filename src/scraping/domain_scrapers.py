@@ -42,7 +42,7 @@ async def scrape_leaders() -> tuple[List[CardInfo], PageUrls]:
     if not html:
         return [], urls
 
-    leader_cards = parse_leaders_page(html)
+    leader_cards = parse_leaders_page(html, url=urls.get("Leaders.html", ""))
     logger.info(f"Parsed {len(leader_cards)} leader cards")
     return leader_cards, urls
 
@@ -88,7 +88,7 @@ async def scrape_individual_charm_pages(charms: List[CharmInfo]) -> PageUrls:
     Each charm's HTML is saved to data/structured_outputs/charms/{name}.html.
 
     Args:
-        charms: List of CharmInfo objects (already parsed from summary page with charm_url set)
+        charms: List of CharmInfo objects (already parsed from summary page with url set)
 
     Returns:
         PageUrls dict mapping filename -> wiki URL for each charm
@@ -97,10 +97,10 @@ async def scrape_individual_charm_pages(charms: List[CharmInfo]) -> PageUrls:
     charms_to_scrape: list[CharmInfo] = []
 
     for charm in charms:
-        if not charm.charm_url:
+        if not charm.url:
             continue
         filename = f"{charm.sanitized_name()}.html"
-        page_urls[filename] = charm.charm_url
+        page_urls[filename] = charm.url
 
         if os.path.exists(charm.save_path()):
             continue
@@ -109,7 +109,7 @@ async def scrape_individual_charm_pages(charms: List[CharmInfo]) -> PageUrls:
     logger.info(f"Individual charm pages: {len(charms) - len(charms_to_scrape)} cached, {len(charms_to_scrape)} to scrape")
 
     if charms_to_scrape:
-        urls = [c.charm_url for c in charms_to_scrape]
+        urls = [c.url for c in charms_to_scrape]
         htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
 
         for charm, html in zip(charms_to_scrape, htmls):

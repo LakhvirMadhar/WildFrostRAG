@@ -16,7 +16,7 @@ def create_charms_from_parsed(tx, charms: List[CharmInfo]):
         c.unlock = charm.unlock,
         c.challenge = charm.challenge,
         c.filename = charm.filename,
-        c.charm_url = charm.charm_url
+        c.url = charm.url
     RETURN count(c) AS charmsCreated
     """
     result = tx.run(query, charms=charm_data)

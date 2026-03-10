@@ -8,13 +8,14 @@ from src.data_processing.keywords import KeywordInfo
 from src.utils.logger import logger
 
 
-def create_keywords_from_parsed(tx, keywords: List[KeywordInfo]):
+def create_keywords_from_parsed(tx, keywords: List[KeywordInfo], url: str = None):
     """
     Create Keyword nodes from parsed KeywordInfo objects.
 
     Args:
         tx: Neo4j transaction
         keywords: List of KeywordInfo objects from parse_keywords_page()
+        url: Wiki page URL for all keywords (shared /Keywords page)
 
     Returns:
         Number of Keyword nodes created
@@ -34,10 +35,11 @@ def create_keywords_from_parsed(tx, keywords: List[KeywordInfo]):
     MERGE (k:Keyword {name: kw.name})
     SET k.category = kw.category,
         k.description_field = kw.description_field,
-        k.description_items = kw.description_items
+        k.description_items = kw.description_items,
+        k.url = $url
     RETURN count(k) AS created
     """
-    result = tx.run(query, keywords=keyword_data)
+    result = tx.run(query, keywords=keyword_data, url=url)
     count = result.single()["created"]
     logger.info(f"Created {count} Keyword nodes")
     return count

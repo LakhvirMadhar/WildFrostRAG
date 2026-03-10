@@ -42,7 +42,7 @@ from src.data_processing.bells import BellInfo
 from src.data_processing.charms import CharmInfo
 from src.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
 from src.data_processing.shades import SummonInfo
-from src.neo4j_kg.graph_builder import create_neo4j_data, clear_database
+from src.neo4j_kg.graph_builder import create_neo4j_data, create_url_nodes, clear_database
 from src.neo4j_kg.stats import create_stats_from_parsed, add_keyword_label_to_stats
 from src.neo4j_kg.keywords import create_keywords_from_parsed, create_card_keyword_relationships, create_charm_keyword_relationships
 from src.neo4j_kg.charms import create_charms_from_parsed, create_charm_tribe_relationships
@@ -132,7 +132,7 @@ async def _load_card_pages(skip_scrape: bool) -> tuple[List[CardInfo], dict]:
             card_infos.append(CardInfo(
                 card_name=card_name,
                 card_type=CardType.from_schema_key(card_type),
-                card_url=f'{settings.wildfrost_wiki_base_url}/{cleaned_name}'
+                url=f'{settings.wildfrost_wiki_base_url}/{cleaned_name}'
             ))
 
     logger.info(f"Created {len(card_infos)} CardInfo objects")
@@ -148,7 +148,7 @@ async def _load_card_pages(skip_scrape: bool) -> tuple[List[CardInfo], dict]:
             with open(html_path, 'r', encoding='utf-8') as f:
                 html = f.read()
             parsed_cards = CardInfo.parse_html_multi_phase(
-                html=html, card_type=card_info.card_type, card_url=card_info.card_url
+                html=html, card_type=card_info.card_type, url=card_info.url
             )
             if parsed_cards:
                 successful_pages += 1
@@ -160,7 +160,7 @@ async def _load_card_pages(skip_scrape: bool) -> tuple[List[CardInfo], dict]:
 
     if cards_to_scrape and not skip_scrape:
         logger.info(f"Scraping {len(cards_to_scrape)} missing card pages...")
-        urls = [card.card_url for card in cards_to_scrape]
+        urls = [card.url for card in cards_to_scrape]
         html_outputs = await scrape_multiple_links(
             urls, max_concurrent=settings.max_concurrent_requests
         )
@@ -169,7 +169,7 @@ async def _load_card_pages(skip_scrape: bool) -> tuple[List[CardInfo], dict]:
             if html is None:
                 continue
             parsed_cards = CardInfo.parse_html_multi_phase(
-                html=html, card_type=card_info.card_type, card_url=card_info.card_url
+                html=html, card_type=card_info.card_type, url=card_info.url
             )
             if parsed_cards:
                 successful_pages += 1
@@ -294,7 +294,7 @@ async def stage_1_scrape_cards(skip_scrape: bool = False) -> PipelineData:
 
     # Card page URLs — built from all_cards (includes variants from parse_html_multi_phase)
     card_page_urls = {
-        f"{card.sanitized_name()}.html": card.card_url
+        f"{card.sanitized_name()}.html": card.url
         for card in all_cards
     }
     pipeline_data.page_urls.update(card_page_urls)
@@ -343,9 +343,12 @@ def stage_3_populate_graph(data: PipelineData) -> None:
     )
     try:
         with driver.session() as session:
+            # URL lookup helper: page_urls maps "Stats.html" -> "https://..."
+            urls = data.page_urls
+
             # Create Stat nodes FIRST (cards need them for HAS_STAT relationships)
             if data.stats:
-                count = session.execute_write(create_stats_from_parsed, data.stats)
+                count = session.execute_write(create_stats_from_parsed, data.stats, urls.get("Stats.html"))
                 logger.info(f"Created {count} Stat nodes")
 
                 # Add :Keyword label to stats that are also game mechanics (e.g., Frost, Shroom)
@@ -353,7 +356,7 @@ def stage_3_populate_graph(data: PipelineData) -> None:
 
             # Create Keyword nodes
             if data.keywords:
-                count = session.execute_write(create_keywords_from_parsed, data.keywords)
+                count = session.execute_write(create_keywords_from_parsed, data.keywords, urls.get("Keywords.html"))
                 logger.info(f"Created {count} Keyword nodes")
 
             # Create Charm nodes (tribe relationships after create_neo4j_data, which creates Tribes)
@@ -366,7 +369,7 @@ def stage_3_populate_graph(data: PipelineData) -> None:
             logger.info(f"Ingesting {len(cards_dict_data)} cards into Neo4j graph...")
 
             # Creates Tribes, Cards, Crowns, Stats relationships, etc.
-            create_neo4j_data(session, cards_dict_data)
+            create_neo4j_data(session, cards_dict_data, crowns_url=urls.get("Crowns.html"))
 
             # Card-Keyword relationships (Cards and Keywords must exist first)
             if data.keywords:
@@ -384,7 +387,11 @@ def stage_3_populate_graph(data: PipelineData) -> None:
 
             # Map graph (Map, Zone, MapEvent, Fight nodes + relationships)
             if data.zones or data.map_events or data.fight_slots:
-                counts = session.execute_write(create_map_graph, data.zones, data.map_events, data.fight_slots, data.fight_page_mapping)
+                counts = session.execute_write(
+                    create_map_graph, data.zones, data.map_events, data.fight_slots,
+                    data.fight_page_mapping, url=urls.get("Map.html"),
+                    base_url=settings.wildfrost_wiki_base_url,
+                )
                 logger.info(f"Map graph created: {counts}")
 
             if data.fight_enemies and data.fight_page_mapping:
@@ -397,13 +404,18 @@ def stage_3_populate_graph(data: PipelineData) -> None:
 
             # Create Bell nodes and linking relationships
             if data.bells:
-                bell_count = session.execute_write(create_bells_from_parsed, data.bells)
+                bell_count = session.execute_write(create_bells_from_parsed, data.bells, urls.get("Bells.html"))
                 logger.info(f"Created {bell_count} Bell nodes")
                 bell_rel_count = session.execute_write(create_bell_relationships)
                 logger.info(f"Created {bell_rel_count} bell linking relationships")
 
             # Bling economy: Bling node, Shop nodes, DROPS_BLING and SELLS relationships
-            session.execute_write(create_bling_and_shops)
+            bling_shop_urls = {
+                "Bling": urls.get("Bling.html"),
+                "The Woolly Snail": urls.get("The_Woolly_Snail.html"),
+                "Charm Merchant": urls.get("Charm_Merchant.html"),
+            }
+            session.execute_write(create_bling_and_shops, bling_shop_urls)
             if data.bling_drops:
                 drop_count = session.execute_write(create_drops_bling_relationships, data.bling_drops)
                 logger.info(f"Created {drop_count} DROPS_BLING relationships")
@@ -430,6 +442,10 @@ def stage_3_populate_graph(data: PipelineData) -> None:
                     create_shop_sells_relationships, "Charm Merchant", data.clunker_prices, "Card"
                 )
                 logger.info(f"Created {cm_clunker_count} Charm Merchant SELLS Clunker relationships")
+
+            # Create URL nodes and HAS_LINK relationships for all entities with url property
+            url_link_count = session.execute_write(create_url_nodes)
+            logger.info(f"Created URL nodes with {url_link_count} HAS_LINK relationships")
     finally:
         driver.close()
 

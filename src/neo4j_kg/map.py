@@ -4,7 +4,7 @@ from src.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
 from src.utils.logger import logger
 
 
-def create_map_graph(tx, zones: List[ZoneInfo], map_events: List[MapEventInfo], fight_slots: List[FightSlotInfo], fight_page_mapping: dict[str, str] = None):
+def create_map_graph(tx, zones: List[ZoneInfo], map_events: List[MapEventInfo], fight_slots: List[FightSlotInfo], fight_page_mapping: dict[str, str] = None, url: str = None, base_url: str = None):
     """
     Create the full map graph: Map node, Zones, MapEvents, Fights, and all relationships.
 
@@ -14,24 +14,26 @@ def create_map_graph(tx, zones: List[ZoneInfo], map_events: List[MapEventInfo], 
 
     Args:
         fight_page_mapping: Display name -> wiki page slug (e.g., {"Infernoko": "Infernoko_Fight"})
+        url: Wiki page URL for Map/Zone/MapEvent nodes (shared /Map page)
+        base_url: Wiki base URL for constructing per-fight URLs
     """
     # Create Map node
-    tx.run("MERGE (m:Map {name: 'Map'})")
+    tx.run("MERGE (m:Map {name: 'Map'}) SET m.url = $url", url=url)
 
     # Create Zone nodes + Map->Zone
-    zone_count = _create_zones(tx, zones)
+    zone_count = _create_zones(tx, zones, url=url)
 
     # Create MapEvent nodes + Map->MapEvent
-    event_count = _create_map_events(tx, map_events)
+    event_count = _create_map_events(tx, map_events, url=url)
 
     # Create Fight nodes + Zone->Fight
-    fight_count = _create_fights_from_slots(tx, fight_slots, fight_page_mapping or {})
+    fight_count = _create_fights_from_slots(tx, fight_slots, fight_page_mapping or {}, base_url=base_url)
 
     logger.info(f"Map graph: 1 Map, {zone_count} Zones, {event_count} MapEvents, {fight_count} Fights")
     return {'zones': zone_count, 'map_events': event_count, 'fights': fight_count}
 
 
-def _create_zones(tx, zones: List[ZoneInfo]):
+def _create_zones(tx, zones: List[ZoneInfo], url: str = None):
     """Create Zone nodes and Map->Zone relationships."""
     zone_data = [
         {
@@ -46,17 +48,18 @@ def _create_zones(tx, zones: List[ZoneInfo]):
     UNWIND $zones AS zone
     MERGE (z:Zone {name: zone.name})
     SET z.zone_order = zone.zone_order,
-        z.description = zone.description
+        z.description = zone.description,
+        z.url = $url
     WITH z
     MATCH (m:Map {name: 'Map'})
     MERGE (m)-[:HAS_ZONE]->(z)
     RETURN count(z) AS created
     """
-    result = tx.run(query, zones=zone_data)
+    result = tx.run(query, zones=zone_data, url=url)
     return result.single()["created"]
 
 
-def _create_map_events(tx, map_events: List[MapEventInfo]):
+def _create_map_events(tx, map_events: List[MapEventInfo], url: str = None):
     """Create MapEvent nodes and Map->MapEvent relationships."""
     event_data = [
         {
@@ -71,17 +74,18 @@ def _create_map_events(tx, map_events: List[MapEventInfo]):
     UNWIND $events AS event
     MERGE (e:MapEvent {name: event.name})
     SET e.description = event.description,
-        e.notes = event.notes
+        e.notes = event.notes,
+        e.url = $url
     WITH e
     MATCH (m:Map {name: 'Map'})
     MERGE (m)-[:HAS_MAP_EVENT]->(e)
     RETURN count(e) AS created
     """
-    result = tx.run(query, events=event_data)
+    result = tx.run(query, events=event_data, url=url)
     return result.single()["created"]
 
 
-def _create_fights_from_slots(tx, fight_slots: List[FightSlotInfo], fight_page_mapping: dict[str, str]):
+def _create_fights_from_slots(tx, fight_slots: List[FightSlotInfo], fight_page_mapping: dict[str, str], base_url: str = None):
     """
     Create Fight nodes and link them to Zones via HAS_FIGHT.
 
@@ -90,20 +94,24 @@ def _create_fights_from_slots(tx, fight_slots: List[FightSlotInfo], fight_page_m
 
     Args:
         fight_page_mapping: Display name -> wiki page slug for document linking
+        base_url: Wiki base URL for constructing per-fight URLs
     """
     fight_data = []
     for slot in fight_slots:
         for fight_name in slot.possible_fights:
             page_name = fight_page_mapping.get(fight_name, fight_name.replace(' ', '_'))
+            fight_url = f"{base_url}/{page_name}" if base_url else None
             fight_data.append({
                 'name': fight_name,
                 'page_name': page_name,
+                'url': fight_url,
             })
 
     fight_query = """
     UNWIND $fights AS fight
     MERGE (f:Fight {name: fight.name})
-    SET f.page_name = fight.page_name
+    SET f.page_name = fight.page_name,
+        f.url = fight.url
     RETURN count(f) AS created
     """
     result = tx.run(fight_query, fights=fight_data)

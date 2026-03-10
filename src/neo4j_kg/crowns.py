@@ -1,9 +1,13 @@
 from src.data_processing.crowns import CROWNS, CROWNABLE_CARD_TYPES
 
 
-def create_crowns(tx):
+def create_crowns(tx, url: str = None):
     """
     Create Crown nodes from hardcoded crown definitions.
+
+    Args:
+        tx: Neo4j transaction
+        url: Wiki page URL for all crowns (shared /Crowns page)
     """
     crown_data = [
         {
@@ -20,10 +24,11 @@ def create_crowns(tx):
     MERGE (c:Crown {name: crown.name})
     SET c.removable = crown.removable,
         c.description = crown.description,
-        c.max_per_card = crown.max_per_card
+        c.max_per_card = crown.max_per_card,
+        c.url = $url
     RETURN count(c) AS crownsCreated
     """
-    result = tx.run(query, crowns=crown_data)
+    result = tx.run(query, crowns=crown_data, url=url)
     return result.single()["crownsCreated"]
 
 

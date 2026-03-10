@@ -8,19 +8,24 @@ from src.data_processing.bling import EnemyBlingDrop, ShopListing
 from src.utils.logger import logger
 
 
-def create_bling_and_shops(tx):
+def create_bling_and_shops(tx, urls: dict[str, str] = None):
     """
     Create the Bling node and Shop nodes.
 
     Args:
         tx: Neo4j transaction
+        urls: Dict mapping node name to wiki page URL, e.g.
+              {"Bling": "https://...", "The Woolly Snail": "https://...", "Charm Merchant": "https://..."}
 
     Returns:
         Number of nodes created
     """
+    urls = urls or {}
+
     query = """
     MERGE (b:Bling {name: "Bling"})
-    SET b.description = "Currency used to purchase goods from shops during a run"
+    SET b.description = "Currency used to purchase goods from shops during a run",
+        b.url = $bling_url
 
     MERGE (s1:Shop {name: "The Woolly Snail"})
     SET s1.description = "Shop for purchasing Items and Crowns",
@@ -28,18 +33,25 @@ def create_bling_and_shops(tx):
         s1.discount = "1 of 4 Items discounted 50%",
         s1.item_price_formula = "base_price * random(0.8-1.2) - 5",
         s1.crown_price = 75,
-        s1.charm_dispenser_prices = "45 / 65 / 85 Blings per use, resets each visit"
+        s1.charm_dispenser_prices = "45 / 65 / 85 Blings per use, resets each visit",
+        s1.url = $woolly_snail_url
 
     MERGE (s2:Shop {name: "Charm Merchant"})
     SET s2.description = "Shop for purchasing Charms and an upgraded Item or Clunker with charms",
         s2.stock = "3 Charms, 1 Item or Clunker with 1-2 charms attached",
         s2.charm_price_formula = "base_price + random(-30, +30)",
         s2.upgraded_card_price_formula = "Item shop value or Clunker price + 10-20 Blings per charm - 5",
-        s2.upgraded_card_two_charm_chance = "1% chance the Item or Clunker has 2 charms instead of 1"
+        s2.upgraded_card_two_charm_chance = "1% chance the Item or Clunker has 2 charms instead of 1",
+        s2.url = $charm_merchant_url
 
     RETURN 3 AS created
     """
-    result = tx.run(query)
+    result = tx.run(
+        query,
+        bling_url=urls.get("Bling"),
+        woolly_snail_url=urls.get("The Woolly Snail"),
+        charm_merchant_url=urls.get("Charm Merchant"),
+    )
     count = result.single()["created"]
     logger.info(f"Created Bling node and {count - 1} Shop nodes")
     return count

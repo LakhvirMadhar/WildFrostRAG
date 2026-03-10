@@ -21,7 +21,7 @@ class CharmInfo:
     name: str
     description: str
     is_cursed: bool
-    charm_url: Optional[str] = None
+    url: Optional[str] = None
     charm_html: Optional[str] = None
     unlock: Optional[str] = None
     challenge: Optional[str] = None
@@ -72,7 +72,7 @@ class CharmInfo:
         return result
 
 
-def _extract_charm_url(name_cell, base_url: str) -> Optional[str]:
+def _extract_url(name_cell, base_url: str) -> Optional[str]:
     """Extract charm URL from the name cell's <a href>."""
     link = name_cell.find('a')
     if link and link.get('href'):
@@ -89,7 +89,7 @@ def _parse_regular_charms(table, base_url: str) -> List[CharmInfo]:
             continue
 
         name = cells[1].get_text(strip=True)
-        charm_url = _extract_charm_url(cells[1], base_url)
+        url = _extract_url(cells[1], base_url)
         description = cells[2].get_text(separator=' ', strip=True)
         unlock = cells[3].get_text(strip=True) or None
         challenge = cells[4].get_text(strip=True) or None
@@ -100,7 +100,7 @@ def _parse_regular_charms(table, base_url: str) -> List[CharmInfo]:
             name=name,
             description=description,
             is_cursed=False,
-            charm_url=charm_url,
+            url=url,
             unlock=unlock,
             challenge=challenge,
             tribe_exclusive=tribe_exclusive,
@@ -118,14 +118,14 @@ def _parse_cursed_charms(table, base_url: str) -> List[CharmInfo]:
             continue
 
         name = cells[1].get_text(strip=True)
-        charm_url = _extract_charm_url(cells[1], base_url)
+        url = _extract_url(cells[1], base_url)
         description = cells[2].get_text(separator=' ', strip=True)
 
         charms.append(CharmInfo(
             name=name,
             description=description,
             is_cursed=True,
-            charm_url=charm_url,
+            url=url,
         ))
 
     return charms

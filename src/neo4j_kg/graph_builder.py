@@ -18,13 +18,14 @@ def clear_database(tx) -> None:
     tx.run(query)
 
 
-def create_neo4j_data(session, cards_data):
+def create_neo4j_data(session, cards_data, crowns_url: str = None):
     """
     Create card-related nodes and relationships in Neo4j.
 
     Args:
         session: Neo4j session (caller manages driver lifecycle)
         cards_data: List of card dicts to import
+        crowns_url: Wiki page URL for Crown nodes
     """
     # Create tribes first
     tribes_created = session.execute_write(create_tribes)
@@ -55,7 +56,7 @@ def create_neo4j_data(session, cards_data):
     logger.info(f"Created {recruitment_relationships} recruitment relationships (CAN_BE_RECRUITED_AS)")
 
     # Create crowns
-    crowns_created = session.execute_write(create_crowns)
+    crowns_created = session.execute_write(create_crowns, crowns_url)
     logger.info(f"Created {crowns_created} crown nodes")
 
     # Create crown relationships
@@ -63,3 +64,34 @@ def create_neo4j_data(session, cards_data):
     logger.info(f"Created {crown_relationships} crown relationships")
 
     logger.info("Card import completed successfully")
+
+
+def create_url_nodes(tx):
+    """
+    Create URL nodes and HAS_LINK relationships for all entities with a url property.
+
+    Queries all nodes that have a non-null url property, creates a URL node for each
+    unique URL, and links each entity to its URL node via HAS_LINK.
+
+    This runs after all entity nodes are created so it picks up everything in one pass.
+    """
+    result = tx.run("""
+        MATCH (n)
+        WHERE n.url IS NOT NULL
+        WITH DISTINCT n.url AS url
+        MERGE (u:URL {url: url})
+        RETURN count(u) AS created
+    """)
+    url_count = result.single()["created"]
+
+    result = tx.run("""
+        MATCH (n)
+        WHERE n.url IS NOT NULL
+        MATCH (u:URL {url: n.url})
+        MERGE (n)-[:HAS_LINK]->(u)
+        RETURN count(*) AS linked
+    """)
+    link_count = result.single()["linked"]
+
+    logger.info(f"Created {url_count} URL nodes and {link_count} HAS_LINK relationships")
+    return link_count
