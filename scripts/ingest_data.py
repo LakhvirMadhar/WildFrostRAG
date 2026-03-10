@@ -54,7 +54,7 @@ from src.neo4j_kg.bells import create_bells_from_parsed, create_bell_relationshi
 from src.scraping.wiki_scraper import clean_name_for_url
 from src.scraping.domain_scrapers import (
     scrape_leaders, scrape_stats, scrape_keywords, scrape_charms,
-    scrape_individual_charm_pages,
+    scrape_individual_charm_pages, scrape_individual_stat_pages,
     scrape_bling, scrape_shop, scrape_clunker_prices, scrape_bells,
     scrape_shades, scrape_map, scrape_fight_pages,
     scrape_crowns, scrape_getting_started,
@@ -206,6 +206,10 @@ async def _scrape_domain_pages(card_type_schema: dict) -> PipelineData:
     stats, stats_urls = await scrape_stats()
     page_urls.update(stats_urls)
 
+    # Scrape individual stat pages for per-stat Documents (detailed mechanics)
+    individual_stat_urls = await scrape_individual_stat_pages(stats)
+    page_urls.update(individual_stat_urls)
+
     keywords, keywords_urls = await scrape_keywords()
     page_urls.update(keywords_urls)
 
@@ -348,7 +352,7 @@ def stage_3_populate_graph(data: PipelineData) -> None:
 
             # Create Stat nodes FIRST (cards need them for HAS_STAT relationships)
             if data.stats:
-                count = session.execute_write(create_stats_from_parsed, data.stats, urls.get("Stats.html"))
+                count = session.execute_write(create_stats_from_parsed, data.stats)
                 logger.info(f"Created {count} Stat nodes")
 
                 # Add :Keyword label to stats that are also game mechanics (e.g., Frost, Shroom)

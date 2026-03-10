@@ -167,14 +167,13 @@ def add_keyword_label_to_stats(tx):
     return count
 
 
-def create_stats_from_parsed(tx, stats: List[StatInfo], url: str = None):
+def create_stats_from_parsed(tx, stats: List[StatInfo]):
     """
     Create Stat nodes from parsed StatInfo objects.
 
     Args:
         tx: Neo4j transaction
         stats: List of StatInfo objects from parse_stats_page()
-        url: Wiki page URL for all stats (shared /Stats page)
 
     Returns:
         Number of Stat nodes created
@@ -185,6 +184,8 @@ def create_stats_from_parsed(tx, stats: List[StatInfo], url: str = None):
             'category': stat.category.value,
             'description': stat.description,
             'additional_info': stat.additional_info,
+            'url': stat.url,
+            'filename': f"{stat.sanitized_name()}.html",
         }
         for stat in stats
     ]
@@ -195,8 +196,9 @@ def create_stats_from_parsed(tx, stats: List[StatInfo], url: str = None):
     SET s.category = stat.category,
         s.description = stat.description,
         s.additional_info = stat.additional_info,
-        s.url = $url
+        s.url = stat.url,
+        s.filename = stat.filename
     RETURN count(s) AS statsCreated
     """
-    result = tx.run(query, stats=stat_data, url=url)
+    result = tx.run(query, stats=stat_data)
     return result.single()["statsCreated"]

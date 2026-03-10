@@ -280,9 +280,10 @@ def link_documents_to_crowns(session: Session) -> int:
 
 def link_documents_to_stats(session: Session) -> int:
     """
-    Link Stat nodes to the Stats Document node.
+    Link Stat nodes to their individual stat page Documents.
 
-    All Stat nodes get linked to the same Stats.html document.
+    Each Stat matches its own Document via the filename property.
+    Additionally, all stats link to the summary Stats.html for overview context.
 
     Args:
         session: Active Neo4j session (caller manages driver lifecycle)
@@ -290,22 +291,39 @@ def link_documents_to_stats(session: Session) -> int:
     Returns:
         Number of relationships created
     """
-    logger.info("Linking Stat nodes to Document...")
+    logger.info("Linking Stat nodes to Documents...")
 
-    link_query = """
+    total = 0
+
+    # Per-stat Documents (individual pages with detailed mechanics)
+    per_stat_query = """
+    MATCH (d:Document)
+    MATCH (stat:Stat)
+    WHERE stat.filename IS NOT NULL
+      AND d.source_file ENDS WITH stat.filename
+    MERGE (stat)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) as relationships_created
+    """
+    result = session.run(per_stat_query)
+    record = result.single()
+    per_stat_count = record["relationships_created"] if record else 0
+    total += per_stat_count
+
+    # Summary Stats.html (overview table with all stats)
+    summary_query = """
     MATCH (d:Document)
     WHERE d.source_file ENDS WITH 'stats/Stats.html'
     MATCH (stat:Stat)
     MERGE (stat)-[:HAS_DOCUMENT]->(d)
     RETURN count(*) as relationships_created
     """
-
-    result = session.run(link_query)
+    result = session.run(summary_query)
     record = result.single()
-    count = record["relationships_created"] if record else 0
+    summary_count = record["relationships_created"] if record else 0
+    total += summary_count
 
-    logger.info(f"Created {count} Stat-Document relationships")
-    return count
+    logger.info(f"Created {total} Stat-Document relationships ({per_stat_count} per-stat + {summary_count} summary)")
+    return total
 
 
 def link_documents_to_charms(session: Session) -> int:

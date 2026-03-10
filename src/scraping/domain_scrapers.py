@@ -53,9 +53,51 @@ async def scrape_stats() -> tuple[List[StatInfo], PageUrls]:
     if not html:
         return [], urls
 
-    stats = parse_stats_page(html)
+    stats = parse_stats_page(html, base_url=settings.wildfrost_wiki_base_url)
     logger.info(f"Parsed {len(stats)} stats")
     return stats, urls
+
+
+async def scrape_individual_stat_pages(stats: List[StatInfo]) -> PageUrls:
+    """
+    Scrape individual stat wiki pages for per-stat Document content.
+
+    Checks cache first (via stat.save_path()), scrapes any missing pages.
+    Each stat's HTML is saved to data/structured_outputs/stats/{name}.html.
+
+    Args:
+        stats: List of StatInfo objects (already parsed from summary page with url set)
+
+    Returns:
+        PageUrls dict mapping filename -> wiki URL for each stat
+    """
+    page_urls: PageUrls = {}
+    stats_to_scrape: list[StatInfo] = []
+
+    for stat in stats:
+        if not stat.url:
+            continue
+        filename = f"{stat.sanitized_name()}.html"
+        page_urls[filename] = stat.url
+
+        if os.path.exists(stat.save_path()):
+            continue
+        stats_to_scrape.append(stat)
+
+    logger.info(f"Individual stat pages: {len(stats) - len(stats_to_scrape)} cached, {len(stats_to_scrape)} to scrape")
+
+    if stats_to_scrape:
+        urls = [s.url for s in stats_to_scrape]
+        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
+
+        for stat, html in zip(stats_to_scrape, htmls):
+            if html is None:
+                logger.warning(f"Failed to scrape individual page for {stat.name}")
+                continue
+            stat.stat_html = html
+            stat.save_html()
+
+    return page_urls
 
 
 async def scrape_keywords() -> tuple[List[KeywordInfo], PageUrls]:
