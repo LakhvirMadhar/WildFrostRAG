@@ -2,10 +2,48 @@
 Keyword node creation and card/charm-keyword relationship management for Neo4j.
 """
 
+import re
 from typing import List
 
 from src.data_processing.keywords import KeywordInfo
 from src.utils.logger import logger
+
+
+# Suffixes to check when matching keyword roots against card/charm text.
+_INFLECTION_SUFFIXES = r"(?:ing|ed|es|s|ied|ies|er|ers|ly)?"
+
+
+def _keyword_matches_text(keyword_lower: str, text_lower: str) -> bool:
+    """Check if a keyword or any morphological variant appears in text.
+
+    Two-pass approach:
+      1. Substring match (existing behavior, handles most cases).
+      2. For single-word keywords, generate alternate roots based on English
+         inflection rules and regex-match with common suffixes. This catches
+         cases like sacrifice→sacrificing (e-drop) and ally→allies (y→i).
+    """
+    if keyword_lower in text_lower:
+        return True
+
+    # Only apply morphological matching to single-word keywords
+    if " " in keyword_lower:
+        return False
+
+    # Build alternate roots from English inflection patterns
+    roots = []
+    if keyword_lower.endswith("e"):
+        # e-drop before -ing: sacrifice → sacrific(+ing)
+        roots.append(keyword_lower[:-1])
+    if keyword_lower.endswith("y"):
+        # y→i before -ed/-es: frenzy → frenzi(+ed), apply → appli(+ed)
+        roots.append(keyword_lower[:-1] + "i")
+
+    for root in roots:
+        pattern = r"\b" + re.escape(root) + _INFLECTION_SUFFIXES + r"\b"
+        if re.search(pattern, text_lower):
+            return True
+
+    return False
 
 
 def create_keywords_from_parsed(tx, keywords: List[KeywordInfo], url: str = None):
@@ -74,7 +112,7 @@ def create_card_keyword_relationships(tx, cards_data):
         card_name = card["card_name"]
         ability_lower = ability.lower()
         for keyword_name in all_keyword_names:
-            if keyword_name.lower() in ability_lower:
+            if _keyword_matches_text(keyword_name.lower(), ability_lower):
                 card_keywords.append(
                     {"card_name": card_name, "keyword_name": keyword_name}
                 )
@@ -122,7 +160,7 @@ def create_charm_keyword_relationships(tx):
         charm_name = charm["name"]
         desc_lower = description.lower()
         for keyword_name in all_keyword_names:
-            if keyword_name.lower() in desc_lower:
+            if _keyword_matches_text(keyword_name.lower(), desc_lower):
                 charm_keywords.append(
                     {"charm_name": charm_name, "keyword_name": keyword_name}
                 )
