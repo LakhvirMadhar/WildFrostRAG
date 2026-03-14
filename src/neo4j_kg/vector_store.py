@@ -243,9 +243,26 @@ def link_documents_to_cards(session: Session) -> int:
     result = session.run(link_query)
     record = result.single()
     count = record["relationships_created"] if record else 0
+    logger.info(f"Created {count} Card-Document relationships (by filename)")
 
-    logger.info(f"Created {count} Card-Document relationships")
-    return count
+    # Fallback: match by URL for multi-phase cards where filename differs
+    link_by_url = """
+    MATCH (c:Card)
+    WHERE c.url IS NOT NULL AND NOT (c)-[:HAS_DOCUMENT]->(:Document)
+    MATCH (d:Document) WHERE d.source_url = c.url
+    MERGE (c)-[:HAS_DOCUMENT]->(d)
+    RETURN count(*) as relationships_created
+    """
+
+    result = session.run(link_by_url)
+    record = result.single()
+    url_count = record["relationships_created"] if record else 0
+    if url_count > 0:
+        logger.info(f"Created {url_count} Card-Document relationships (by URL fallback)")
+
+    total = count + url_count
+    logger.info(f"Total: {total} Card-Document relationships")
+    return total
 
 
 def link_documents_to_crowns(session: Session) -> int:

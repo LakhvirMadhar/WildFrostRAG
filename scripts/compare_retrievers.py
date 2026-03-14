@@ -254,9 +254,19 @@ def generate_missed_queries(experiments: list[dict]) -> list[str]:
 
     lines = []
 
-    # Build table: QID | Query | Query after SW removal | per-experiment hit/miss
-    header = "| QID | Query | After +sw(Q) | " + " | ".join(exp_names) + " |"
-    sep = "|---|---|---|" + "|".join(["---"] * len(exp_names)) + "|"
+    # Only show stopword column if any experiment uses stopword removal
+    any_sw = any(
+        exp["retriever_dir"] in STOPWORD_RELEVANT_RETRIEVERS
+        for exp in experiments
+    )
+
+    # Build table header
+    if any_sw:
+        header = "| QID | Query | After +sw(Q) | " + " | ".join(exp_names) + " |"
+        sep = "|---|---|---|" + "|".join(["---"] * len(exp_names)) + "|"
+    else:
+        header = "| QID | Query | " + " | ".join(exp_names) + " |"
+        sep = "|---|---|" + "|".join(["---"] * len(exp_names)) + "|"
     lines.append(header)
     lines.append(sep)
 
@@ -264,18 +274,20 @@ def generate_missed_queries(experiments: list[dict]) -> list[str]:
         data = query_map[qid]
         query = data["query"]
 
-        # Show what the query becomes after stopword removal
-        tokens = query.lower().split()
-        filtered = [t.strip("?.,!") for t in tokens if t.strip("?.,!") and t.strip("?.,!") not in stop_words]
-        sw_removed = " ".join(filtered) if filtered else "—"
-
         # Hit/miss cells
         cells = []
         for name in exp_names:
             hit = data.get(name, 0)
             cells.append("hit" if hit > 0 else "**MISS**")
 
-        lines.append(f"| {qid} | {query} | {sw_removed} | " + " | ".join(cells) + " |")
+        if any_sw:
+            # Show what the query becomes after stopword removal
+            tokens = query.lower().split()
+            filtered = [t.strip("?.,!") for t in tokens if t.strip("?.,!") and t.strip("?.,!") not in stop_words]
+            sw_removed = " ".join(filtered) if filtered else "—"
+            lines.append(f"| {qid} | {query} | {sw_removed} | " + " | ".join(cells) + " |")
+        else:
+            lines.append(f"| {qid} | {query} | " + " | ".join(cells) + " |")
 
     lines.append("")
 

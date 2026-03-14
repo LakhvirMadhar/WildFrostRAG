@@ -27,7 +27,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         self,
         driver: Driver,
         text2cypher_prompt: VersionedPrompt,
-        neo4j_database: str | None = None
+        neo4j_database: str | None = None,
     ):
         """
         Initialize the Text2Cypher retriever.
@@ -60,8 +60,8 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             "relationship_patterns": relationship_patterns
         }
 
-    def _get_node_schema(self, session) -> dict[str, list[str]]:
-        """Get node labels and their properties from the database."""
+    def _get_node_schema(self, session) -> dict[str, list[dict[str, str]]]:
+        """Get node labels and their properties with types from the database."""
         query = """
         CALL db.schema.nodeTypeProperties() YIELD nodeType, propertyName, propertyTypes, mandatory
         RETURN nodeType, collect({propertyName: propertyName, propertyTypes: propertyTypes, mandatory: mandatory}) as properties
@@ -73,7 +73,13 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             for record in result:
                 node_type = record["nodeType"]
                 properties = record["properties"]
-                nodes[node_type] = [prop["propertyName"] for prop in properties]
+                nodes[node_type] = [
+                    {
+                        "name": prop["propertyName"],
+                        "type": prop["propertyTypes"][0] if prop["propertyTypes"] else "Unknown"
+                    }
+                    for prop in properties
+                ]
             return nodes
 
         return session.execute_read(_read_tx)
@@ -109,7 +115,10 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             clean_label = node_label.strip(":").strip("`")
             nodes_str += f"\n  Label: `{clean_label}`\n  Properties:\n"
             for prop in properties:
-                nodes_str += f"    - {prop}\n"
+                if isinstance(prop, dict):
+                    nodes_str += f"    - {prop['name']} ({prop['type']})\n"
+                else:
+                    nodes_str += f"    - {prop}\n"
 
         patterns_str = "\n".join(f"  {pattern}" for pattern in schema['relationship_patterns'])
 
