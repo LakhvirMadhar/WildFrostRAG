@@ -38,7 +38,6 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             neo4j_database: Optional database name (default: None uses default database)
         """
         super().__init__(driver, neo4j_database)
-        self.llm_response = None  # Track LLM response for experiment tracking
 
         self.prompt_version = text2cypher_prompt.prompt_version_name
         self.prompt_template = text2cypher_prompt.prompt_tuple
@@ -153,7 +152,6 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         cypher_query = response.strip()
         cypher_query = self._clean_cypher_response(cypher_query)
 
-        self.llm_response = cypher_query
         return cypher_query
 
     def _add_limit_clause(self, cypher_query: str, k: int) -> str:
@@ -193,6 +191,12 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
                 if i >= k:
                     break
                 results.append(self._record_to_dict_with_cypher(record, cypher_query, i))
+
+            if not results:
+                return self._add_metadata([{
+                    "generated_cypher": cypher_query,
+                    "no_results": True
+                }], 'text2cypher_llm_no_results')
 
             return self._add_metadata(results, 'text2cypher_llm')
 

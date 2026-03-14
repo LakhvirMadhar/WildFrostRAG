@@ -31,6 +31,7 @@ class BaseNeo4jRetriever:
         """
         self.driver = driver
         self.neo4j_database = neo4j_database
+        self.last_cypher_query: str | None = None
 
         # Extract port for logging (security: don't log full URI/host)
         # Note: We can't get URI directly from driver, so we'll get it from settings for logging
@@ -125,6 +126,7 @@ class BaseNeo4jRetriever:
         Returns:
             List of dictionaries containing query results
         """
+        self.last_cypher_query = query
         with self.driver.session(database=self.neo4j_database) as session:
             results = session.run(query, params)
             return [self._record_to_dict(record) for record in results]

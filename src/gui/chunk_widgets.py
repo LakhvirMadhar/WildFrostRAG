@@ -93,7 +93,7 @@ def create_chunk_widget(
     metadata_html = ' | '.join(metadata_parts)
 
     # Get text content
-    text = chunk.get('text', 'No text available')
+    text = chunk.get('retrieved_text', 'No text available')
 
     # Create toggle button
     toggle_button = widgets.Button(

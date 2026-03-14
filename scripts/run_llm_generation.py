@@ -27,6 +27,7 @@ from typing import Any
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
+from src.types.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
 from src.utils.logger import logger
 from src.utils.config import settings
 from src.rag.augmented_generation.openai_client import generate_zero_shot, generate_rag
@@ -78,7 +79,7 @@ def validate_args(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
-def load_retrieval_data(run_num: int, retrieval_reference: str) -> tuple[dict, list[dict]]:
+def load_retrieval_data(run_num: int, retrieval_reference: str) -> tuple[dict, list[RetrievalQueryResult]]:
     """Load and validate retrieval config and results."""
     if not validate_retrieval_reference(run_num, retrieval_reference):
         logger.error(f"Retrieval reference not found: {retrieval_reference}")
@@ -92,7 +93,8 @@ def load_retrieval_data(run_num: int, retrieval_reference: str) -> tuple[dict, l
 
     retrieval_path = settings.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
     config = load_config(retrieval_path / "config.json")
-    results = load_results(retrieval_path / "results.json")
+    raw_results = load_results(retrieval_path / "results.json")
+    results = [RetrievalQueryResult.from_dict(r) for r in raw_results]
 
     logger.info(f"Loaded retrieval results from: {retrieval_reference}")
     logger.info(f"Retriever type: {config['retriever_type']}")
@@ -101,7 +103,7 @@ def load_retrieval_data(run_num: int, retrieval_reference: str) -> tuple[dict, l
     return config, results
 
 
-def load_queries_for_zero_shot() -> list[dict]:
+def load_queries_for_zero_shot() -> list[RetrievalQueryResult]:
     """Load queries from the base query CSV for zero-shot mode."""
     import pandas as pd
 
@@ -115,29 +117,28 @@ def load_queries_for_zero_shot() -> list[dict]:
 
     results = []
     for _, row in df.iterrows():
-        results.append({
-            'query_id': row.get('query_id', row.name),
-            'query': row['query'],
-            'retrieved_chunks': []
-        })
+        results.append(RetrievalQueryResult(
+            query_id=row.get('query_id', row.name),
+            query=row['query'],
+        ))
 
     return results
 
 
 def filter_results_by_query_ids(
-    results: list[dict],
+    results: list[RetrievalQueryResult],
     include_ids: str | None,
     exclude_ids: str | None
-) -> list[dict]:
+) -> list[RetrievalQueryResult]:
     """Filter retrieval results by query IDs."""
     if include_ids:
         ids = [int(qid.strip()) for qid in include_ids.split(',')]
-        results = [r for r in results if r['query_id'] in ids]
+        results = [r for r in results if r.query_id in ids]
         logger.info(f"Filtered to {len(results)} queries with IDs: {ids}")
 
     if exclude_ids:
         ids = [int(qid.strip()) for qid in exclude_ids.split(',')]
-        results = [r for r in results if r['query_id'] not in ids]
+        results = [r for r in results if r.query_id not in ids]
         logger.info(f"Excluded {len(ids)} queries. Remaining: {len(results)} queries")
 
     if len(results) == 0:
@@ -157,14 +158,13 @@ def load_prompt(prompt_name: str, module_name: str = "prompts.system_prompts") -
         sys.exit(1)
 
 
-def extract_context_from_chunks(chunks: list[dict]) -> str:
+def extract_context_from_chunks(chunks: list[RetrievedChunk]) -> str:
     """Extract RAG context from retrieved chunks."""
-    context_texts = [chunk['rag_context'] for chunk in chunks if 'rag_context' in chunk]
-    return "\n\n".join(context_texts)
+    return "\n\n".join(c.retrieved_text for c in chunks if c.retrieved_text)
 
 
 async def run_generation(
-    query_results: list[dict],
+    query_results: list[RetrievalQueryResult],
     system_prompt: Any,
     rag_prompt: Any | None,
     is_zero_shot: bool
@@ -182,21 +182,18 @@ async def run_generation(
     mode_name = "zero-shot" if is_zero_shot else "RAG"
     logger.info(f"Running {mode_name} generation for {len(query_results)} queries...")
 
-    for query_result in query_results:
-        query = query_result['query']
-        chunks = query_result.get('retrieved_chunks', [])
-
-        logger.info(f"Generating response for query: {query[:50]}...")
+    for qr in query_results:
+        logger.info(f"Generating response for query: {qr.query[:50]}...")
 
         try:
             if is_zero_shot:
-                response = await generate_zero_shot(query, system_prompt)
+                response = await generate_zero_shot(qr.query, system_prompt)
             else:
-                context = extract_context_from_chunks(chunks)
+                context = extract_context_from_chunks(qr.retrieved_chunks)
                 if not context:
                     response = "ERROR: No retrieved chunks available"
                     raise ValueError("No context available")
-                response = await generate_rag(query, context, system_prompt, rag_prompt)
+                response = await generate_rag(qr.query, context, system_prompt, rag_prompt)
             successful += 1
         except Exception as e:
             logger.error(f"Failed to generate response: {e}")
@@ -204,10 +201,10 @@ async def run_generation(
             failed += 1
 
         results.append({
-            'query_id': query_result['query_id'],
-            'query': query,
+            'query_id': qr.query_id,
+            'query': qr.query,
             'response': response,
-            'retrieved_chunks': chunks
+            'retrieved_chunks': [c.to_dict() for c in qr.retrieved_chunks],
         })
 
     return results, successful, failed

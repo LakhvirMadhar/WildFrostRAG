@@ -294,44 +294,32 @@ class Text2CypherDataAdapter(ExperimentDataAdapter):
     Adapter for Text2Cypher experiments.
 
     Extends retrieval adapter with Cypher query information.
+    Reads cypher_execution directly from results.json (no separate cypher_queries.json).
     """
-
-    def __init__(self, experiment_path: Path):
-        super().__init__(experiment_path)
-        self._cypher_queries: Optional[Dict[str, Any]] = None
 
     def get_experiment_type(self) -> str:
         return 'retrieval'
 
     def get_queries(self) -> List[QueryResult]:
-        """Load queries with Cypher query information."""
+        """Load queries with Cypher query information from cypher_execution in results."""
         queries = super().get_queries()
-        cypher_data = self._load_cypher_queries()
+        results = self._load_results()
 
-        # Map cypher queries by query_id
-        cypher_map = {}
-        for cq in cypher_data.get('queries', []):
-            cypher_map[cq['query_id']] = cq
+        # Build map from query_id to cypher_execution
+        cypher_map: Dict[int, Dict[str, Any]] = {}
+        for result in results:
+            ce = result.get('cypher_execution')
+            if ce:
+                cypher_map[result['query_id']] = ce
 
         # Enrich query results with cypher info
         for query in queries:
-            if query.query_id in cypher_map:
-                cq = cypher_map[query.query_id]
-                query.cypher_query = cq.get('llm_response')
-                query.cypher_execution_status = cq.get('execution_status')
+            ce = cypher_map.get(query.query_id)
+            if ce:
+                query.cypher_query = ce.get('cypher_query')
+                query.cypher_execution_status = ce.get('cypher_execution_status')
 
         return queries
-
-    def _load_cypher_queries(self) -> Dict[str, Any]:
-        """Load cypher_queries.json."""
-        if self._cypher_queries is None:
-            cypher_path = self.experiment_path / 'cypher_queries.json'
-            if cypher_path.exists():
-                with open(cypher_path, 'r', encoding='utf-8') as f:
-                    self._cypher_queries = json.load(f)
-            else:
-                self._cypher_queries = {'queries': []}
-        return self._cypher_queries
 
 
 class GenerationDataAdapter(ExperimentDataAdapter):

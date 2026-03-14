@@ -47,6 +47,7 @@ from src.rag.retrievers import (
 )
 from src.rag.retrievers.hybrid_retrievers import HybridRetriever
 from src.embeddings.query_embedders import get_query_embed_fn
+from src.types.retrieval import RetrievedChunk, QueryResult, CypherExecution
 from src.utils.logger import logger
 from src.utils.config import settings
 from src.utils.experiment_utils import (
@@ -54,7 +55,6 @@ from src.utils.experiment_utils import (
     create_retrieval_config,
     save_config,
     save_results,
-    save_cypher_queries,
     save_individual_results
 )
 from src.experiment_tracker import ExperimentRegistry
@@ -133,12 +133,12 @@ async def _process_single_query(
     query: str,
     query_id: int,
     k: int
-) -> tuple[dict, dict | None, dict | None]:
+) -> tuple[QueryResult, dict | None]:
     """
-    Process a single query and return results.
+    Process a single query and return typed results.
 
     Returns:
-        Tuple of (result_entry, cypher_query_entry, individual_results_entry)
+        Tuple of (QueryResult, individual_results_entry or None)
     """
     # Handle both sync and async retrievers
     result = retriever.search(query, k=k)
@@ -148,35 +148,47 @@ async def _process_single_query(
         retrieved_chunks = result
     cleaned_chunks = _clean_chunks(retrieved_chunks)
 
-    result_entry = {
-        'query_id': query_id,
-        'query': query,
-        'retrieved_chunks': cleaned_chunks,
-        'relevance_annotations': []
-    }
-
-    # Capture text2cypher LLM response from result chunks (not retriever instance,
-    # which is shared state and unsafe for concurrent queries)
-    cypher_entry = None
+    # Build CypherExecution for ALL retrievers
     if retriever_type == "text2cypher":
+        # Read cypher info from result chunks (concurrent-safe, not shared retriever state)
         generated_cypher = None
         error_message = None
         for chunk in retrieved_chunks:
             if "generated_cypher" in chunk:
                 generated_cypher = chunk["generated_cypher"]
-                break
             if "error" in chunk:
                 error_message = chunk["error"]
-                generated_cypher = chunk.get("generated_cypher")
+            if generated_cypher or error_message:
                 break
-        cypher_entry = {
-            "query_id": query_id,
-            "query": query,
-            "llm_response": generated_cypher,
-            "execution_status": "success" if not error_message else "failed",
-            "execution_time_ms": None,
-            "error_message": error_message
-        }
+
+        cypher_execution = CypherExecution(
+            cypher_query=generated_cypher,
+            cypher_execution_status="success" if not error_message else "failed",
+            cypher_error_message=error_message,
+        )
+
+        # Filter out metadata-only entries BEFORE conversion to typed chunks
+        cleaned_chunks = [c for c in cleaned_chunks if not c.get("no_results")]
+    else:
+        # For Neo4j-based retrievers: read last_cypher_query set by _execute_query
+        # For BM25/hybrid: last_cypher_query is None (no per-query Cypher)
+        cypher_query = getattr(retriever, 'last_cypher_query', None)
+        cypher_execution = CypherExecution(
+            cypher_query=cypher_query,
+            cypher_execution_status="success",
+            cypher_error_message=None,
+        )
+
+    # Convert raw retriever dicts to typed RetrievedChunk objects
+    typed_chunks = [RetrievedChunk.from_raw_retriever_dict(c) for c in cleaned_chunks]
+
+    query_result = QueryResult(
+        query_id=query_id,
+        query=query,
+        cypher_execution=cypher_execution,
+        retrieved_chunks=typed_chunks,
+        relevance_annotations=[],
+    )
 
     # Capture hybrid retriever individual results
     individual_entry = None
@@ -187,7 +199,7 @@ async def _process_single_query(
             "individual_results": retriever.last_individual_results
         }
 
-    return result_entry, cypher_entry, individual_entry
+    return query_result, individual_entry
 
 
 async def _process_all_queries(
@@ -195,7 +207,7 @@ async def _process_all_queries(
     retriever: Any,
     retriever_type: str,
     k: int
-) -> tuple[list[dict], list[dict], list[dict]]:
+) -> tuple[list[QueryResult], list[dict]]:
     """
     Process all queries in the dataframe through the retriever.
 
@@ -203,7 +215,7 @@ async def _process_all_queries(
     Sync retrievers run sequentially.
 
     Returns:
-        Tuple of (results, cypher_queries, individual_results)
+        Tuple of (results, individual_results)
     """
     # Build query list, filtering empty rows
     query_rows = [
@@ -233,18 +245,15 @@ async def _process_all_queries(
             )
             all_results.append(result)
 
-    results = []
-    cypher_queries = []
-    individual_results_list = []
+    results: list[QueryResult] = []
+    individual_results_list: list[dict] = []
 
-    for result, cypher_entry, individual_entry in all_results:
-        results.append(result)
-        if cypher_entry:
-            cypher_queries.append(cypher_entry)
+    for query_result, individual_entry in all_results:
+        results.append(query_result)
         if individual_entry:
             individual_results_list.append(individual_entry)
 
-    return results, cypher_queries, individual_results_list
+    return results, individual_results_list
 
 
 def _get_embedder_config_kwargs(retriever_type: str, embedder: str) -> dict:
@@ -263,14 +272,12 @@ def _get_embedder_config_kwargs(retriever_type: str, embedder: str) -> dict:
 def _save_experiment_artifacts(
     experiment_dir: Path,
     config: dict,
-    results: list[dict],
-    cypher_queries: list[dict],
+    results: list[QueryResult],
     individual_results: list[dict],
     retriever: Any,
     retriever_type: str,
     experiment_id: str,
     run_num: int,
-    kwargs: dict
 ) -> None:
     """Save all experiment artifacts to disk."""
     # Save config
@@ -280,17 +287,10 @@ def _save_experiment_artifacts(
     registry = ExperimentRegistry()
     registry.register_retrieval(run_num, retriever_type, experiment_id, config)
 
-    # Save results
-    save_results(results, experiment_dir / "results.json")
-
-    # Save text2cypher queries if applicable
-    if retriever_type == "text2cypher" and cypher_queries:
-        metadata = {
-            "retrieval_id": f"{retriever_type}/{experiment_id}",
-            "text2cypher_prompt_version": kwargs.get("text2cypher_prompt_version", "V1"),
-            "timestamp": datetime.now().isoformat()
-        }
-        save_cypher_queries(cypher_queries, experiment_dir / "cypher_queries.json", metadata=metadata)
+    # Serialize typed objects to dicts for JSON storage
+    # cypher_execution is now embedded inside each QueryResult
+    results_dicts = [r.to_dict() for r in results]
+    save_results(results_dicts, experiment_dir / "results.json")
 
     # Save hybrid individual results if applicable
     if isinstance(retriever, HybridRetriever) and individual_results:
@@ -313,7 +313,7 @@ async def run_retriever(
     embedder: str = "hf",
     queries_json_path: Path | None = None,
     **kwargs
-) -> list[dict]:
+) -> list[QueryResult]:
     """
     Run a specific retriever on the provided dataset and save raw results.
 
@@ -345,7 +345,7 @@ async def run_retriever(
     logger.info(f"Experiment ID: {retriever_type}/{experiment_id}")
 
     # Process queries
-    results, cypher_queries, individual_results_list = await _process_all_queries(
+    results, individual_results_list = await _process_all_queries(
         df, retriever, retriever_type, k
     )
 
@@ -368,8 +368,8 @@ async def run_retriever(
     )
 
     _save_experiment_artifacts(
-        experiment_dir, config, results, cypher_queries, individual_results_list,
-        retriever, retriever_type, experiment_id, run_num, kwargs
+        experiment_dir, config, results, individual_results_list,
+        retriever, retriever_type, experiment_id, run_num,
     )
 
     # Auto-annotate relevance based on URL matching with ground truth
