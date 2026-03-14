@@ -16,7 +16,7 @@ Usage:
         --include-all
 
     # Custom output path
-    python -m scripts.compare_retrievers --run-num 1 --sections "..." --output docs/my_report.md
+    python -m scripts.compare_retrievers --run-num 1 --sections "..." --output outputs/run_1/my_report.md
 """
 
 import argparse
@@ -109,6 +109,10 @@ def get_display_name(exp: dict) -> str:
     name = retriever_dir
 
     if retriever_dir not in STOPWORD_RELEVANT_RETRIEVERS:
+        if "text2cypher" in retriever_dir:
+            prompt_version = config.get("text2cypher_prompt_version", "")
+            if prompt_version:
+                name += f" {prompt_version}"
         return f"{name} ({exp_id})"
 
     # New-style: separate sw_query / sw_docs flags
@@ -354,7 +358,7 @@ def parse_args():
     parser.add_argument("--include-all", action="store_true",
                         help="Add a final table combining all experiments across sections")
     parser.add_argument("--output", type=str, default=None,
-                        help="Output markdown path (default: docs/retrieval_comparison_run{N}.md)")
+                        help="Output markdown path (default: outputs/run_{N}/retrieval_comparison.md)")
     parser.add_argument("--list", action="store_true",
                         help="List all available experiments and exit")
     return parser.parse_args()
@@ -410,7 +414,7 @@ def main():
     md = generate_report(resolved_sections, args.run_num)
 
     # Output
-    output_path = args.output or f"docs/retrieval_comparison_run{args.run_num}.md"
+    output_path = args.output or f"outputs/run_{args.run_num}/retrieval_comparison.md"
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(md, encoding="utf-8")

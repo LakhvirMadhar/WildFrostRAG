@@ -67,35 +67,40 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         RETURN nodeType, collect({propertyName: propertyName, propertyTypes: propertyTypes, mandatory: mandatory}) as properties
         """
 
-        result = session.run(query)
-        nodes = {}
-        for record in result:
-            node_type = record["nodeType"]
-            properties = record["properties"]
-            nodes[node_type] = [prop["propertyName"] for prop in properties]
+        def _read_tx(tx):
+            result = tx.run(query)
+            nodes = {}
+            for record in result:
+                node_type = record["nodeType"]
+                properties = record["properties"]
+                nodes[node_type] = [prop["propertyName"] for prop in properties]
+            return nodes
 
-        return nodes
+        return session.execute_read(_read_tx)
 
     def _get_relationship_patterns(self, session) -> list[str]:
         """Get relationship patterns with directions from the database."""
-        query = "CALL db.schema.visualization()"
-        viz_result = session.run(query)
-        viz_record = viz_result.single()
+        def _read_tx(tx):
+            query = "CALL db.schema.visualization()"
+            viz_result = tx.run(query)
+            viz_record = viz_result.single()
 
-        if not viz_record:
-            return []
+            if not viz_record:
+                return []
 
-        relationships = viz_record.get("relationships", [])
+            relationships = viz_record.get("relationships", [])
 
-        patterns = []
-        for rel in relationships:
-            start_node, end_node = rel.nodes
-            start_label = list(start_node.labels)[0] if start_node.labels else "Unknown"
-            end_label = list(end_node.labels)[0] if end_node.labels else "Unknown"
-            pattern = f"({start_label})-[:{rel.type}]->({end_label})"
-            patterns.append(pattern)
+            patterns = []
+            for rel in relationships:
+                start_node, end_node = rel.nodes
+                start_label = list(start_node.labels)[0] if start_node.labels else "Unknown"
+                end_label = list(end_node.labels)[0] if end_node.labels else "Unknown"
+                pattern = f"({start_label})-[:{rel.type}]->({end_label})"
+                patterns.append(pattern)
 
-        return patterns
+            return patterns
+
+        return session.execute_read(_read_tx)
 
     def _format_schema_for_prompt(self, schema: dict[str, Any]) -> str:
         """Format schema into a string for the LLM prompt."""
@@ -182,15 +187,16 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
     def _execute_cypher_query(
         self, session, cypher_query: str, k: int
     ) -> list[dict[str, Any]]:
-        """Execute Cypher query and return results."""
+        """Execute Cypher query as a read-only transaction and return results."""
         try:
-            result = session.run(cypher_query)
-            results = []
+            def _read_tx(tx):
+                result = tx.run(cypher_query)
+                return [
+                    self._record_to_dict_with_cypher(record, cypher_query, i)
+                    for i, record in enumerate(result) if i < k
+                ]
 
-            for i, record in enumerate(result):
-                if i >= k:
-                    break
-                results.append(self._record_to_dict_with_cypher(record, cypher_query, i))
+            results = session.execute_read(_read_tx)
 
             if not results:
                 return self._add_metadata([{

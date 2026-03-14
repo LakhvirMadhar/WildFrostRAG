@@ -93,8 +93,8 @@ class Settings(BaseSettings):
     llm_semaphore_limit: int = 50  # Max concurrent LLM calls
 
     # Per-use-case settings (for experiment tracking)
-    text2cypher_temperature: float = 0.0   # Deterministic for Cypher generation
-    text2cypher_model: str = "gpt-4.1-nano"
+    text2cypher_temperature: float = 1.0   # gpt-5-mini only supports temperature=1
+    text2cypher_model: str = "gpt-5-mini"
 
     taxonomy_temperature: float = 0.3      # Slightly creative for categorization
     taxonomy_model: str = "gpt-4o-mini"
