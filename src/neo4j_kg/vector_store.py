@@ -235,7 +235,7 @@ def link_documents_to_cards(session: Session) -> int:
     link_query = """
     MATCH (d:Document)
     MATCH (c:Card)
-    WHERE d.source_file ENDS WITH c.filename
+    WHERE d.source_file ENDS WITH ('/' + c.filename)
     MERGE (c)-[:HAS_DOCUMENT]->(d)
     RETURN count(*) as relationships_created
     """
@@ -300,7 +300,7 @@ def link_documents_to_stats(session: Session) -> int:
     MATCH (d:Document)
     MATCH (stat:Stat)
     WHERE stat.filename IS NOT NULL
-      AND d.source_file ENDS WITH stat.filename
+      AND d.source_file ENDS WITH ('/' + stat.filename)
     MERGE (stat)-[:HAS_DOCUMENT]->(d)
     RETURN count(*) as relationships_created
     """
@@ -349,7 +349,7 @@ def link_documents_to_charms(session: Session) -> int:
     MATCH (d:Document)
     MATCH (charm:Charm)
     WHERE charm.filename IS NOT NULL
-      AND d.source_file ENDS WITH charm.filename
+      AND d.source_file ENDS WITH ('/' + charm.filename)
     MERGE (charm)-[:HAS_DOCUMENT]->(d)
     RETURN count(*) as relationships_created
     """
@@ -548,7 +548,7 @@ def link_documents_to_bells(session: Session) -> int:
     MATCH (d:Document)
     MATCH (b:Bell)
     WHERE b.filename IS NOT NULL
-      AND d.source_file ENDS WITH b.filename
+      AND d.source_file ENDS WITH ('/' + b.filename)
     MERGE (b)-[:HAS_DOCUMENT]->(d)
     RETURN count(*) AS created
     """

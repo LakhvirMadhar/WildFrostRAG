@@ -111,9 +111,9 @@ def create_retrieval_config(
     # Add text2cypher-specific fields
     if retriever_type == "text2cypher":
         config["text2cypher_prompt_version"] = kwargs.get("text2cypher_prompt_version", "V1")
-        config["text2cypher_llm_model"] = kwargs.get("text2cypher_llm_model", settings.openai_model_name)
-        config["text2cypher_temperature"] = kwargs.get("text2cypher_temperature", 0.0)
-        config["text2cypher_seed"] = kwargs.get("text2cypher_seed", 42)
+        config["text2cypher_llm_model"] = kwargs.get("text2cypher_llm_model", settings.text2cypher_model)
+        config["text2cypher_temperature"] = kwargs.get("text2cypher_temperature", settings.text2cypher_temperature)
+        config["text2cypher_seed"] = kwargs.get("text2cypher_seed", settings.openai_seed)
         if "notes" in kwargs:
             config["notes"] = kwargs["notes"]
 
