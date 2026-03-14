@@ -83,14 +83,10 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         viz_result = session.run(query)
         viz_record = viz_result.single()
 
-        print(f"DEBUG viz_record: {viz_record}")
-        print(f"DEBUG viz_record keys: {list(viz_record.keys()) if viz_record else 'None'}")
-
         if not viz_record:
             return []
 
         relationships = viz_record.get("relationships", [])
-        print(f"DEBUG: Found {len(relationships)} relationships")
 
         patterns = []
         for rel in relationships:
@@ -98,7 +94,6 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             start_label = list(start_node.labels)[0] if start_node.labels else "Unknown"
             end_label = list(end_node.labels)[0] if end_node.labels else "Unknown"
             pattern = f"({start_label})-[:{rel.type}]->({end_label})"
-            print(f"DEBUG: Added pattern: {pattern}")
             patterns.append(pattern)
 
         return patterns
@@ -119,17 +114,16 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         {patterns_str}"""
 
     def _clean_cypher_response(self, response: str) -> str:
-        """Remove markdown formatting from LLM response."""
-        if not response.startswith("```"):
-            return response
+        """Remove markdown formatting and trailing semicolons from LLM response."""
+        if response.startswith("```"):
+            lines = response.split('\n')
+            if lines[0].strip().startswith('```'):
+                lines = lines[1:]
+            if lines and lines[-1].strip().startswith('```'):
+                lines = lines[:-1]
+            response = '\n'.join(lines)
 
-        lines = response.split('\n')
-        if lines[0].strip().startswith('```'):
-            lines = lines[1:]
-        if lines and lines[-1].strip().startswith('```'):
-            lines = lines[:-1]
-
-        return '\n'.join(lines).strip()
+        return response.strip().rstrip(';').strip()
 
     async def _generate_cypher_query(self, natural_query: str, schema: dict[str, Any]) -> str:
         """
@@ -161,24 +155,6 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
 
         self.llm_response = cypher_query
         return cypher_query
-
-    def _print_schema_debug(self, schema: dict[str, Any]) -> None:
-        """Print schema for debugging purposes."""
-        print("\n=== SCHEMA SEEN BY LLM ===")
-        print("\nNode Labels and Properties:")
-
-        for node_label, properties in schema['nodes'].items():
-            clean_label = node_label.strip(":").strip("`")
-            print(f"  Label: `{clean_label}`")
-            print("  Properties:")
-            for prop in properties:
-                print(f"    - {prop}")
-            print()
-
-        print("Relationship Patterns:")
-        for pattern in schema['relationship_patterns']:
-            print(f"  {pattern}")
-        print("\n===========================\n")
 
     def _add_limit_clause(self, cypher_query: str, k: int) -> str:
         """Add LIMIT clause to query if not present."""
@@ -240,7 +216,6 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         """
         with self.driver.session(database=self.neo4j_database) as session:
             schema = self._get_schema(session)
-            self._print_schema_debug(schema)
 
             cypher_query = await self._generate_cypher_query(query, schema)
             logger.info(f"Generated Cypher query:\n{cypher_query}")

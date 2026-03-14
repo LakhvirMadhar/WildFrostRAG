@@ -17,11 +17,15 @@ Usage:
 import asyncio
 import argparse
 import importlib
+import inspect
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from tqdm.asyncio import tqdm_asyncio
+from tqdm import tqdm
 
 import pandas as pd
 from neo4j import GraphDatabase, Driver
@@ -151,16 +155,27 @@ async def _process_single_query(
         'relevance_annotations': []
     }
 
-    # Capture text2cypher LLM response
+    # Capture text2cypher LLM response from result chunks (not retriever instance,
+    # which is shared state and unsafe for concurrent queries)
     cypher_entry = None
-    if retriever_type == "text2cypher" and hasattr(retriever, 'llm_response'):
+    if retriever_type == "text2cypher":
+        generated_cypher = None
+        error_message = None
+        for chunk in retrieved_chunks:
+            if "generated_cypher" in chunk:
+                generated_cypher = chunk["generated_cypher"]
+                break
+            if "error" in chunk:
+                error_message = chunk["error"]
+                generated_cypher = chunk.get("generated_cypher")
+                break
         cypher_entry = {
             "query_id": query_id,
             "query": query,
-            "llm_response": retriever.llm_response,
-            "execution_status": "success" if retrieved_chunks else "failed",
+            "llm_response": generated_cypher,
+            "execution_status": "success" if not error_message else "failed",
             "execution_time_ms": None,
-            "error_message": None
+            "error_message": error_message
         }
 
     # Capture hybrid retriever individual results
@@ -184,26 +199,46 @@ async def _process_all_queries(
     """
     Process all queries in the dataframe through the retriever.
 
+    Async retrievers (e.g., text2cypher) run concurrently via asyncio.gather().
+    Sync retrievers run sequentially.
+
     Returns:
         Tuple of (results, cypher_queries, individual_results)
     """
+    # Build query list, filtering empty rows
+    query_rows = [
+        (row.get('query_id', idx), row['query'])
+        for idx, row in df.iterrows()
+        if not pd.isna(row['query']) and row['query'] != ''
+    ]
+
+    # Check if retriever is async by testing a dummy call
+    is_async = inspect.iscoroutinefunction(getattr(retriever, 'search', None))
+
+    if is_async:
+        logger.info(f"Running {len(query_rows)} queries concurrently")
+        tasks = [
+            _process_single_query(retriever, retriever_type, query, query_id, k)
+            for query_id, query in query_rows
+        ]
+        all_results = await tqdm_asyncio.gather(
+            *tasks, desc=f"{retriever_type} queries", unit="query"
+        )
+    else:
+        logger.info(f"Running {len(query_rows)} queries sequentially")
+        all_results = []
+        for query_id, query in tqdm(query_rows, desc=f"{retriever_type} queries", unit="query"):
+            result = await _process_single_query(
+                retriever, retriever_type, query, query_id, k
+            )
+            all_results.append(result)
+
     results = []
     cypher_queries = []
     individual_results_list = []
 
-    for idx, row in df.iterrows():
-        query = row['query']
-        if pd.isna(query) or query == '':
-            continue
-
-        logger.info(f"Processing query {idx + 1}/{len(df)}: '{query}'")
-        query_id = row.get('query_id', idx)
-
-        result, cypher_entry, individual_entry = await _process_single_query(
-            retriever, retriever_type, query, query_id, k
-        )
+    for result, cypher_entry, individual_entry in all_results:
         results.append(result)
-
         if cypher_entry:
             cypher_queries.append(cypher_entry)
         if individual_entry:

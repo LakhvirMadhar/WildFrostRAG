@@ -36,6 +36,13 @@ def create_cards(tx, cards_data):
     """
     cards_data = _enrich_cards_with_parent_types(cards_data)
 
+    # Strip None values so Neo4j doesn't create properties with null
+    # (e.g., Clunkers have scrap instead of health — health shouldn't exist on the node)
+    cards_data = [
+        {k: v for k, v in card.items() if v is not None}
+        for card in cards_data
+    ]
+
     # Separate phased and non-phased cards
     phased_cards = [c for c in cards_data if c.get('phase') is not None]
     non_phased_cards = [c for c in cards_data if c.get('phase') is None]

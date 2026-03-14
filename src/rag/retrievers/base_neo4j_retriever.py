@@ -7,6 +7,7 @@ This module provides a common base for different retrieval strategies using Neo4
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse
 from neo4j import Driver
+from neo4j.graph import Node, Relationship, Path
 from src.utils.config import settings
 
 
@@ -37,6 +38,28 @@ class BaseNeo4jRetriever:
         parsed_uri = urlparse(uri)
         self.port = parsed_uri.port or 7687  # Default Neo4j port
 
+    @staticmethod
+    def _serialize_value(value: Any) -> Any:
+        """
+        Convert a Neo4j graph object to a JSON-serializable Python type.
+
+        Handles Node, Relationship, and Path objects that the LLM-generated
+        Cypher may return (e.g., `RETURN c` instead of `RETURN c.card_name`).
+        """
+        if isinstance(value, Node):
+            props = {k: v for k, v in value.items()
+                     if k != "embedding" and not k.endswith("_embedding")}
+            props["_labels"] = list(value.labels)
+            return props
+        if isinstance(value, Relationship):
+            return {"_type": value.type,
+                    **{k: v for k, v in value.items()}}
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, list):
+            return [BaseNeo4jRetriever._serialize_value(v) for v in value]
+        return value
+
     def _record_to_dict(self, record) -> Dict[str, Any]:
         """
         Convert any Neo4j record to a flat dictionary.
@@ -46,6 +69,7 @@ class BaseNeo4jRetriever:
         - Multiple nodes: RETURN d, c, t, score
         - Scalars: RETURN count(*), name
         - Mixed: Any combination
+        - Raw Node/Relationship/Path objects from LLM-generated Cypher
 
         For backward compatibility:
         - Variable named 'node' has properties extracted WITHOUT prefix (text, source_file)
@@ -64,20 +88,23 @@ class BaseNeo4jRetriever:
                 continue
 
             # Handle Neo4j Node/Relationship objects - extract their properties
-            if hasattr(value, 'items') and callable(value.items):
+            if isinstance(value, (Node, Relationship)):
                 for prop_key, prop_value in value.items():
                     if prop_key == "embedding" or prop_key.endswith("_embedding"):
                         continue  # Skip embedding vectors
 
+                    serialized = self._serialize_value(prop_value)
+
                     # Backward compat: 'node' variable doesn't get prefixed
                     # Other variables (d, c, t, etc.) get prefixed to avoid collisions
                     if key == "node":
-                        result[prop_key] = prop_value
+                        result[prop_key] = serialized
                     else:
-                        result[f"{key}_{prop_key}"] = prop_value
+                        result[f"{key}_{prop_key}"] = serialized
+            elif isinstance(value, Path):
+                result[key] = str(value)
             elif isinstance(value, list):
-                # Keep lists as-is (e.g., collected stats, aggregations)
-                result[key] = value
+                result[key] = self._serialize_value(value)
             else:
                 # Scalar values (score, strings, ints, etc.)
                 result[key] = value
