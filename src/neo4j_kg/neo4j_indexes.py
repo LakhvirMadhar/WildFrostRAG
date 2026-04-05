@@ -8,8 +8,8 @@ This module handles creation and management of Neo4j indexes:
 
 import time
 from neo4j import GraphDatabase
-from src.utils.config import settings
-from src.utils.logger import logger
+from utils.config import settings
+from utils.logger import logger
 
 
 def create_vector_index(

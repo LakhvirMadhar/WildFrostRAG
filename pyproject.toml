@@ -37,10 +37,36 @@ exclude = ["*.ipynb"]
 
 
 [tool.poetry]
-package-mode = false
+package-mode = true
+packages = [
+    {include = "utils", from = "src"},
+    {include = "models", from = "src"},
+    {include = "prompts", from = "src"},
+    {include = "data_processing", from = "src"},
+    {include = "neo4j_kg", from = "src"},
+    {include = "scraping", from = "src"},
+    {include = "web_scraper", from = "src"},
+    {include = "rag", from = "src"},
+    {include = "experiment_tracker", from = "src"},
+    {include = "embeddings", from = "src"},
+    {include = "gui", from = "src"},
+]
 
 [virtualenvs]
 in-project = true
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = true
+explicit_package_bases = true
+mypy_path = "src"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

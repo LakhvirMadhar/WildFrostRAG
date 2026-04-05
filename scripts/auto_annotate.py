@@ -17,8 +17,8 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.gui.auto_annotator import run_auto_annotation
-from src.utils.logger import logger
+from gui.auto_annotator import run_auto_annotation
+from utils.logger import logger
 
 
 def main():

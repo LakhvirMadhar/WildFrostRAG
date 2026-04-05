@@ -18,13 +18,13 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.evaluation.retrieval_metrics import (
+from rag.evaluation.retrieval_metrics import (
     hit_at_k,
     mrr,
     calculate_precision_at_k,
     calculate_recall_at_k,
 )
-from src.utils.logger import logger
+from utils.logger import logger
 
 
 DEFAULT_K_VALUES = [1, 3, 5, 10]

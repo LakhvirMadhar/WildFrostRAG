@@ -10,7 +10,7 @@ from typing import List
 
 from bs4 import BeautifulSoup
 
-from src.utils.logger import logger
+from utils.logger import logger
 
 
 @dataclass

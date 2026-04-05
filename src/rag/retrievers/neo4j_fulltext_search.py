@@ -10,8 +10,8 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from neo4j import Driver
-from src.utils.config import settings
-from src.utils.logger import logger
+from utils.config import settings
+from utils.logger import logger
 from .base_neo4j_retriever import BaseNeo4jRetriever
 
 

@@ -1,5 +1,5 @@
-from src.data_processing.cards import CardType
-from src.data_processing.phase_config import RECRUITABLE_ENEMIES
+from data_processing.cards import CardType
+from data_processing.phase_config import RECRUITABLE_ENEMIES
 
 
 def _get_all_ancestors(card_type_value):

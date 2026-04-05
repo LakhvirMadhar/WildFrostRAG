@@ -1,6 +1,6 @@
 """Embeddings module for WildFrostRAG."""
 
-from src.embeddings.generator import (
+from embeddings.generator import (
     EmbeddingGenerator,
     load_embedding_model,
     generate_embeddings

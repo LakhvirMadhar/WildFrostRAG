@@ -13,13 +13,13 @@ Available hybrid retrievers:
 
 from typing import List, Dict, Any, Optional, Callable
 from neo4j import Driver
-from src.rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
-from src.rag.retrievers.bm25_retriever import BM25Retriever
-from src.rag.retrievers.neo4j_fulltext_search import Neo4jFullTextSearch
-from src.rag.retrievers.text2cypher_retriever import Text2CypherRetriever
-from src.utils.config import settings
-from src.utils.logger import logger
-from src.utils.prompt_utils import VersionedPrompt
+from rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
+from rag.retrievers.bm25_retriever import BM25Retriever
+from rag.retrievers.neo4j_fulltext_search import Neo4jFullTextSearch
+from rag.retrievers.text2cypher_retriever import Text2CypherRetriever
+from utils.config import settings
+from utils.logger import logger
+from prompts.prompt_utils import VersionedPrompt
 
 
 class HybridRetriever:

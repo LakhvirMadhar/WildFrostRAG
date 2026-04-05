@@ -16,10 +16,10 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from neo4j import Driver
 
-from src.utils.config import settings
-from src.utils.logger import logger
-from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
-from src.rag.retrievers.traversal_patterns import GRAPH_TRAVERSAL_QUERY
+from utils.config import settings
+from utils.logger import logger
+from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
+from rag.retrievers.traversal_patterns import GRAPH_TRAVERSAL_QUERY
 
 
 class FulltextThenCypherRetriever(BaseNeo4jRetriever):

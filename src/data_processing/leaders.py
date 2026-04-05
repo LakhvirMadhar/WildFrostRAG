@@ -11,9 +11,9 @@ import re
 from typing import Optional
 from bs4 import BeautifulSoup, Tag
 
-from src.data_processing.cards import CardInfo, CardType
-from src.data_processing.tribes import TribeExclusivity
-from src.utils.logger import logger
+from data_processing.cards import CardInfo, CardType
+from data_processing.tribes import TribeExclusivity
+from utils.logger import logger
 
 
 # Map tribe section IDs to TribeExclusivity enum

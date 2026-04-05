@@ -29,7 +29,7 @@ from nltk.corpus import stopwords as nltk_stopwords
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.utils.config import settings
+from utils.config import settings
 
 
 def load_experiment(experiment_dir: Path) -> dict | None:

@@ -5,8 +5,8 @@ Keyword node creation and card/charm-keyword relationship management for Neo4j.
 import re
 from typing import List
 
-from src.data_processing.keywords import KeywordInfo
-from src.utils.logger import logger
+from data_processing.keywords import KeywordInfo
+from utils.logger import logger
 
 
 # Suffixes to check when matching keyword roots against card/charm text.

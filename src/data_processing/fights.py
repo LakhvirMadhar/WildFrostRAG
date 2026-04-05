@@ -8,7 +8,7 @@ for linking Fight nodes to Card nodes in the knowledge graph.
 from typing import List
 from bs4 import BeautifulSoup
 
-from src.utils.logger import logger
+from utils.logger import logger
 
 
 def _extract_names_from_enemy_table(table) -> List[str]:

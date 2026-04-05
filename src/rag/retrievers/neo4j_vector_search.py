@@ -8,8 +8,8 @@ This module provides various retrieval strategies using Neo4j:
 
 from typing import List, Dict, Any, Optional, Callable
 from neo4j import Driver
-from src.utils.config import settings
-from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
+from utils.config import settings
+from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
 class Neo4jVectorSearch(BaseNeo4jRetriever):
@@ -31,7 +31,7 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
             embed_fn: Function that encodes a query string into a list of floats.
-                      Use get_query_embed_fn() from src.embeddings.query_embedders.
+                      Use get_query_embed_fn() from embeddings.query_embedders.
             neo4j_database: Optional database name (default: None uses default database)
             index_name: Optional vector index name (default: uses settings.vector_index_name)
         """

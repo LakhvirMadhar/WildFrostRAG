@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse
 from neo4j import Driver
 from neo4j.graph import Node, Relationship, Path
-from src.utils.config import settings
+from utils.config import settings
 
 
 class BaseNeo4jRetriever:

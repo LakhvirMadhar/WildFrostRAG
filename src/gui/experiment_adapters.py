@@ -24,8 +24,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src.utils.logger import logger
-from src.utils.config import settings
+from utils.logger import logger
+from utils.config import settings
 
 
 @dataclass

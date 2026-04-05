@@ -6,7 +6,7 @@ from typing import List
 from langchain_core.documents import Document
 from tqdm import tqdm
 
-from src.data_processing.text_utils import clean_element_text
+from data_processing.text_utils import clean_element_text
 
 # Elements to remove from HTML before processing
 UNWANTED_SELECTORS = [

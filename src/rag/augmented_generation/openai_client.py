@@ -13,9 +13,9 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel
 from typing import TypeVar, Type, Optional
 
-from src.utils.config import settings
-from src.utils.logger import logger
-from src.utils.prompt_utils import VersionedPrompt, format_prompt_tuple
+from utils.config import settings
+from utils.logger import logger
+from prompts.prompt_utils import VersionedPrompt, format_prompt_tuple
 
 
 # =============================================================================

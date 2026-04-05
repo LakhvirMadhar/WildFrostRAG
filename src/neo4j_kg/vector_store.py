@@ -13,8 +13,8 @@ from typing import List, Dict, Any, Optional
 from neo4j import GraphDatabase, Session
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
-from src.utils.config import settings
-from src.utils.logger import logger
+from utils.config import settings
+from utils.logger import logger
 
 
 def ingest_documents_into_neo4j(

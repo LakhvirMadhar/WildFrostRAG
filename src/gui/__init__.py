@@ -6,19 +6,19 @@ This module provides annotation GUIs for experiments:
 - UnifiedAnnotationGUI: Single GUI for both retrieval and generation
 
 Usage:
-    from src.gui import browse_experiments
+    from gui import browse_experiments
     browser = browse_experiments()
 """
 
-from src.gui.experiment_adapters import (
+from gui.experiment_adapters import (
     ExperimentDataAdapter,
     ExperimentRegistry,
     QueryResult,
     ExperimentMetadata,
     get_adapter,
 )
-from src.gui.unified_annotation_gui import UnifiedAnnotationGUI, create_unified_gui
-from src.gui.experiment_browser_gui import ExperimentBrowserGUI, browse_experiments
+from gui.unified_annotation_gui import UnifiedAnnotationGUI, create_unified_gui
+from gui.experiment_browser_gui import ExperimentBrowserGUI, browse_experiments
 
 __all__ = [
     # Adapters

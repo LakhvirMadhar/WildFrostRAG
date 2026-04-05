@@ -26,7 +26,7 @@ from neo4j import GraphDatabase
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.retrievers import (
+from rag.retrievers import (
     Neo4jVectorSearch,
     Neo4jFullTextSearch,
     BM25Retriever,
@@ -35,8 +35,8 @@ from src.rag.retrievers import (
     BM25FulltextVectorHybridRetriever,
     Text2CypherRetriever
 )
-from src.utils.config import settings
-from src.utils.logger import logger
+from utils.config import settings
+from utils.logger import logger
 
 def get_retriever(retriever_type: str, driver):
     """

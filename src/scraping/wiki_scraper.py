@@ -1,8 +1,8 @@
 import re
 
-from src.web_scraper.sitemap_scraper import scrape_multiple_links
-from src.utils.config import settings
-from src.utils.logger import logger
+from web_scraper.sitemap_scraper import scrape_multiple_links
+from utils.config import settings
+from utils.logger import logger
 
 
 def clean_name_for_url(name: str) -> str:

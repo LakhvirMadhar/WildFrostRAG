@@ -1,4 +1,4 @@
-from src.utils.logger import logger
+from utils.logger import logger
 
 
 def create_fight_enemy_relationships(tx, fight_enemies: dict[str, list[str]], fight_page_mapping: dict[str, str]) -> int:

@@ -30,29 +30,29 @@ from tqdm import tqdm
 from neo4j import GraphDatabase
 
 # Import from src modules
-from src.web_scraper.sitemap_scraper import scrape_multiple_links
-from src.data_processing.cards import CardInfo, CardType
-from src.data_processing.generate_schemas import generate_card_type_html_schema
-from src.data_processing.enrichment import enrich_cards_with_tribes
-from src.data_processing.html_splitter import process_html_files
-from src.data_processing.stats import StatInfo
-from src.data_processing.keywords import KeywordInfo
-from src.data_processing.bling import EnemyBlingDrop, ShopListing
-from src.data_processing.bells import BellInfo
-from src.data_processing.charms import CharmInfo
-from src.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
-from src.data_processing.shades import SummonInfo
-from src.neo4j_kg.graph_builder import create_neo4j_data, create_url_nodes, clear_database
-from src.neo4j_kg.stats import create_stats_from_parsed, add_keyword_label_to_stats
-from src.neo4j_kg.keywords import create_keywords_from_parsed, create_card_keyword_relationships, create_charm_keyword_relationships
-from src.neo4j_kg.charms import create_charms_from_parsed, create_charm_tribe_relationships
-from src.neo4j_kg.map import create_map_graph
-from src.neo4j_kg.fights import create_fight_enemy_relationships
-from src.neo4j_kg.shades import create_summon_relationships
-from src.neo4j_kg.bling import create_bling_and_shops, create_drops_bling_relationships, create_shop_sells_relationships
-from src.neo4j_kg.bells import create_bells_from_parsed, create_bell_relationships
-from src.scraping.wiki_scraper import clean_name_for_url
-from src.scraping.domain_scrapers import (
+from web_scraper.sitemap_scraper import scrape_multiple_links
+from data_processing.cards import CardInfo, CardType
+from data_processing.generate_schemas import generate_card_type_html_schema
+from data_processing.enrichment import enrich_cards_with_tribes
+from data_processing.html_splitter import process_html_files
+from data_processing.stats import StatInfo
+from data_processing.keywords import KeywordInfo
+from data_processing.bling import EnemyBlingDrop, ShopListing
+from data_processing.bells import BellInfo
+from data_processing.charms import CharmInfo
+from data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
+from data_processing.shades import SummonInfo
+from neo4j_kg.graph_builder import create_neo4j_data, create_url_nodes, clear_database
+from neo4j_kg.stats import create_stats_from_parsed, add_keyword_label_to_stats
+from neo4j_kg.keywords import create_keywords_from_parsed, create_card_keyword_relationships, create_charm_keyword_relationships
+from neo4j_kg.charms import create_charms_from_parsed, create_charm_tribe_relationships
+from neo4j_kg.map import create_map_graph
+from neo4j_kg.fights import create_fight_enemy_relationships
+from neo4j_kg.shades import create_summon_relationships
+from neo4j_kg.bling import create_bling_and_shops, create_drops_bling_relationships, create_shop_sells_relationships
+from neo4j_kg.bells import create_bells_from_parsed, create_bell_relationships
+from scraping.wiki_scraper import clean_name_for_url
+from scraping.domain_scrapers import (
     scrape_leaders, scrape_stats, scrape_keywords, scrape_charms,
     scrape_individual_charm_pages, scrape_individual_stat_pages,
     scrape_individual_bell_pages,
@@ -60,7 +60,7 @@ from src.scraping.domain_scrapers import (
     scrape_shades, scrape_map, scrape_fight_pages,
     scrape_crowns, scrape_getting_started,
 )
-from src.neo4j_kg.vector_store import (
+from neo4j_kg.vector_store import (
     ingest_documents_into_neo4j,
     link_documents_to_cards,
     link_documents_to_crowns,
@@ -73,12 +73,12 @@ from src.neo4j_kg.vector_store import (
     link_documents_to_bling,
     link_documents_to_bells,
 )
-from src.neo4j_kg.neo4j_indexes import (
+from neo4j_kg.neo4j_indexes import (
     create_fulltext_index,
     wait_for_index_population
 )
-from src.utils.config import settings
-from src.utils.logger import logger
+from utils.config import settings
+from utils.logger import logger
 
 
 @dataclass

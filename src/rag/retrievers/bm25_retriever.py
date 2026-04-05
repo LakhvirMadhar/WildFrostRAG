@@ -12,9 +12,9 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from neo4j import Driver
 from rank_bm25 import BM25Okapi
-from src.utils.config import settings
-from src.utils.logger import logger
-from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
+from utils.config import settings
+from utils.logger import logger
+from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
 class BM25Retriever(BaseNeo4jRetriever):

@@ -37,8 +37,8 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.experiment_tracker import ExperimentRegistry
-from src.utils.logger import logger
+from experiment_tracker import ExperimentRegistry
+from utils.logger import logger
 
 
 def cmd_retrieval(args):

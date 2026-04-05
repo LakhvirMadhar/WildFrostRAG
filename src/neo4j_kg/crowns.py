@@ -1,4 +1,4 @@
-from src.data_processing.crowns import CROWNS, CROWNABLE_CARD_TYPES
+from data_processing.crowns import CROWNS, CROWNABLE_CARD_TYPES
 
 
 def create_crowns(tx, url: str = None):

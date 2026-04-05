@@ -1,7 +1,7 @@
 from typing import List
 
-from src.data_processing.shades import SummonInfo
-from src.utils.logger import logger
+from data_processing.shades import SummonInfo
+from utils.logger import logger
 
 
 def create_summon_relationships(tx, summons: List[SummonInfo]) -> int:

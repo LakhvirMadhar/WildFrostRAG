@@ -10,8 +10,8 @@ GUI so it can run as a batch step after retrieval.
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from src.gui.experiment_adapters import get_adapter
-from src.utils.logger import logger
+from gui.experiment_adapters import get_adapter
+from utils.logger import logger
 
 
 def _load_ground_truth(queries_json_path: Path) -> Dict[int, list[str]]:

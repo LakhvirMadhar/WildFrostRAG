@@ -6,7 +6,7 @@ experiments to annotate. It auto-discovers experiments from the registry
 and launches the appropriate annotation GUI.
 
 Usage:
-    from src.utils.experiment_browser_gui import ExperimentBrowserGUI
+    from utils.experiment_browser_gui import ExperimentBrowserGUI
 
     browser = ExperimentBrowserGUI()
     browser.display()
@@ -22,9 +22,9 @@ from typing import Any, Dict, Optional
 import ipywidgets as widgets
 from IPython.display import display, clear_output
 
-from src.gui.experiment_adapters import ExperimentRegistry, get_adapter
-from src.gui.unified_annotation_gui import UnifiedAnnotationGUI
-from src.utils.logger import logger
+from gui.experiment_adapters import ExperimentRegistry, get_adapter
+from gui.unified_annotation_gui import UnifiedAnnotationGUI
+from utils.logger import logger
 
 
 class ExperimentBrowserGUI:

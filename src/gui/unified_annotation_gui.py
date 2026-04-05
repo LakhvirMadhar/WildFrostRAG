@@ -16,9 +16,9 @@ from typing import Any, Dict, List, Optional
 import ipywidgets as widgets
 from IPython.display import display
 
-from src.gui.experiment_adapters import ExperimentDataAdapter, QueryResult, get_adapter
-from src.gui.chunk_widgets import create_chunk_widget, create_chunks_summary
-from src.utils.logger import logger
+from gui.experiment_adapters import ExperimentDataAdapter, QueryResult, get_adapter
+from gui.chunk_widgets import create_chunk_widget, create_chunks_summary
+from utils.logger import logger
 
 # Import query processing functions
 from scripts.process_queries import (

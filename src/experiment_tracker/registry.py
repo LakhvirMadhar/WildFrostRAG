@@ -11,8 +11,8 @@ import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from src.utils.config import settings
-from src.utils.logger import logger
+from utils.config import settings
+from utils.logger import logger
 
 
 class ExperimentRegistry:

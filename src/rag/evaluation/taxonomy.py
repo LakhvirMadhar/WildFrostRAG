@@ -10,10 +10,10 @@ of failure modes and patterns.
 import json
 from pathlib import Path
 
-from src.utils.config import settings
-from src.utils.logger import logger
-from src.utils.prompt_utils import format_prompt_tuple
-from src.rag.augmented_generation.openai_client import call_openai_api
+from utils.config import settings
+from utils.logger import logger
+from prompts.prompt_utils import format_prompt_tuple
+from rag.augmented_generation.openai_client import call_openai_api
 from prompts.taxonomy_prompts import TAXONOMY_SYSTEM_PROMPT_V1, TAXONOMY_USER_PROMPT_V1
 
 

@@ -8,8 +8,8 @@ from bs4 import BeautifulSoup, Comment, Tag
 import logging
 from collections import defaultdict
 
-from src.data_processing.phase_config import VARIANT_CARDS, PHASE_ORDER_OVERRIDES
-from src.data_processing.tribes import TribeExclusivity
+from data_processing.phase_config import VARIANT_CARDS, PHASE_ORDER_OVERRIDES
+from data_processing.tribes import TribeExclusivity
 
 logger = logging.getLogger(__name__)
 

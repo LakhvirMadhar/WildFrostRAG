@@ -1,5 +1,5 @@
-from src.data_processing.tribes import TribeExclusivity
-from src.utils.logger import logger
+from data_processing.tribes import TribeExclusivity
+from utils.logger import logger
 
 
 def create_tribes(tx):

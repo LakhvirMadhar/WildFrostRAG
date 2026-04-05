@@ -1,7 +1,7 @@
 from typing import List
 
-from src.data_processing.charms import CharmInfo
-from src.data_processing.tribes import TribeExclusivity
+from data_processing.charms import CharmInfo
+from data_processing.tribes import TribeExclusivity
 
 
 def create_charms_from_parsed(tx, charms: List[CharmInfo]):

@@ -33,7 +33,7 @@ from neo4j import GraphDatabase, Driver
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.retrievers import (
+from rag.retrievers import (
     Neo4jVectorSearch,
     Neo4jFullTextSearch,
     BM25Retriever,
@@ -45,20 +45,20 @@ from src.rag.retrievers import (
     VectorThenCypherRetriever,
     FulltextThenCypherRetriever,
 )
-from src.rag.retrievers.hybrid_retrievers import HybridRetriever
-from src.embeddings.query_embedders import get_query_embed_fn
-from src.types.retrieval import RetrievedChunk, QueryResult, CypherExecution
-from src.utils.logger import logger
-from src.utils.config import settings
-from src.utils.experiment_utils import (
+from rag.retrievers.hybrid_retrievers import HybridRetriever
+from embeddings.query_embedders import get_query_embed_fn
+from models.retrieval import RetrievedChunk, QueryResult, CypherExecution
+from utils.logger import logger
+from utils.config import settings
+from utils.experiment_utils import (
     get_next_experiment_id,
     create_retrieval_config,
     save_config,
     save_results,
     save_individual_results
 )
-from src.experiment_tracker import ExperimentRegistry
-from src.gui.auto_annotator import run_auto_annotation
+from experiment_tracker import ExperimentRegistry
+from gui.auto_annotator import run_auto_annotation
 
 
 # Retriever types that use vector embeddings

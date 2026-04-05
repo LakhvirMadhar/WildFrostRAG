@@ -11,9 +11,9 @@ import json
 import random
 import pandas as pd
 import re
-from src.data_processing.cards import CardType, CardInfo
-from src.data_processing.generate_schemas import generate_card_type_html_schema
-from src.utils.config import settings
+from data_processing.cards import CardType, CardInfo
+from data_processing.generate_schemas import generate_card_type_html_schema
+from utils.config import settings
 
 
 def clean_name_for_url(name: str) -> str:

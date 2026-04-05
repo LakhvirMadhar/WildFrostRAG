@@ -6,7 +6,7 @@ knowledge graph structure to find relevant information for a query.
 """
 
 from typing import List, Dict, Any
-from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
+from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
 class GraphRagRetriever(BaseNeo4jRetriever):

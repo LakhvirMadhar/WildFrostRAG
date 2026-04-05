@@ -4,8 +4,8 @@ Bling node, Shop nodes, and economy relationships for Neo4j.
 
 from typing import List
 
-from src.data_processing.bling import EnemyBlingDrop, ShopListing
-from src.utils.logger import logger
+from data_processing.bling import EnemyBlingDrop, ShopListing
+from utils.logger import logger
 
 
 def create_bling_and_shops(tx, urls: dict[str, str] = None):

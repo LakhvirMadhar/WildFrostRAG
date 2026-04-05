@@ -9,9 +9,9 @@ information that must be scraped from aggregate pages.
 import requests
 from bs4 import BeautifulSoup, Comment
 from typing import List, Dict
-from src.data_processing.cards import CardInfo
-from src.data_processing.tribes import TribeExclusivity
-from src.utils.logger import logger
+from data_processing.cards import CardInfo
+from data_processing.tribes import TribeExclusivity
+from utils.logger import logger
 
 
 # ===== Tribe Exclusivity Scraping =====

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 from bs4 import BeautifulSoup
 
-from src.utils.logger import logger
+from utils.logger import logger
 
 
 # Maps wiki section heading names to canonical zone names

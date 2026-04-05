@@ -18,8 +18,8 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.rag.evaluation.taxonomy import generate_taxonomy_from_annotations
-from src.utils.logger import logger
+from rag.evaluation.taxonomy import generate_taxonomy_from_annotations
+from utils.logger import logger
 
 
 async def main():

@@ -155,5 +155,5 @@ class Settings(BaseSettings):
 
 
 # Global settings instance
-# Import this in other modules: from src.utils.config import settings
+# Import this in other modules: from utils.config import settings
 settings = Settings()

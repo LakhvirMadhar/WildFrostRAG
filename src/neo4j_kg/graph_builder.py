@@ -1,13 +1,13 @@
-from src.neo4j_kg.cards import (
+from neo4j_kg.cards import (
     create_cards,
     create_phase_relationships,
     create_recruitment_relationships,
     create_card_type_hierarchy,
 )
-from src.neo4j_kg.tribes import create_tribes, create_card_tribe_relationships
-from src.neo4j_kg.stats import create_card_stat_relationships
-from src.neo4j_kg.crowns import create_crowns, create_crown_relationships
-from src.utils.logger import logger
+from neo4j_kg.tribes import create_tribes, create_card_tribe_relationships
+from neo4j_kg.stats import create_card_stat_relationships
+from neo4j_kg.crowns import create_crowns, create_crown_relationships
+from utils.logger import logger
 
 
 def clear_database(tx) -> None:

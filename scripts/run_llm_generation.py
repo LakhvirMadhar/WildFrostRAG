@@ -27,11 +27,11 @@ from typing import Any
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.types.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
-from src.utils.logger import logger
-from src.utils.config import settings
-from src.rag.augmented_generation.openai_client import generate_zero_shot, generate_rag
-from src.utils.experiment_utils import (
+from models.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
+from utils.logger import logger
+from utils.config import settings
+from rag.augmented_generation.openai_client import generate_zero_shot, generate_rag
+from utils.experiment_utils import (
     get_next_experiment_id,
     create_generation_config,
     save_config,
@@ -41,7 +41,7 @@ from src.utils.experiment_utils import (
     validate_retrieval_reference,
     list_available_retrievals
 )
-from src.experiment_tracker import ExperimentRegistry
+from experiment_tracker import ExperimentRegistry
 
 
 def parse_args() -> argparse.Namespace:

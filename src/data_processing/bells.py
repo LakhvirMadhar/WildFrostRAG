@@ -12,8 +12,8 @@ from typing import List, Optional
 
 from bs4 import BeautifulSoup, Comment
 
-from src.data_processing.text_utils import clean_element_text
-from src.utils.logger import logger
+from data_processing.text_utils import clean_element_text
+from utils.logger import logger
 
 _clean_text = clean_element_text
 

@@ -1,7 +1,7 @@
 from typing import List
 
-from src.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
-from src.utils.logger import logger
+from data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
+from utils.logger import logger
 
 
 def create_map_graph(tx, zones: List[ZoneInfo], map_events: List[MapEventInfo], fight_slots: List[FightSlotInfo], fight_page_mapping: dict[str, str] = None, url: str = None, base_url: str = None):

@@ -4,8 +4,8 @@ Bell node creation and relationship linking for Neo4j.
 
 from typing import List
 
-from src.data_processing.bells import BellCategory, BellInfo
-from src.utils.logger import logger
+from data_processing.bells import BellCategory, BellInfo
+from utils.logger import logger
 
 # Maps BellCategory enum values to BellType node names
 _CATEGORY_TO_BELL_TYPE = {

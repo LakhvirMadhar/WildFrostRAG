@@ -27,9 +27,9 @@ from neo4j import GraphDatabase, Driver
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 import ollama
-from src.utils.config import settings
-from src.utils.logger import logger
-from src.neo4j_kg.vector_store import create_embedding_index
+from utils.config import settings
+from utils.logger import logger
+from neo4j_kg.vector_store import create_embedding_index
 
 
 @dataclass

@@ -1,8 +1,8 @@
 import re
 from typing import List
 
-from src.data_processing.stats import StatInfo
-from src.utils.logger import logger
+from data_processing.stats import StatInfo
+from utils.logger import logger
 
 
 def parse_other_stats(other_stats_str: str) -> List[tuple]:

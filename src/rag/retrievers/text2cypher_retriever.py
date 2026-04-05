@@ -9,11 +9,11 @@ from typing import Any
 
 from neo4j import Driver
 
-from src.utils.config import settings
-from src.utils.logger import logger
-from src.utils.prompt_utils import format_prompt_tuple, VersionedPrompt
-from src.rag.augmented_generation.openai_client import call_openai_api
-from src.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
+from utils.config import settings
+from utils.logger import logger
+from prompts.prompt_utils import format_prompt_tuple, VersionedPrompt
+from rag.augmented_generation.openai_client import call_openai_api
+from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
 class Text2CypherRetriever(BaseNeo4jRetriever):

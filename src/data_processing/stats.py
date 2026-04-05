@@ -12,7 +12,7 @@ from typing import List, Optional
 
 from bs4 import BeautifulSoup, Comment
 
-from src.utils.logger import logger
+from utils.logger import logger
 
 
 class StatCategory(Enum):

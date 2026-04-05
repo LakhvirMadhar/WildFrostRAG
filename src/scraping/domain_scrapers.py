@@ -1,20 +1,20 @@
 import os
 from typing import List
 
-from src.data_processing.leaders import parse_leaders_page
-from src.data_processing.stats import parse_stats_page, StatInfo
-from src.data_processing.keywords import parse_keywords_page, KeywordInfo
-from src.data_processing.charms import parse_charms_page, CharmInfo
-from src.data_processing.bling import parse_bling_page, parse_shop_page, parse_clunker_prices, EnemyBlingDrop, ShopListing
-from src.data_processing.bells import parse_bells_page, BellInfo
-from src.data_processing.map import parse_map_page, get_fight_page_mapping, ZoneInfo, MapEventInfo, FightSlotInfo
-from src.data_processing.fights import parse_fight_enemies
-from src.data_processing.shades import parse_shades_page, SummonInfo
-from src.data_processing.cards import CardInfo
-from src.scraping.wiki_scraper import scrape_wiki_page, load_cached_html
-from src.web_scraper.sitemap_scraper import scrape_multiple_links
-from src.utils.config import settings
-from src.utils.logger import logger
+from data_processing.leaders import parse_leaders_page
+from data_processing.stats import parse_stats_page, StatInfo
+from data_processing.keywords import parse_keywords_page, KeywordInfo
+from data_processing.charms import parse_charms_page, CharmInfo
+from data_processing.bling import parse_bling_page, parse_shop_page, parse_clunker_prices, EnemyBlingDrop, ShopListing
+from data_processing.bells import parse_bells_page, BellInfo
+from data_processing.map import parse_map_page, get_fight_page_mapping, ZoneInfo, MapEventInfo, FightSlotInfo
+from data_processing.fights import parse_fight_enemies
+from data_processing.shades import parse_shades_page, SummonInfo
+from data_processing.cards import CardInfo
+from scraping.wiki_scraper import scrape_wiki_page, load_cached_html
+from web_scraper.sitemap_scraper import scrape_multiple_links
+from utils.config import settings
+from utils.logger import logger
 
 # Type alias: maps HTML filename -> wiki URL
 PageUrls = dict[str, str]

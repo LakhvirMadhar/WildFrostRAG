@@ -9,7 +9,7 @@ import numpy as np
 from typing import List, Union
 from sentence_transformers import SentenceTransformer
 from langchain_core.documents import Document
-from src.utils.logger import logger
+from utils.logger import logger
 
 
 class EmbeddingGenerator:

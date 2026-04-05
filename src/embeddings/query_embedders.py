@@ -13,8 +13,8 @@ from typing import Callable
 import ollama
 from sentence_transformers import SentenceTransformer
 
-from src.utils.config import settings
-from src.utils.logger import logger
+from utils.config import settings
+from utils.logger import logger
 
 # Module-level cache: embedder name -> loaded model/client
 _model_cache: dict[str, object] = {}
