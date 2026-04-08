@@ -1,5 +1,4 @@
-"""
-Tribe definitions for WildFrostRAG.
+"""Tribe definitions for WildFrostRAG.
 
 Shared enum used by cards, charms, and other game entities
 that have tribe exclusivity.
@@ -10,10 +9,11 @@ from enum import Enum
 
 class TribeExclusivity(Enum):
     """Defines which tribe(s) an entity belongs to."""
-    SNOWDWELLERS = 'Snowdwellers'
-    SHADMANCERS = 'Shademancers'
-    CLUNKMASTERS = 'Clunkmasters'
-    ALL_TRIBES = 'All'
+
+    SNOWDWELLERS = "Snowdwellers"
+    SHADMANCERS = "Shademancers"
+    CLUNKMASTERS = "Clunkmasters"
+    ALL_TRIBES = "All"
 
     @property
     def is_exclusive(self) -> bool:
@@ -22,6 +22,7 @@ class TribeExclusivity(Enum):
 
     @property
     def is_universal(self) -> bool:
+        """Check if this represents all tribes (not exclusive)."""
         return self == TribeExclusivity.ALL_TRIBES
 
     def get_tribes(self) -> list[str]:

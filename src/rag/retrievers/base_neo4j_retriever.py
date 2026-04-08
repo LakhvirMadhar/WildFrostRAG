@@ -1,29 +1,31 @@
-"""
-Base class for Neo4j-based retrievers in WildFrostRAG.
+"""Base class for Neo4j-based retrievers in WildFrostRAG.
 
 This module provides a common base for different retrieval strategies using Neo4j.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any
 from urllib.parse import urlparse
-from neo4j import Driver
+from neo4j import Driver, Record
 from neo4j.graph import Node, Relationship, Path
 from utils.config import settings
 
+# Types for Neo4j values before and after serialization
+Neo4jValue = Node | Relationship | Path | list[Any] | str | int | float | bool | None
+SerializedValue = dict[str, Any] | list[Any] | str | int | float | bool | None
+
 
 class BaseNeo4jRetriever:
-    """
-    Base class for Neo4j-based retrievers.
+    """Base class for Neo4j-based retrievers.
+
     Follows dependency injection pattern - driver is passed in, not created here.
     """
 
     # Subclasses can override to specify which result field to use as rag_context
     # If None, _format_result_as_text() is used as fallback
-    rag_context_field: Optional[str] = None
+    rag_context_field: str | None = None
 
-    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None):
-        """
-        Initialize the base Neo4j retriever.
+    def __init__(self, driver: Driver, neo4j_database: str | None = None) -> None:
+        """Initialize the base Neo4j retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
@@ -40,30 +42,30 @@ class BaseNeo4jRetriever:
         self.port = parsed_uri.port or 7687  # Default Neo4j port
 
     @staticmethod
-    def _serialize_value(value: Any) -> Any:
-        """
-        Convert a Neo4j graph object to a JSON-serializable Python type.
+    def _serialize_value(value: Neo4jValue) -> SerializedValue:
+        """Convert a Neo4j graph object to a JSON-serializable Python type.
 
         Handles Node, Relationship, and Path objects that the LLM-generated
         Cypher may return (e.g., `RETURN c` instead of `RETURN c.card_name`).
         """
         if isinstance(value, Node):
-            props = {k: v for k, v in value.items()
-                     if k != "embedding" and not k.endswith("_embedding")}
+            props = {
+                k: v
+                for k, v in value.items()
+                if k != "embedding" and not k.endswith("_embedding")
+            }
             props["_labels"] = list(value.labels)
             return props
         if isinstance(value, Relationship):
-            return {"_type": value.type,
-                    **{k: v for k, v in value.items()}}
+            return {"_type": value.type, **dict(value.items())}
         if isinstance(value, Path):
             return str(value)
         if isinstance(value, list):
             return [BaseNeo4jRetriever._serialize_value(v) for v in value]
         return value
 
-    def _record_to_dict(self, record) -> Dict[str, Any]:
-        """
-        Convert any Neo4j record to a flat dictionary.
+    def _record_to_dict(self, record: Record) -> dict[str, Any]:
+        """Convert any Neo4j record to a flat dictionary.
 
         Handles any Cypher query result structure:
         - Single nodes: RETURN node, score
@@ -84,7 +86,8 @@ class BaseNeo4jRetriever:
         """
         result = {}
 
-        for key, value in record.items():
+        for key in record.keys():
+            value = record[key]
             if value is None:
                 continue
 
@@ -112,9 +115,10 @@ class BaseNeo4jRetriever:
 
         return result
 
-    def _execute_query(self, query: str, params: dict) -> List[Dict[str, Any]]:
-        """
-        Execute a Neo4j query and return results using the shared driver.
+    def _execute_query(
+        self, query: str, params: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Execute a Neo4j query and return results using the shared driver.
 
         Handles ANY Cypher query structure - single nodes, multiple nodes,
         scalars, or mixed results.
@@ -131,14 +135,19 @@ class BaseNeo4jRetriever:
             results = session.run(query, params)
             return [self._record_to_dict(record) for record in results]
 
-    def _format_result_as_text(self, result: Dict[str, Any]) -> str:
-        """
-        Format a result dictionary as human-readable text for RAG context.
+    def _format_result_as_text(self, result: dict[str, Any]) -> str:
+        """Format a result dictionary as human-readable text for RAG context.
 
         Excludes metadata fields and formats the remaining fields as readable text.
         Override in subclasses for custom formatting.
         """
-        exclude_fields = {"score", "search_type", "generated_cypher", "result_index", "rag_context"}
+        exclude_fields = {
+            "score",
+            "search_type",
+            "generated_cypher",
+            "result_index",
+            "rag_context",
+        }
         lines = []
 
         for key, value in result.items():
@@ -154,9 +163,10 @@ class BaseNeo4jRetriever:
 
         return "\n".join(lines)
 
-    def _add_metadata(self, results: List[Dict[str, Any]], search_type: str) -> List[Dict[str, Any]]:
-        """
-        Add metadata to search results and ensure rag_context field exists.
+    def _add_metadata(
+        self, results: list[dict[str, Any]], search_type: str
+    ) -> list[dict[str, Any]]:
+        """Add metadata to search results and ensure rag_context field exists.
 
         Args:
             results: List of retrieval results
@@ -166,14 +176,14 @@ class BaseNeo4jRetriever:
             Results with added metadata and standardized rag_context field
         """
         for result in results:
-            result['search_type'] = search_type
+            result["search_type"] = search_type
 
             # Standardize RAG context - ensure every result has this field
-            if 'rag_context' not in result:
+            if "rag_context" not in result:
                 # Use configured field if set, otherwise format all properties
                 if self.rag_context_field and self.rag_context_field in result:
-                    result['rag_context'] = result[self.rag_context_field]
+                    result["rag_context"] = result[self.rag_context_field]
                 else:
-                    result['rag_context'] = self._format_result_as_text(result)
+                    result["rag_context"] = self._format_result_as_text(result)
 
         return results

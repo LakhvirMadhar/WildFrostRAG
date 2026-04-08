@@ -1,5 +1,4 @@
-"""
-Neo4j index management for WildFrostRAG.
+"""Neo4j index management for WildFrostRAG.
 
 This module handles creation and management of Neo4j indexes:
 - Vector indexes for semantic similarity search
@@ -7,6 +6,8 @@ This module handles creation and management of Neo4j indexes:
 """
 
 import time
+
+import neo4j
 from neo4j import GraphDatabase
 from utils.config import settings
 from utils.logger import logger
@@ -17,10 +18,9 @@ def create_vector_index(
     embedding_dimension: int,
     node_label: str = "Document",
     embedding_property: str = "embedding",
-    similarity_function: str = "cosine"
+    similarity_function: str = "cosine",
 ) -> None:
-    """
-    Create a vector index in Neo4j for similarity search.
+    """Create a vector index in Neo4j for similarity search.
 
     Args:
         index_name: Name for the vector index
@@ -37,7 +37,7 @@ def create_vector_index(
 
     driver = GraphDatabase.driver(
         settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
+        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
     )
 
     try:
@@ -45,7 +45,9 @@ def create_vector_index(
             # Check if index already exists
             index_exists_query = "SHOW INDEXES YIELD name WHERE name = $name"
             if session.run(index_exists_query, name=index_name).single():
-                logger.info(f"Vector index '{index_name}' already exists. Skipping creation.")
+                logger.info(
+                    f"Vector index '{index_name}' already exists. Skipping creation."
+                )
                 return
 
             # Create the vector index
@@ -68,14 +70,13 @@ def create_vector_index(
 
 
 def create_fulltext_index(
-    session,
+    session: neo4j.Session,
     index_name: str,
     node_label: str = "Document",
     text_property: str = "text",
-    analyzer: str = "standard-no-stop-words"
+    analyzer: str = "standard-no-stop-words",
 ) -> None:
-    """
-    Create a full-text index in Neo4j for lexical search.
+    """Create a full-text index in Neo4j for lexical search.
 
     Uses Neo4j's Lucene-based full-text indexing capabilities.
 
@@ -91,12 +92,16 @@ def create_fulltext_index(
         If the index already exists, this function will skip creation
         and log a message.
     """
-    logger.info(f"Creating full-text index '{index_name}' (analyzer={analyzer}) in Neo4j")
+    logger.info(
+        f"Creating full-text index '{index_name}' (analyzer={analyzer}) in Neo4j"
+    )
 
     # Check if index already exists
     index_exists_query = "SHOW INDEXES YIELD name WHERE name = $name"
     if session.run(index_exists_query, name=index_name).single():
-        logger.info(f"Full-text index '{index_name}' already exists. Skipping creation.")
+        logger.info(
+            f"Full-text index '{index_name}' already exists. Skipping creation."
+        )
         return
 
     # Create the full-text index using Neo4j 5.x syntax
@@ -111,8 +116,7 @@ def create_fulltext_index(
 
 
 def wait_for_index_population(seconds: int = 5) -> None:
-    """
-    Wait for Neo4j indexes to be fully populated.
+    """Wait for Neo4j indexes to be fully populated.
 
     After creating an index, Neo4j needs time to populate it.
     This is a simple helper to add a delay.

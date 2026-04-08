@@ -1,5 +1,4 @@
-"""
-Neo4j vector store operations for WildFrostRAG.
+"""Neo4j vector store operations for WildFrostRAG.
 
 This module handles ingestion of document embeddings into Neo4j and
 vector similarity search operations.
@@ -9,23 +8,23 @@ injection — the caller (ingest_data.py) manages driver lifecycle.
 """
 
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
 from neo4j import GraphDatabase, Session
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
+from neo4j_kg.query_utils import single_value
 from utils.config import settings
 from utils.logger import logger
 
 
 def ingest_documents_into_neo4j(
     session: Session,
-    document_chunks: List[Document],
-    url_lookup: Optional[Dict[str, str]] = None,
+    document_chunks: list[Document],
+    url_lookup: dict[str, str] | None = None,
     chunk_label: str = "Document",
-    text_property: str = "text"
+    text_property: str = "text",
 ) -> None:
-    """
-    Ingest document chunks into Neo4j as Document nodes.
+    """Ingest document chunks into Neo4j as Document nodes.
 
     This function creates Document nodes with text content and metadata only.
     No embeddings are included - use add_embeddings.py to add embeddings later.
@@ -38,9 +37,7 @@ def ingest_documents_into_neo4j(
         chunk_label: Node label to use in Neo4j (default: "Document")
         text_property: Property name for text content (default: "text")
     """
-    logger.info(
-        f"Ingesting {len(document_chunks)} document chunks into Neo4j database"
-    )
+    logger.info(f"Ingesting {len(document_chunks)} document chunks into Neo4j database")
 
     if url_lookup is None:
         url_lookup = {}
@@ -60,40 +57,37 @@ def ingest_documents_into_neo4j(
     # Prepare data without embeddings
     data_to_ingest = []
     for chunk in document_chunks:
-        full_path = chunk.metadata.get('source', 'unknown')
+        full_path = chunk.metadata.get("source", "unknown")
 
         # Extract filename and make path relative to data/
-        filename = Path(full_path).name if full_path else ''
+        filename = Path(full_path).name if full_path else ""
 
         # Convert to relative path (data/structured_outputs/...)
         source_file = full_path
-        if full_path and 'data' in full_path:
-            data_idx = full_path.find('data')
-            source_file = full_path[data_idx:].replace('\\', '/')
+        if full_path and "data" in full_path:
+            data_idx = full_path.find("data")
+            source_file = full_path[data_idx:].replace("\\", "/")
 
         # Derive title from filename (without extension)
-        title = Path(filename).stem if filename else 'unknown'
+        title = Path(filename).stem if filename else "unknown"
 
-        source_url = url_lookup.get(filename, '')
+        source_url = url_lookup.get(filename, "")
 
-        data_to_ingest.append({
-            "text": chunk.page_content,
-            "source_file": source_file,
-            "title": title,
-            "source_url": source_url
-        })
+        data_to_ingest.append(
+            {
+                "text": chunk.page_content,
+                "source_file": source_file,
+                "title": title,
+                "source_url": source_url,
+            }
+        )
 
     session.run(cypher_query, parameters={"data": data_to_ingest})
     logger.info("Data ingestion complete")
 
 
-def create_embedding_index(
-    property_name: str,
-    index_name: str,
-    dimension: int
-) -> None:
-    """
-    Create a vector index for a specific embedding property.
+def create_embedding_index(property_name: str, index_name: str, dimension: int) -> None:
+    """Create a vector index for a specific embedding property.
 
     This allows storing multiple embedding providers' vectors on the same
     Document nodes and querying each provider's index independently.
@@ -102,19 +96,14 @@ def create_embedding_index(
         property_name: Property name on Document nodes (e.g., "hf_embedding", "openai_embedding")
         index_name: Name for the vector index (e.g., "document-embeddings-hf")
         dimension: Vector dimensionality (e.g., 384 for HF, 1536 for OpenAI)
-
-    Example:
-        >>> create_embedding_index(
-        ...     property_name="openai_embedding",
-        ...     index_name="document-embeddings-openai",
-        ...     dimension=1536
-        ... )
     """
-    logger.info(f"Creating vector index '{index_name}' for property '{property_name}' (dim={dimension})")
+    logger.info(
+        f"Creating vector index '{index_name}' for property '{property_name}' (dim={dimension})"
+    )
 
     driver = GraphDatabase.driver(
         settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
+        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
     )
 
     try:
@@ -146,10 +135,9 @@ def get_retrieved_chunks(
     query: str,
     embedding_model: SentenceTransformer,
     index_name: str = "document-embeddings",
-    k: int = 5
-) -> List[Dict[str, Any]]:
-    """
-    Retrieve the top-k most relevant document chunks using vector search.
+    k: int = 5,
+) -> list[dict[str, Any]]:
+    """Retrieve the top-k most relevant document chunks using vector search.
 
     Args:
         query: User's search query
@@ -159,23 +147,16 @@ def get_retrieved_chunks(
 
     Returns:
         List of dictionaries containing retrieved chunks with their metadata and scores
-
-    Example:
-        >>> model = SentenceTransformer('all-MiniLM-L6-v2')
-        >>> results = get_retrieved_chunks(
-        ...     query="What is Azul Candle?",
-        ...     embedding_model=model,
-        ...     k=5
-        ... )
-        >>> for result in results:
-        ...     print(f"Score: {result['score']}, Text: {result['text'][:50]}...")
     """
     logger.info(f"Retrieving top-{k} chunks for query: '{query}'")
 
     # Generate query embedding
     query_embedding = embedding_model.encode(query).tolist()
 
-    driver = GraphDatabase.driver(settings.neo4j_uri.get_secret_value(), auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()))
+    driver = GraphDatabase.driver(
+        settings.neo4j_uri.get_secret_value(),
+        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
+    )
 
     try:
         with driver.session() as session:
@@ -191,7 +172,7 @@ def get_retrieved_chunks(
                 search_query,
                 index_name=index_name,
                 query_embedding=query_embedding,
-                k=k
+                k=k,
             )
 
             # Extract results
@@ -205,7 +186,7 @@ def get_retrieved_chunks(
                 # Flatten all node properties into the dict
                 # This includes 'text', 'source_file', etc.
                 for key, value in node.items():
-                    if key != "embedding": # Exclude the large vector
+                    if key != "embedding":  # Exclude the large vector
                         chunk_dict[key] = value
 
                 retrieved_chunks.append(chunk_dict)
@@ -218,8 +199,7 @@ def get_retrieved_chunks(
 
 
 def link_documents_to_cards(session: Session) -> int:
-    """
-    Link Document nodes to Card nodes in the knowledge graph.
+    """Link Document nodes to Card nodes in the knowledge graph.
 
     Creates HAS_DOCUMENT relationships between Card nodes and Document nodes
     by matching the source_file property of Documents to the card_name property of Cards.
@@ -258,7 +238,9 @@ def link_documents_to_cards(session: Session) -> int:
     record = result.single()
     url_count = record["relationships_created"] if record else 0
     if url_count > 0:
-        logger.info(f"Created {url_count} Card-Document relationships (by URL fallback)")
+        logger.info(
+            f"Created {url_count} Card-Document relationships (by URL fallback)"
+        )
 
     total = count + url_count
     logger.info(f"Total: {total} Card-Document relationships")
@@ -266,8 +248,7 @@ def link_documents_to_cards(session: Session) -> int:
 
 
 def link_documents_to_crowns(session: Session) -> int:
-    """
-    Link Crown nodes to the Crowns Document node.
+    """Link Crown nodes to the Crowns Document node.
 
     Both Crown and Cursed Crown nodes get linked to the same Crowns.html document.
 
@@ -296,8 +277,7 @@ def link_documents_to_crowns(session: Session) -> int:
 
 
 def link_documents_to_stats(session: Session) -> int:
-    """
-    Link Stat nodes to their individual stat page Documents.
+    """Link Stat nodes to their individual stat page Documents.
 
     Each Stat matches its own Document via the filename property.
     Additionally, all stats link to the summary Stats.html for overview context.
@@ -339,13 +319,14 @@ def link_documents_to_stats(session: Session) -> int:
     summary_count = record["relationships_created"] if record else 0
     total += summary_count
 
-    logger.info(f"Created {total} Stat-Document relationships ({per_stat_count} per-stat + {summary_count} summary)")
+    logger.info(
+        f"Created {total} Stat-Document relationships ({per_stat_count} per-stat + {summary_count} summary)"
+    )
     return total
 
 
 def link_documents_to_charms(session: Session) -> int:
-    """
-    Link Charm nodes to their individual charm page Documents.
+    """Link Charm nodes to their individual charm page Documents.
 
     Each Charm matches its own Document via the filename property
     (same pattern as link_documents_to_cards). Additionally, all charms
@@ -395,8 +376,7 @@ def link_documents_to_charms(session: Session) -> int:
 
 
 def link_documents_to_shades(session: Session) -> int:
-    """
-    Link shade Card nodes to the Shades.html overview Document.
+    """Link shade Card nodes to the Shades.html overview Document.
 
     Individual shade cards already link to their own page Documents via
     link_documents_to_cards(). This additionally links them to the aggregate
@@ -418,14 +398,13 @@ def link_documents_to_shades(session: Session) -> int:
     RETURN count(*) AS created
     """
     result = session.run(query)
-    count = result.single()["created"]
+    count = single_value(result, "created")
     logger.info(f"Linked {count} shade cards to Shades overview document")
     return count
 
 
 def link_documents_to_map(session: Session) -> int:
-    """
-    Link Map, Zone, and MapEvent nodes to the Map Document node.
+    """Link Map, Zone, and MapEvent nodes to the Map Document node.
 
     Fight nodes are NOT linked here - they get their own fight page documents
     via link_documents_to_fights().
@@ -439,7 +418,7 @@ def link_documents_to_map(session: Session) -> int:
     logger.info("Linking map nodes to Document...")
 
     total = 0
-    for label in ['Map', 'Zone', 'MapEvent']:
+    for label in ["Map", "Zone", "MapEvent"]:
         query = f"""
         MATCH (d:Document)
         WHERE d.source_file ENDS WITH 'maps/Map.html'
@@ -448,7 +427,7 @@ def link_documents_to_map(session: Session) -> int:
         RETURN count(*) as created
         """
         result = session.run(query)
-        count = result.single()["created"]
+        count = single_value(result, "created")
         total += count
         logger.info(f"  Linked {count} {label} nodes to Map document")
 
@@ -457,8 +436,7 @@ def link_documents_to_map(session: Session) -> int:
 
 
 def link_documents_to_fights(session: Session) -> int:
-    """
-    Link Fight nodes to their individual fight page Document nodes.
+    """Link Fight nodes to their individual fight page Document nodes.
 
     Each Fight has a page_name property (e.g., "Infernoko_Fight") that
     corresponds to the source_file of its Document (e.g., "Infernoko_Fight.html").
@@ -480,14 +458,13 @@ def link_documents_to_fights(session: Session) -> int:
     RETURN count(*) AS created
     """
     result = session.run(query)
-    count = result.single()["created"]
+    count = single_value(result, "created")
     logger.info(f"Linked {count} Fight nodes to their Documents")
     return count
 
 
 def link_documents_to_shops(session: Session) -> int:
-    """
-    Link Shop nodes to their wiki page Documents.
+    """Link Shop nodes to their wiki page Documents.
 
     Args:
         session: Active Neo4j session (caller manages driver lifecycle)
@@ -511,7 +488,7 @@ def link_documents_to_shops(session: Session) -> int:
         RETURN count(*) AS created
         """
         result = session.run(query, doc_suffix=doc_suffix, shop_name=shop_name)
-        count = result.single()["created"]
+        count = single_value(result, "created")
         total += count
 
     logger.info(f"Linked {total} Shop-Document relationships")
@@ -519,8 +496,7 @@ def link_documents_to_shops(session: Session) -> int:
 
 
 def link_documents_to_bling(session: Session) -> int:
-    """
-    Link Bling node to the Bling wiki page Document.
+    """Link Bling node to the Bling wiki page Document.
 
     Args:
         session: Active Neo4j session (caller manages driver lifecycle)
@@ -538,14 +514,13 @@ def link_documents_to_bling(session: Session) -> int:
     RETURN count(*) AS created
     """
     result = session.run(query)
-    count = result.single()["created"]
+    count = single_value(result, "created")
     logger.info(f"Linked {count} Bling-Document relationships")
     return count
 
 
 def link_documents_to_bells(session: Session) -> int:
-    """
-    Link Bell nodes to their individual bell page Documents.
+    """Link Bell nodes to their individual bell page Documents.
 
     Bells with individual wiki pages match their own Document via filename.
     Additionally, all bells link to the summary Bells.html for overview context.
@@ -570,7 +545,7 @@ def link_documents_to_bells(session: Session) -> int:
     RETURN count(*) AS created
     """
     result = session.run(per_bell_query)
-    per_bell_count = result.single()["created"]
+    per_bell_count = single_value(result, "created")
     total += per_bell_count
 
     # Summary Bells.html (overview table with all bells)
@@ -582,8 +557,10 @@ def link_documents_to_bells(session: Session) -> int:
     RETURN count(*) AS created
     """
     result = session.run(summary_query)
-    summary_count = result.single()["created"]
+    summary_count = single_value(result, "created")
     total += summary_count
 
-    logger.info(f"Created {total} Bell-Document relationships ({per_bell_count} per-bell + {summary_count} summary)")
+    logger.info(
+        f"Created {total} Bell-Document relationships ({per_bell_count} per-bell + {summary_count} summary)"
+    )
     return total

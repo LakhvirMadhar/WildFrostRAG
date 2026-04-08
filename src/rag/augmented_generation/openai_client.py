@@ -1,5 +1,4 @@
-"""
-Centralized async OpenAI client for WildFrostRAG.
+"""Centralized async OpenAI client for WildFrostRAG.
 
 This module provides:
 - Low-level API calls (call_openai_api, call_openai_api_structured, call_openai_embeddings)
@@ -10,9 +9,8 @@ All functions are async with built-in rate limiting via semaphore.
 
 import asyncio
 from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
-from typing import TypeVar, Type, Optional
-
 from utils.config import settings
 from utils.logger import logger
 from prompts.prompt_utils import VersionedPrompt, format_prompt_tuple
@@ -22,14 +20,16 @@ from prompts.prompt_utils import VersionedPrompt, format_prompt_tuple
 # Lazy-initialized client and semaphore
 # =============================================================================
 
-_client: Optional[AsyncOpenAI] = None
-_semaphore: Optional[asyncio.Semaphore] = None
+_client: AsyncOpenAI | None = None
+_semaphore: asyncio.Semaphore | None = None
 
 
 def _get_client() -> AsyncOpenAI:
     """Get or create the singleton AsyncOpenAI client."""
     global _client
     if _client is None:
+        if settings.openai_api_key is None:
+            raise ValueError("OPENAI_API_KEY not configured")
         _client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
     return _client
 
@@ -46,14 +46,14 @@ def _get_semaphore() -> asyncio.Semaphore:
 # Low-level API calls
 # =============================================================================
 
+
 async def call_openai_api(
-    messages: list[dict],
-    model: str = None,
-    temperature: float = None,
-    seed: int = None,
+    messages: list[ChatCompletionMessageParam],
+    model: str | None = None,
+    temperature: float | None = None,
+    seed: int | None = None,
 ) -> str:
-    """
-    Async chat completion with rate limiting.
+    """Async chat completion with rate limiting.
 
     Args:
         messages: List of message dicts with 'role' and 'content' keys
@@ -70,27 +70,28 @@ async def call_openai_api(
             response = await client.chat.completions.create(
                 model=model or settings.openai_model_name,
                 messages=messages,
-                temperature=temperature if temperature is not None else settings.openai_temperature,
+                temperature=temperature
+                if temperature is not None
+                else settings.openai_temperature,
                 seed=seed if seed is not None else settings.openai_seed,
             )
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            if content is None:
+                raise RuntimeError("OpenAI returned empty response content")
+            return content
         except Exception as e:
             logger.error(f"Error in call_openai_api: {e}")
             raise
 
 
-T = TypeVar('T', bound=BaseModel)
-
-
-async def call_openai_api_structured(
-    messages: list[dict],
-    response_model: Type[T],
-    model: str = None,
-    temperature: float = None,
-    seed: int = None,
+async def call_openai_api_structured[T: BaseModel](
+    messages: list[ChatCompletionMessageParam],
+    response_model: type[T],
+    model: str | None = None,
+    temperature: float | None = None,
+    seed: int | None = None,
 ) -> T:
-    """
-    Async chat with Pydantic structured output and rate limiting.
+    """Async chat with Pydantic structured output and rate limiting.
 
     Args:
         messages: List of message dicts with 'role' and 'content' keys
@@ -109,10 +110,15 @@ async def call_openai_api_structured(
                 model=model or settings.openai_model_name,
                 messages=messages,
                 response_format=response_model,
-                temperature=temperature if temperature is not None else settings.openai_temperature,
+                temperature=temperature
+                if temperature is not None
+                else settings.openai_temperature,
                 seed=seed if seed is not None else settings.openai_seed,
             )
-            return response.choices[0].message.parsed
+            parsed = response.choices[0].message.parsed
+            if parsed is None:
+                raise RuntimeError("OpenAI returned empty parsed response")
+            return parsed
         except Exception as e:
             logger.error(f"Error in call_openai_api_structured: {e}")
             raise
@@ -120,10 +126,9 @@ async def call_openai_api_structured(
 
 async def call_openai_embeddings(
     texts: list[str],
-    model: str = None,
+    model: str | None = None,
 ) -> list[list[float]]:
-    """
-    Async embeddings with rate limiting.
+    """Async embeddings with rate limiting.
 
     Args:
         texts: List of texts to embed
@@ -149,9 +154,9 @@ async def call_openai_embeddings(
 # High-level generation functions
 # =============================================================================
 
+
 async def generate_zero_shot(query: str, system_prompt: VersionedPrompt) -> str:
-    """
-    Generate a zero-shot response (no context).
+    """Generate a zero-shot response (no context).
 
     Args:
         query: The user query
@@ -163,7 +168,7 @@ async def generate_zero_shot(query: str, system_prompt: VersionedPrompt) -> str:
     return await call_openai_api(
         messages=[
             {"role": "system", "content": system_prompt.prompt_tuple[0]},
-            {"role": "user", "content": query}
+            {"role": "user", "content": query},
         ]
     )
 
@@ -172,10 +177,9 @@ async def generate_rag(
     query: str,
     context: str,
     system_prompt: VersionedPrompt,
-    rag_prompt: VersionedPrompt
+    rag_prompt: VersionedPrompt,
 ) -> str:
-    """
-    Generate a RAG response using provided context.
+    """Generate a RAG response using provided context.
 
     Args:
         query: The user query
@@ -187,13 +191,11 @@ async def generate_rag(
         The generated response text
     """
     user_message = format_prompt_tuple(
-        rag_prompt.prompt_tuple,
-        query=query,
-        context=context
+        rag_prompt.prompt_tuple, query=query, context=context
     )
     return await call_openai_api(
         messages=[
             {"role": "system", "content": system_prompt.prompt_tuple[0]},
-            {"role": "user", "content": user_message}
+            {"role": "user", "content": user_message},
         ]
     )

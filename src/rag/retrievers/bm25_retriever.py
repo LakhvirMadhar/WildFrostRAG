@@ -1,12 +1,11 @@
-"""
-External BM25 retriever for WildFrostRAG.
+"""External BM25 retriever for WildFrostRAG.
 
 This module implements lexical retrieval using the rank_bm25 library for true BM25 scoring.
 It retrieves documents from Neo4j, processes them with BM25, and returns ranked results.
 """
 
 import warnings
-from typing import List, Dict, Any, Optional
+from typing import Any
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
@@ -18,25 +17,27 @@ from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
 class BM25Retriever(BaseNeo4jRetriever):
-    """
-    Implements lexical similarity retrieval using true BM25 scoring.
+    """Implements lexical similarity retrieval using true BM25 scoring.
+
     This corresponds to the 'BM25' approach in the research goals.
     """
 
-    # Class-level cache to share BM25 index across instances
-    _shared_cache = {
-        'documents': None,
-        'node_data': None,
-        'bm25_model': None,
-        'cache_key': None
+    _shared_cache: dict[str, Any] = {
+        "documents": None,
+        "node_data": None,
+        "bm25_model": None,
+        "cache_key": None,
     }
 
-    def __init__(self, driver: Driver, neo4j_database: Optional[str] = None,
-                 remove_stopwords: bool = True,
-                 remove_stopwords_query: Optional[bool] = None,
-                 remove_stopwords_docs: Optional[bool] = None):
-        """
-        Initialize the BM25 retriever.
+    def __init__(
+        self,
+        driver: Driver,
+        neo4j_database: str | None = None,
+        remove_stopwords: bool = True,
+        remove_stopwords_query: bool | None = None,
+        remove_stopwords_docs: bool | None = None,
+    ) -> None:
+        """Initialize the BM25 retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
@@ -51,32 +52,39 @@ class BM25Retriever(BaseNeo4jRetriever):
             "For production use with large datasets, prefer Neo4jFullTextSearch "
             "which uses Lucene's on-disk BM25-style scoring.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
         self.index_name = settings.bm25_index_name
         # If specific overrides provided, use them; otherwise fall back to master flag
-        self.remove_stopwords_query = remove_stopwords_query if remove_stopwords_query is not None else remove_stopwords
-        self.remove_stopwords_docs = remove_stopwords_docs if remove_stopwords_docs is not None else remove_stopwords
-        self.bm25_model = None
-        self.documents = []
-        self.node_data = []
+        self.remove_stopwords_query = (
+            remove_stopwords_query
+            if remove_stopwords_query is not None
+            else remove_stopwords
+        )
+        self.remove_stopwords_docs = (
+            remove_stopwords_docs
+            if remove_stopwords_docs is not None
+            else remove_stopwords
+        )
+        self.bm25_model: BM25Okapi | None = None
+        self.documents: list[list[str]] = []
+        self.node_data: list[dict[str, Any]] = []
         self._initialize_nltk()
 
-    def _initialize_nltk(self):
+    def _initialize_nltk(self) -> None:
         """Initialize NLTK resources for text preprocessing."""
         try:
-            nltk.data.find('tokenizers/punkt')
+            nltk.data.find("tokenizers/punkt")
         except LookupError:
-            nltk.download('punkt')
+            nltk.download("punkt")
 
         try:
-            nltk.data.find('corpora/stopwords')
+            nltk.data.find("corpora/stopwords")
         except LookupError:
-            nltk.download('stopwords')
+            nltk.download("stopwords")
 
-    def _tokenize(self, text: str, remove_sw: bool) -> List[str]:
-        """
-        Tokenize text, optionally removing stop words.
+    def _tokenize(self, text: str, remove_sw: bool) -> list[str]:
+        """Tokenize text, optionally removing stop words.
 
         Args:
             text: Input text to tokenize
@@ -85,27 +93,31 @@ class BM25Retriever(BaseNeo4jRetriever):
         Returns:
             List of lowercase word tokens
         """
-        tokens = word_tokenize(text.lower())
+        tokens: list[str] = word_tokenize(text.lower())
         if remove_sw:
-            stop_words = set(stopwords.words('english'))
-            tokens = [token for token in tokens if token.isalpha() and token not in stop_words]
+            stop_words = set(stopwords.words("english"))
+            tokens = [
+                token for token in tokens if token.isalpha() and token not in stop_words
+            ]
         else:
             tokens = [token for token in tokens if token.isalpha()]
         return tokens
 
     def _load_documents_from_neo4j(self) -> None:
-        """
-        Load all documents from Neo4j to build the BM25 index.
+        """Load all documents from Neo4j to build the BM25 index.
+
         Uses class-level cache to avoid reloading for multiple instances.
         """
         cache_key = f"{self.neo4j_database}:{self.index_name}:sw_docs={self.remove_stopwords_docs}"
 
-        if (BM25Retriever._shared_cache['cache_key'] == cache_key and
-            BM25Retriever._shared_cache['bm25_model'] is not None):
+        if (
+            BM25Retriever._shared_cache["cache_key"] == cache_key
+            and BM25Retriever._shared_cache["bm25_model"] is not None
+        ):
             logger.info("Using cached BM25 index from previous instance")
-            self.documents = BM25Retriever._shared_cache['documents']
-            self.node_data = BM25Retriever._shared_cache['node_data']
-            self.bm25_model = BM25Retriever._shared_cache['bm25_model']
+            self.documents = BM25Retriever._shared_cache["documents"]
+            self.node_data = BM25Retriever._shared_cache["node_data"]
+            self.bm25_model = BM25Retriever._shared_cache["bm25_model"]
             return
 
         logger.info("Loading all documents from Neo4j for BM25 indexing...")
@@ -138,17 +150,16 @@ class BM25Retriever(BaseNeo4jRetriever):
             self.bm25_model = BM25Okapi(self.documents)
 
             BM25Retriever._shared_cache = {
-                'documents': self.documents,
-                'node_data': self.node_data,
-                'bm25_model': self.bm25_model,
-                'cache_key': cache_key
+                "documents": self.documents,
+                "node_data": self.node_data,
+                "bm25_model": self.bm25_model,
+                "cache_key": cache_key,
             }
 
             logger.info(f"BM25 index built with {len(self.documents)} documents")
 
-    def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Retrieve the top-k most relevant document chunks using BM25 scoring.
+    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+        """Retrieve the top-k most relevant document chunks using BM25 scoring.
 
         Args:
             query: Input query string to search for
@@ -162,9 +173,15 @@ class BM25Retriever(BaseNeo4jRetriever):
 
         query_tokens = self._tokenize(query, self.remove_stopwords_query)
 
+        if self.bm25_model is None:
+            raise RuntimeError(
+                "BM25 model not initialized — call _load_documents_from_neo4j first"
+            )
         scores = self.bm25_model.get_scores(query_tokens)
 
-        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
+        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[
+            :k
+        ]
 
         results = []
         for idx in top_indices:
@@ -173,4 +190,4 @@ class BM25Retriever(BaseNeo4jRetriever):
             node_data["score"] = score
             results.append(node_data)
 
-        return self._add_metadata(results, 'bm25')
+        return self._add_metadata(results, "bm25")

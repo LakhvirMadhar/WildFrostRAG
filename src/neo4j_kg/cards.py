@@ -1,8 +1,13 @@
+from typing import Any
+
+import neo4j
+
 from data_processing.cards import CardType
 from data_processing.phase_config import RECRUITABLE_ENEMIES
+from neo4j_kg.query_utils import single_value
 
 
-def _get_all_ancestors(card_type_value):
+def _get_all_ancestors(card_type_value: str) -> list[str]:
     """Recursively resolve all ancestor CardTypes for a given type."""
     type_to_parents = {ct.value: ct.parents for ct in CardType}
     ancestors = []
@@ -15,17 +20,18 @@ def _get_all_ancestors(card_type_value):
     return ancestors
 
 
-def _enrich_cards_with_parent_types(cards_data):
+def _enrich_cards_with_parent_types(
+    cards_data: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Add all ancestor CardType names to each card dict so the Cypher can link them."""
     ancestor_cache = {ct.value: _get_all_ancestors(ct.value) for ct in CardType}
     for card in cards_data:
-        card['parent_types'] = ancestor_cache.get(card.get('card_type'), [])
+        card["parent_types"] = ancestor_cache.get(card.get("card_type"), [])
     return cards_data
 
 
-def create_cards(tx, cards_data):
-    """
-    Bulk create card nodes in neo4j.
+def create_cards(tx: neo4j.ManagedTransaction, cards_data: list[dict[str, Any]]) -> int:
+    """Bulk create card nodes in neo4j.
 
     For multi-phase cards (like Infernoko Phase 1 and Phase 2), we use
     card_name + phase as the unique identifier. For single-phase cards,
@@ -39,13 +45,12 @@ def create_cards(tx, cards_data):
     # Strip None values so Neo4j doesn't create properties with null
     # (e.g., Clunkers have scrap instead of health — health shouldn't exist on the node)
     cards_data = [
-        {k: v for k, v in card.items() if v is not None}
-        for card in cards_data
+        {k: v for k, v in card.items() if v is not None} for card in cards_data
     ]
 
     # Separate phased and non-phased cards
-    phased_cards = [c for c in cards_data if c.get('phase') is not None]
-    non_phased_cards = [c for c in cards_data if c.get('phase') is None]
+    phased_cards = [c for c in cards_data if c.get("phase") is not None]
+    non_phased_cards = [c for c in cards_data if c.get("phase") is None]
 
     total_created = 0
 
@@ -64,7 +69,7 @@ def create_cards(tx, cards_data):
         RETURN count(c) AS createdCount
         """
         result = tx.run(query, cards=non_phased_cards)
-        total_created += result.single()["createdCount"]
+        total_created += single_value(result, "createdCount")
 
     # Create phased cards (MERGE by card_name + phase)
     if phased_cards:
@@ -81,14 +86,13 @@ def create_cards(tx, cards_data):
         RETURN count(c) AS createdCount
         """
         result = tx.run(query, cards=phased_cards)
-        total_created += result.single()["createdCount"]
+        total_created += single_value(result, "createdCount")
 
     return total_created
 
 
-def create_phase_relationships(tx):
-    """
-    Create TRANSFORMS_INTO relationships between card phases.
+def create_phase_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create TRANSFORMS_INTO relationships between card phases.
 
     Links Phase 1 -> Phase 2 -> Phase 3, etc. for multi-phase cards.
     Uses base_name for matching since phased cards may have different card_names
@@ -102,12 +106,11 @@ def create_phase_relationships(tx):
     RETURN count(*) AS relationshipsCreated
     """
     result = tx.run(query)
-    return result.single()["relationshipsCreated"]
+    return single_value(result, "relationshipsCreated")
 
 
-def create_recruitment_relationships(tx):
-    """
-    Create CAN_BE_RECRUITED_AS relationships for enemy cards that can become companions.
+def create_recruitment_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create CAN_BE_RECRUITED_AS relationships for enemy cards that can become companions.
 
     Some enemies (like Naked Gnome) can be recruited as companions if kept alive.
     This links the enemy variant to its companion variant.
@@ -129,13 +132,11 @@ def create_recruitment_relationships(tx):
     ]
 
     result = tx.run(query, recruitables=recruitables)
-    return result.single()["relationshipsCreated"]
+    return single_value(result, "relationshipsCreated")
 
 
-def create_card_type_hierarchy(tx):
-    """
-    Create hierarchy relationships between card types
-    """
+def create_card_type_hierarchy(tx: neo4j.ManagedTransaction) -> int:
+    """Create hierarchy relationships between card types."""
     query = """
     UNWIND $hierarchies AS hierarchy
     MERGE (child:CardType {name: hierarchy.child})
@@ -147,10 +148,7 @@ def create_card_type_hierarchy(tx):
     hierarchies = []
     for card_type in CardType:
         for parent in card_type.parents:
-            hierarchies.append({
-                'child': card_type.value,
-                'parent': parent
-            })
+            hierarchies.append({"child": card_type.value, "parent": parent})
 
     if hierarchies:
         tx.run(query, hierarchies=hierarchies)

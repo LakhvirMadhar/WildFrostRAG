@@ -1,6 +1,4 @@
-"""
-Taxonomy prompt templates for generating axial codes from open codes.
-"""
+"""Taxonomy prompt templates for generating axial codes from open codes."""
 
 from prompts.prompt_utils import VersionedPrompt
 
@@ -8,7 +6,7 @@ from prompts.prompt_utils import VersionedPrompt
 TAXONOMY_SYSTEM_PROMPT_V1 = VersionedPrompt(
     prompt_version_name="TAXONOMY_SYSTEM_PROMPT_V1",
     prompt_tuple=(
-"""You are an expert at qualitative coding analysis, specifically creating axial codes from open codes.
+        """You are an expert at qualitative coding analysis, specifically creating axial codes from open codes.
 
 You will be given a numbered list of open codes that describe various failure modes from an LLM evaluation.
 
@@ -30,18 +28,18 @@ Format your response as a well-structured markdown document with:
 - A summary section with key insights
 
 Be comprehensive but concise. Make the taxonomy useful for understanding and addressing these failure modes.""",
-    )
+    ),
 )
 
 
 TAXONOMY_USER_PROMPT_V1 = VersionedPrompt(
     prompt_version_name="TAXONOMY_USER_PROMPT_V1",
     prompt_tuple=(
-"""Here are the open codes from the failure analysis:
+        """Here are the open codes from the failure analysis:
 
 {codes_text}
 
 Please create axial codes that group these open codes into higher-level categories. Reference the open codes by their numbers.""",
-    "codes_text"
-    )
+        "codes_text",
+    ),
 )

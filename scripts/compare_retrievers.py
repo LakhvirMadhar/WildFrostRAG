@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Generate a multi-section markdown comparison report from retrieval experiment metrics.
+"""Generate a multi-section markdown comparison report from retrieval experiment metrics.
 
 Usage:
     # List all available experiments
@@ -24,6 +23,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from nltk.corpus import stopwords as nltk_stopwords
 
@@ -32,7 +32,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import settings
 
 
-def load_experiment(experiment_dir: Path) -> dict | None:
+def load_experiment(experiment_dir: Path) -> dict[str, Any] | None:
     """Load config and metrics from an experiment directory."""
     config_path = experiment_dir / "config.json"
     metrics_path = experiment_dir / "metrics.json"
@@ -48,10 +48,10 @@ def load_experiment(experiment_dir: Path) -> dict | None:
     return {"config": config, "metrics": metrics, "path": str(experiment_dir)}
 
 
-def discover_experiments(run_num: int) -> dict[str, list[dict]]:
+def discover_experiments(run_num: int) -> dict[str, list[dict[str, Any]]]:
     """Discover all experiments in a run, grouped by retriever type."""
     base = settings.outputs_dir / f"run_{run_num}" / "retrievals"
-    experiments = {}
+    experiments: dict[str, list[dict[str, Any]]] = {}
 
     if not base.exists():
         return experiments
@@ -74,7 +74,7 @@ def discover_experiments(run_num: int) -> dict[str, list[dict]]:
     return experiments
 
 
-def resolve_experiments(exp_refs: list[str], run_num: int) -> list[dict]:
+def resolve_experiments(exp_refs: list[str], run_num: int) -> list[dict[str, Any]]:
     """Resolve experiment references like 'bm25/002' to loaded experiment dicts."""
     base = settings.outputs_dir / f"run_{run_num}" / "retrievals"
     results = []
@@ -96,10 +96,15 @@ def resolve_experiments(exp_refs: list[str], run_num: int) -> list[dict]:
     return results
 
 
-STOPWORD_RELEVANT_RETRIEVERS = {"bm25", "fulltext", "fulltext_vector_hf", "fulltext_vector_gemma"}
+STOPWORD_RELEVANT_RETRIEVERS = {
+    "bm25",
+    "fulltext",
+    "fulltext_vector_hf",
+    "fulltext_vector_gemma",
+}
 
 
-def get_display_name(exp: dict) -> str:
+def get_display_name(exp: dict[str, Any]) -> str:
     """Build a human-readable column name for an experiment."""
     config = exp["config"]
     retriever_dir = exp["retriever_dir"]
@@ -147,7 +152,7 @@ METRIC_KEYS = [
 ]
 
 
-def generate_table(experiments: list[dict]) -> list[str]:
+def generate_table(experiments: list[dict[str, Any]]) -> list[str]:
     """Generate a single markdown comparison table (no heading)."""
     col_names = [get_display_name(exp) for exp in experiments]
 
@@ -193,7 +198,7 @@ def generate_table(experiments: list[dict]) -> list[str]:
     return lines
 
 
-def generate_details(experiments: list[dict]) -> list[str]:
+def generate_details(experiments: list[dict[str, Any]]) -> list[str]:
     """Generate experiment details section."""
     lines = []
     for exp in experiments:
@@ -222,17 +227,17 @@ def generate_details(experiments: list[dict]) -> list[str]:
     return lines
 
 
-def generate_missed_queries(experiments: list[dict]) -> list[str]:
+def generate_missed_queries(experiments: list[dict[str, Any]]) -> list[str]:
     """Generate a missed queries analysis section.
 
     For each query missed by at least one experiment, shows a row with
     hit/miss per retriever and highlights the stop words in the query.
     """
-    stop_words = set(nltk_stopwords.words('english'))
+    stop_words = set(nltk_stopwords.words("english"))
 
     # Collect per-query hit@10 across all experiments
     # {query_id: {"query": str, exp_key: hit@10_value, ...}}
-    query_map: dict[int, dict] = {}
+    query_map: dict[int, dict[str, Any]] = {}
     exp_names = []
     for exp in experiments:
         name = get_display_name(exp)
@@ -245,7 +250,8 @@ def generate_missed_queries(experiments: list[dict]) -> list[str]:
 
     # Filter to queries missed by at least one experiment
     missed_qids = sorted(
-        qid for qid, data in query_map.items()
+        qid
+        for qid, data in query_map.items()
         if any(data.get(name, 0) == 0 for name in exp_names)
     )
 
@@ -256,8 +262,7 @@ def generate_missed_queries(experiments: list[dict]) -> list[str]:
 
     # Only show stopword column if any experiment uses stopword removal
     any_sw = any(
-        exp["retriever_dir"] in STOPWORD_RELEVANT_RETRIEVERS
-        for exp in experiments
+        exp["retriever_dir"] in STOPWORD_RELEVANT_RETRIEVERS for exp in experiments
     )
 
     # Build table header
@@ -283,9 +288,15 @@ def generate_missed_queries(experiments: list[dict]) -> list[str]:
         if any_sw:
             # Show what the query becomes after stopword removal
             tokens = query.lower().split()
-            filtered = [t.strip("?.,!") for t in tokens if t.strip("?.,!") and t.strip("?.,!") not in stop_words]
+            filtered = [
+                t.strip("?.,!")
+                for t in tokens
+                if t.strip("?.,!") and t.strip("?.,!") not in stop_words
+            ]
             sw_removed = " ".join(filtered) if filtered else "—"
-            lines.append(f"| {qid} | {query} | {sw_removed} | " + " | ".join(cells) + " |")
+            lines.append(
+                f"| {qid} | {query} | {sw_removed} | " + " | ".join(cells) + " |"
+            )
         else:
             lines.append(f"| {qid} | {query} | " + " | ".join(cells) + " |")
 
@@ -293,20 +304,26 @@ def generate_missed_queries(experiments: list[dict]) -> list[str]:
 
     # Summary stats
     total_queries = len(query_map)
-    lines.append(f"*{len(missed_qids)} of {total_queries} queries missed by at least one retriever.*")
+    lines.append(
+        f"*{len(missed_qids)} of {total_queries} queries missed by at least one retriever.*"
+    )
     lines.append("")
 
     return lines
 
 
-def generate_report(sections: list[tuple[str, list[dict]]], run_num: int) -> str:
+def generate_report(
+    sections: list[tuple[str, list[dict[str, Any]]]], run_num: int
+) -> str:
     """Generate a full multi-section markdown report."""
     lines = []
     lines.append(f"# Retrieval Comparison -- Run {run_num}")
     lines.append("")
     lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     lines.append("")
-    lines.append("All experiments use 50 simple reference-based queries, auto-annotated via URL matching.")
+    lines.append(
+        "All experiments use 50 simple reference-based queries, auto-annotated via URL matching."
+    )
     lines.append("Unannotated queries count as failures (metrics = 0).")
     lines.append("")
     lines.append("**Notation:**")
@@ -362,21 +379,36 @@ def parse_sections(section_args: list[str]) -> list[tuple[str, list[str]]]:
     return sections
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments for retrieval comparison."""
     parser = argparse.ArgumentParser(description="Compare retrieval experiment metrics")
-    parser.add_argument("--run-num", type=int, default=1, help="Run number (default: 1)")
-    parser.add_argument("--sections", nargs="+",
-                        help="Sections as 'Name:exp1,exp2,...' (e.g., 'BM25:bm25/002,bm25/003')")
-    parser.add_argument("--include-all", action="store_true",
-                        help="Add a final table combining all experiments across sections")
-    parser.add_argument("--output", type=str, default=None,
-                        help="Output markdown path (default: outputs/run_{N}/retrieval_comparison.md)")
-    parser.add_argument("--list", action="store_true",
-                        help="List all available experiments and exit")
+    parser.add_argument(
+        "--run-num", type=int, default=1, help="Run number (default: 1)"
+    )
+    parser.add_argument(
+        "--sections",
+        nargs="+",
+        help="Sections as 'Name:exp1,exp2,...' (e.g., 'BM25:bm25/002,bm25/003')",
+    )
+    parser.add_argument(
+        "--include-all",
+        action="store_true",
+        help="Add a final table combining all experiments across sections",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output markdown path (default: outputs/run_{N}/retrieval_comparison.md)",
+    )
+    parser.add_argument(
+        "--list", action="store_true", help="List all available experiments and exit"
+    )
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
+    """Compare retrieval experiments and generate a markdown report."""
     args = parse_args()
     all_discovered = discover_experiments(args.run_num)
 
@@ -394,7 +426,9 @@ def main():
                 sw_str = f" [sw={'yes' if sw else 'no'}]" if sw is not None else ""
                 agg = exp["metrics"]["aggregate_metrics"]
                 mrr = agg.get("avg_mrr", 0)
-                print(f"  {retriever}/{exp['experiment_id']}: MRR={mrr:.3f}{sw_str} -- {desc}")
+                print(
+                    f"  {retriever}/{exp['experiment_id']}: MRR={mrr:.3f}{sw_str} -- {desc}"
+                )
         return
 
     if not args.sections:

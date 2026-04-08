@@ -1,16 +1,16 @@
-"""
-Bling node, Shop nodes, and economy relationships for Neo4j.
-"""
+"""Bling node, Shop nodes, and economy relationships for Neo4j."""
 
-from typing import List
+import neo4j
 
 from data_processing.bling import EnemyBlingDrop, ShopListing
+from neo4j_kg.query_utils import single_value
 from utils.logger import logger
 
 
-def create_bling_and_shops(tx, urls: dict[str, str] = None):
-    """
-    Create the Bling node and Shop nodes.
+def create_bling_and_shops(
+    tx: neo4j.ManagedTransaction, urls: dict[str, str] | None = None
+) -> int:
+    """Create the Bling node and Shop nodes.
 
     Args:
         tx: Neo4j transaction
@@ -52,14 +52,15 @@ def create_bling_and_shops(tx, urls: dict[str, str] = None):
         woolly_snail_url=urls.get("The Woolly Snail"),
         charm_merchant_url=urls.get("Charm Merchant"),
     )
-    count = result.single()["created"]
+    count = single_value(result, "created")
     logger.info(f"Created Bling node and {count - 1} Shop nodes")
     return count
 
 
-def create_drops_bling_relationships(tx, drops: List[EnemyBlingDrop]):
-    """
-    Create DROPS_BLING relationships between enemy Cards and the Bling node.
+def create_drops_bling_relationships(
+    tx: neo4j.ManagedTransaction, drops: list[EnemyBlingDrop]
+) -> int:
+    """Create DROPS_BLING relationships between enemy Cards and the Bling node.
 
     For multi-phase bosses (TRANSFORMS_INTO), only the final phase drops bling.
 
@@ -81,7 +82,7 @@ def create_drops_bling_relationships(tx, drops: List[EnemyBlingDrop]):
     RETURN count(r) AS created
     """
     result = tx.run(query, drops=drop_data)
-    count = result.single()["created"]
+    count = single_value(result, "created")
 
     # For multi-phase cards, propagate DROPS_BLING to the final phase
     # (the one with no outgoing TRANSFORMS_INTO)
@@ -94,7 +95,7 @@ def create_drops_bling_relationships(tx, drops: List[EnemyBlingDrop]):
     SET r2.amount = r.amount
     RETURN count(r2) AS propagated
     """)
-    propagated = propagate.single()["propagated"]
+    propagated = single_value(propagate, "propagated")
 
     # Remove DROPS_BLING from non-final phases (cards that TRANSFORMS_INTO something else)
     cleanup = tx.run("""
@@ -103,16 +104,22 @@ def create_drops_bling_relationships(tx, drops: List[EnemyBlingDrop]):
     DELETE r
     RETURN count(r) AS removed
     """)
-    removed = cleanup.single()["removed"]
+    removed = single_value(cleanup, "removed")
 
     final_count = count + propagated - removed
-    logger.info(f"Created {final_count} DROPS_BLING relationships ({propagated} propagated to final phase, {removed} removed from non-final phases)")
+    logger.info(
+        f"Created {final_count} DROPS_BLING relationships ({propagated} propagated to final phase, {removed} removed from non-final phases)"
+    )
     return final_count
 
 
-def create_shop_sells_relationships(tx, shop_name: str, listings: List[ShopListing], target_label: str):
-    """
-    Create SELLS relationships between a Shop and Items/Charms.
+def create_shop_sells_relationships(
+    tx: neo4j.ManagedTransaction,
+    shop_name: str,
+    listings: list[ShopListing],
+    target_label: str,
+) -> int:
+    """Create SELLS relationships between a Shop and Items/Charms.
 
     Args:
         tx: Neo4j transaction
@@ -123,7 +130,10 @@ def create_shop_sells_relationships(tx, shop_name: str, listings: List[ShopListi
     Returns:
         Number of relationships created
     """
-    listing_data = [{"card_name": item.card_name, "base_price": item.base_price} for item in listings]
+    listing_data = [
+        {"card_name": item.card_name, "base_price": item.base_price}
+        for item in listings
+    ]
 
     # Use dynamic label matching via property name
     if target_label == "Charm":
@@ -146,6 +156,8 @@ def create_shop_sells_relationships(tx, shop_name: str, listings: List[ShopListi
         """
 
     result = tx.run(query, listings=listing_data, shop_name=shop_name)
-    count = result.single()["created"]
-    logger.info(f"Created {count} SELLS relationships for {shop_name} -> {target_label}")
+    count = single_value(result, "created")
+    logger.info(
+        f"Created {count} SELLS relationships for {shop_name} -> {target_label}"
+    )
     return count

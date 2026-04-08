@@ -1,11 +1,12 @@
-"""
-Keyword node creation and card/charm-keyword relationship management for Neo4j.
-"""
+"""Keyword node creation and card/charm-keyword relationship management for Neo4j."""
 
 import re
-from typing import List
+from typing import Any
+
+import neo4j
 
 from data_processing.keywords import KeywordInfo
+from neo4j_kg.query_utils import single_value
 from utils.logger import logger
 
 
@@ -46,9 +47,10 @@ def _keyword_matches_text(keyword_lower: str, text_lower: str) -> bool:
     return False
 
 
-def create_keywords_from_parsed(tx, keywords: List[KeywordInfo], url: str = None):
-    """
-    Create Keyword nodes from parsed KeywordInfo objects.
+def create_keywords_from_parsed(
+    tx: neo4j.ManagedTransaction, keywords: list[KeywordInfo], url: str | None = None
+) -> int:
+    """Create Keyword nodes from parsed KeywordInfo objects.
 
     Args:
         tx: Neo4j transaction
@@ -78,14 +80,15 @@ def create_keywords_from_parsed(tx, keywords: List[KeywordInfo], url: str = None
     RETURN count(k) AS created
     """
     result = tx.run(query, keywords=keyword_data, url=url)
-    count = result.single()["created"]
+    count = single_value(result, "created")
     logger.info(f"Created {count} Keyword nodes")
     return count
 
 
-def create_card_keyword_relationships(tx, cards_data):
-    """
-    Create HAS_KEYWORD relationships between Cards and Keyword nodes.
+def create_card_keyword_relationships(
+    tx: neo4j.ManagedTransaction, cards_data: list[dict[str, Any]]
+) -> int:
+    """Create HAS_KEYWORD relationships between Cards and Keyword nodes.
 
     Scans each card's abilities_specific text for keyword name matches.
     Keyword nodes must be created first via create_keywords_from_parsed().
@@ -132,9 +135,8 @@ def create_card_keyword_relationships(tx, cards_data):
     return len(card_keywords)
 
 
-def create_charm_keyword_relationships(tx):
-    """
-    Create HAS_KEYWORD relationships between Charms and Keyword nodes.
+def create_charm_keyword_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create HAS_KEYWORD relationships between Charms and Keyword nodes.
 
     Scans each charm's description text for keyword name matches.
     Keyword and Charm nodes must be created first.
@@ -150,7 +152,9 @@ def create_charm_keyword_relationships(tx):
         [r["name"] for r in keyword_result], key=len, reverse=True
     )
 
-    charm_result = tx.run("MATCH (ch:Charm) RETURN ch.name AS name, ch.description AS description")
+    charm_result = tx.run(
+        "MATCH (ch:Charm) RETURN ch.name AS name, ch.description AS description"
+    )
     charm_keywords = []
     for charm in charm_result:
         description = charm["description"] or ""

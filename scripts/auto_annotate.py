@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Standalone CLI for batch auto-annotation of retrieval experiments.
+"""Standalone CLI for batch auto-annotation of retrieval experiments.
 
 Matches retrieved chunks against ground truth doc_references
 and saves relevance annotations. Useful for re-running auto-annotation
@@ -21,17 +20,22 @@ from gui.auto_annotator import run_auto_annotation
 from utils.logger import logger
 
 
-def main():
+def main() -> None:
+    """Batch auto-annotate retrieval results using ground truth URL matching."""
     parser = argparse.ArgumentParser(
         description="Batch auto-annotate retrieval results using ground truth URL matching"
     )
     parser.add_argument(
-        "--experiment-path", type=str, required=True,
-        help="Path to experiment directory (e.g., outputs/run_1/retrievals/bm25/001)"
+        "--experiment-path",
+        type=str,
+        required=True,
+        help="Path to experiment directory (e.g., outputs/run_1/retrievals/bm25/001)",
     )
     parser.add_argument(
-        "--queries-json", type=str, default=None,
-        help="Path to queries JSON with doc_references (required for auto-annotation)"
+        "--queries-json",
+        type=str,
+        default=None,
+        help="Path to queries JSON with doc_references (required for auto-annotation)",
     )
 
     args = parser.parse_args()

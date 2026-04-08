@@ -1,10 +1,9 @@
-"""
-Bell node creation and relationship linking for Neo4j.
-"""
+"""Bell node creation and relationship linking for Neo4j."""
 
-from typing import List
+import neo4j
 
 from data_processing.bells import BellCategory, BellInfo
+from neo4j_kg.query_utils import single_value
 from utils.logger import logger
 
 # Maps BellCategory enum values to BellType node names
@@ -70,9 +69,10 @@ _GLOOM_BELL_MAP_EVENTS = [
 ]
 
 
-def create_bells_from_parsed(tx, bells: List[BellInfo]):
-    """
-    Create Bell nodes, BellType nodes, and HAS_BELL_TYPE relationships.
+def create_bells_from_parsed(
+    tx: neo4j.ManagedTransaction, bells: list[BellInfo]
+) -> int:
+    """Create Bell nodes, BellType nodes, and HAS_BELL_TYPE relationships.
 
     Bells with individual wiki pages get their own URL; others get None
     (they'll still link to the summary Bells.html Document).
@@ -112,23 +112,19 @@ def create_bells_from_parsed(tx, bells: List[BellInfo]):
     RETURN count(bell) AS created
     """
     result = tx.run(query, bells=bell_data)
-    count = result.single()["created"]
+    count = single_value(result, "created")
     logger.info(f"Created {count} Bell nodes with BellType relationships")
     return count
 
 
-def _create_bell_charm_text_matches(tx):
-    """
-    Create APPLIES_CHARM relationships by text-matching Charm names
-    in bell descriptions/notes.
+def _create_bell_charm_text_matches(tx: neo4j.ManagedTransaction) -> int:
+    """Create APPLIES_CHARM relationships by text-matching Charm names in bell descriptions/notes.
 
     Returns:
         Number of relationships created
     """
     charm_result = tx.run("MATCH (ch:Charm) RETURN ch.name AS name")
-    all_charm_names = sorted(
-        [r["name"] for r in charm_result], key=len, reverse=True
-    )
+    all_charm_names = sorted([r["name"] for r in charm_result], key=len, reverse=True)
 
     bell_result = tx.run(
         "MATCH (b:Bell) RETURN b.name AS name, b.description AS description, b.notes AS notes"
@@ -144,19 +140,23 @@ def _create_bell_charm_text_matches(tx):
                 )
 
     if charm_pairs:
-        tx.run("""
+        tx.run(
+            """
             UNWIND $pairs AS p
             MATCH (b:Bell {name: p.bell_name})
             MATCH (ch:Charm {name: p.charm_name})
             MERGE (b)-[:APPLIES_CHARM]->(ch)
-        """, pairs=charm_pairs)
-    logger.info(f"Created {len(charm_pairs)} APPLIES_CHARM relationships (text-matched)")
+        """,
+            pairs=charm_pairs,
+        )
+    logger.info(
+        f"Created {len(charm_pairs)} APPLIES_CHARM relationships (text-matched)"
+    )
     return len(charm_pairs)
 
 
-def _create_gloom_bell_cursed_charms(tx):
-    """
-    Link Gloom Bell to all cursed charms via APPLIES_CHARM.
+def _create_gloom_bell_cursed_charms(tx: neo4j.ManagedTransaction) -> int:
+    """Link Gloom Bell to all cursed charms via APPLIES_CHARM.
 
     Returns:
         Number of relationships created
@@ -167,14 +167,15 @@ def _create_gloom_bell_cursed_charms(tx):
         MERGE (b)-[:APPLIES_CHARM]->(ch)
         RETURN count(*) AS created
     """)
-    count = result.single()["created"]
-    logger.info(f"Created {count} APPLIES_CHARM relationships (Gloom Bell -> cursed charms)")
+    count = single_value(result, "created")
+    logger.info(
+        f"Created {count} APPLIES_CHARM relationships (Gloom Bell -> cursed charms)"
+    )
     return count
 
 
-def _create_tyrant_bell_crown(tx):
-    """
-    Link Tyrant Bell to Cursed Crown via INTRODUCES.
+def _create_tyrant_bell_crown(tx: neo4j.ManagedTransaction) -> int:
+    """Link Tyrant Bell to Cursed Crown via INTRODUCES.
 
     Tyrant Bell enables Cursed Crowns to appear in a run —
     distinct from APPLIES_CHARM.
@@ -188,14 +189,15 @@ def _create_tyrant_bell_crown(tx):
         MERGE (b)-[:INTRODUCES]->(cr)
         RETURN count(*) AS created
     """)
-    count = result.single()["created"]
-    logger.info(f"Created {count} INTRODUCES relationships (Tyrant Bell -> Cursed Crown)")
+    count = single_value(result, "created")
+    logger.info(
+        f"Created {count} INTRODUCES relationships (Tyrant Bell -> Cursed Crown)"
+    )
     return count
 
 
-def _create_bell_keyword_relationships(tx):
-    """
-    Create GRANTS_KEYWORD and AFFECTS_KEYWORD relationships.
+def _create_bell_keyword_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create GRANTS_KEYWORD and AFFECTS_KEYWORD relationships.
 
     GRANTS_KEYWORD: bell grants this keyword to cards (e.g. Noomlin Sun Bell adds Noomlin)
     AFFECTS_KEYWORD: bell modifies behavior of cards with this keyword (e.g. Breakfast Sun Bell)
@@ -211,14 +213,17 @@ def _create_bell_keyword_relationships(tx):
         for bell, kw in _BELL_GRANTS_KEYWORD_MAP.items()
     ]
     if grants_pairs:
-        result = tx.run("""
+        result = tx.run(
+            """
             UNWIND $pairs AS p
             MATCH (b:Bell {name: p.bell_name})
             MATCH (k:Keyword {name: p.keyword_name})
             MERGE (b)-[:GRANTS_KEYWORD]->(k)
             RETURN count(*) AS created
-        """, pairs=grants_pairs)
-        count = result.single()["created"]
+        """,
+            pairs=grants_pairs,
+        )
+        count = single_value(result, "created")
         total += count
         logger.info(f"Created {count} GRANTS_KEYWORD relationships")
 
@@ -228,49 +233,52 @@ def _create_bell_keyword_relationships(tx):
         for bell, kw in _BELL_AFFECTS_KEYWORD_MAP.items()
     ]
     if affects_pairs:
-        result = tx.run("""
+        result = tx.run(
+            """
             UNWIND $pairs AS p
             MATCH (b:Bell {name: p.bell_name})
             MATCH (k:Keyword {name: p.keyword_name})
             MERGE (b)-[:AFFECTS_KEYWORD]->(k)
             RETURN count(*) AS created
-        """, pairs=affects_pairs)
-        count = result.single()["created"]
+        """,
+            pairs=affects_pairs,
+        )
+        count = single_value(result, "created")
         total += count
         logger.info(f"Created {count} AFFECTS_KEYWORD relationships")
 
     return total
 
 
-def _create_bell_stat_relationships(tx):
-    """
-    Create MODIFIES_STAT relationships from curated bell-stat mappings.
+def _create_bell_stat_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create MODIFIES_STAT relationships from curated bell-stat mappings.
 
     Returns:
         Number of relationships created
     """
     pairs = [
-        {"bell_name": bell, "stat_name": stat}
-        for bell, stat in _BELL_STAT_MAP.items()
+        {"bell_name": bell, "stat_name": stat} for bell, stat in _BELL_STAT_MAP.items()
     ]
     if not pairs:
         return 0
 
-    result = tx.run("""
+    result = tx.run(
+        """
         UNWIND $pairs AS p
         MATCH (b:Bell {name: p.bell_name})
         MATCH (s:Stat {name: p.stat_name})
         MERGE (b)-[:MODIFIES_STAT]->(s)
         RETURN count(*) AS created
-    """, pairs=pairs)
-    count = result.single()["created"]
+    """,
+        pairs=pairs,
+    )
+    count = single_value(result, "created")
     logger.info(f"Created {count} MODIFIES_STAT relationships")
     return count
 
 
-def _create_bell_bling_relationships(tx):
-    """
-    Create AFFECTS_BLING relationships for bells that modify Bling economy.
+def _create_bell_bling_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create AFFECTS_BLING relationships for bells that modify Bling economy.
 
     Returns:
         Number of relationships created
@@ -278,48 +286,50 @@ def _create_bell_bling_relationships(tx):
     if not _BELL_BLING:
         return 0
 
-    result = tx.run("""
+    result = tx.run(
+        """
         UNWIND $bells AS bell_name
         MATCH (b:Bell {name: bell_name})
         MATCH (bl:Bling {name: "Bling"})
         MERGE (b)-[:AFFECTS_BLING]->(bl)
         RETURN count(*) AS created
-    """, bells=_BELL_BLING)
-    count = result.single()["created"]
+    """,
+        bells=_BELL_BLING,
+    )
+    count = single_value(result, "created")
     logger.info(f"Created {count} AFFECTS_BLING relationships")
     return count
 
 
-def _create_bell_card_relationships(tx):
-    """
-    Create ADDS_TO_FIGHT relationships for bells that add cards to fights.
+def _create_bell_card_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create ADDS_TO_FIGHT relationships for bells that add cards to fights.
 
     Returns:
         Number of relationships created
     """
     pairs = [
-        {"bell_name": bell, "card_name": card}
-        for bell, card in _BELL_CARD_MAP.items()
+        {"bell_name": bell, "card_name": card} for bell, card in _BELL_CARD_MAP.items()
     ]
     if not pairs:
         return 0
 
-    result = tx.run("""
+    result = tx.run(
+        """
         UNWIND $pairs AS p
         MATCH (b:Bell {name: p.bell_name})
         MATCH (c:Card {card_name: p.card_name})
         MERGE (b)-[:ADDS_TO_FIGHT]->(c)
         RETURN count(*) AS created
-    """, pairs=pairs)
-    count = result.single()["created"]
+    """,
+        pairs=pairs,
+    )
+    count = single_value(result, "created")
     logger.info(f"Created {count} ADDS_TO_FIGHT relationships")
     return count
 
 
-def _create_bell_target_relationships(tx):
-    """
-    Create TARGETS_CARD_TYPE relationships linking bells to the
-    CardType nodes they affect.
+def _create_bell_target_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create TARGETS_CARD_TYPE relationships linking bells to the CardType nodes they affect.
 
     Returns:
         Number of relationships created
@@ -332,22 +342,23 @@ def _create_bell_target_relationships(tx):
     if not pairs:
         return 0
 
-    result = tx.run("""
+    result = tx.run(
+        """
         UNWIND $pairs AS p
         MATCH (b:Bell {name: p.bell_name})
         MATCH (ct:CardType {name: p.card_type})
         MERGE (b)-[:TARGETS_CARD_TYPE]->(ct)
         RETURN count(*) AS created
-    """, pairs=pairs)
-    count = result.single()["created"]
+    """,
+        pairs=pairs,
+    )
+    count = single_value(result, "created")
     logger.info(f"Created {count} TARGETS_CARD_TYPE relationships")
     return count
 
 
-def _create_bell_map_event_relationships(tx):
-    """
-    Create AFFECTS_MAP_EVENT relationships. Currently only Gloom Bell
-    affects specific map events (card rewards can have cursed charms).
+def _create_bell_map_event_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create AFFECTS_MAP_EVENT relationships for Gloom Bell and map events.
 
     Returns:
         Number of relationships created
@@ -355,21 +366,23 @@ def _create_bell_map_event_relationships(tx):
     if not _GLOOM_BELL_MAP_EVENTS:
         return 0
 
-    result = tx.run("""
+    result = tx.run(
+        """
         UNWIND $events AS event_name
         MATCH (b:Bell {name: "Gloom Bell"})
         MATCH (me:MapEvent {name: event_name})
         MERGE (b)-[:AFFECTS_MAP_EVENT]->(me)
         RETURN count(*) AS created
-    """, events=_GLOOM_BELL_MAP_EVENTS)
-    count = result.single()["created"]
+    """,
+        events=_GLOOM_BELL_MAP_EVENTS,
+    )
+    count = single_value(result, "created")
     logger.info(f"Created {count} AFFECTS_MAP_EVENT relationships (Gloom Bell)")
     return count
 
 
-def create_bell_relationships(tx):
-    """
-    Create all bell linking relationships.
+def create_bell_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create all bell linking relationships.
 
     Orchestrates the creation of APPLIES_CHARM, GRANTS_KEYWORD,
     AFFECTS_KEYWORD, MODIFIES_STAT, AFFECTS_BLING, ADDS_TO_FIGHT,

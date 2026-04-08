@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Add embedding properties to existing Document nodes in Neo4j.
+"""Add embedding properties to existing Document nodes in Neo4j.
 
 This script allows adding embeddings from multiple providers to the same
 Document nodes, enabling multi-embedder testing without data duplication.
@@ -16,7 +15,6 @@ from dataclasses import dataclass
 from pathlib import Path
 import sys
 import time
-from typing import Any
 
 from tqdm import tqdm
 
@@ -35,6 +33,7 @@ from neo4j_kg.vector_store import create_embedding_index
 @dataclass
 class EmbedderConfig:
     """Configuration for an embedding provider."""
+
     name: str
     property_name: str
     index_name: str
@@ -51,7 +50,7 @@ def parse_args() -> argparse.Namespace:
         "--embedder",
         type=str,
         required=True,
-        help="Embedder name (e.g., 'hf', 'openai'). Must be defined in config.py"
+        help="Embedder name (e.g., 'hf', 'openai'). Must be defined in config.py",
     )
     return parser.parse_args()
 
@@ -69,7 +68,7 @@ def get_embedder_config(embedder_name: str) -> EmbedderConfig:
         property_name=config["property_name"],
         index_name=config["index_name"],
         model_name=config["model"],
-        dimension=config["dimension"]
+        dimension=config["dimension"],
     )
 
 
@@ -98,7 +97,9 @@ def get_documents(driver: Driver) -> list[tuple[str, str]]:
         return [(record["text"], record["element_id"]) for record in results]
 
 
-def load_embedding_model(embedder_name: str, model_name: str) -> Any:
+def load_embedding_model(
+    embedder_name: str, model_name: str
+) -> SentenceTransformer | OpenAI | None:
     """Load the appropriate embedding model based on provider."""
     logger.info(f"Loading embedding model: {model_name}...")
 
@@ -125,23 +126,30 @@ def load_embedding_model(embedder_name: str, model_name: str) -> Any:
 
 async def generate_batch_embeddings(
     embedder_name: str,
-    model: Any,
+    model: SentenceTransformer | OpenAI | None,
     model_name: str,
     texts: list[str],
-    async_client: ollama.AsyncClient | None = None
+    async_client: ollama.AsyncClient | None = None,
 ) -> list[list[float]]:
     """Generate embeddings for a batch of texts."""
     if embedder_name == "hf":
+        if not isinstance(model, SentenceTransformer):
+            raise TypeError("HF embedder requires SentenceTransformer model")
         embeddings = model.encode(texts, show_progress_bar=False)
         return [emb.tolist() for emb in embeddings]
 
     if embedder_name == "openai":
+        if not isinstance(model, OpenAI):
+            raise TypeError("OpenAI embedder requires OpenAI client")
         response = model.embeddings.create(input=texts, model=model_name)
         return [data.embedding for data in response.data]
 
     if embedder_name == "gemma":
-        response = await async_client.embed(model=model_name, input=texts)
-        return response['embeddings']
+        if async_client is None:
+            raise ValueError("Gemma embedder requires ollama.AsyncClient")
+        gemma_response = await async_client.embed(model=model_name, input=texts)
+        embeddings_result: list[list[float]] = gemma_response["embeddings"]
+        return embeddings_result
 
     raise ValueError(f"Unknown embedder: {embedder_name}")
 
@@ -150,12 +158,12 @@ def update_documents(
     driver: Driver,
     element_ids: list[str],
     embeddings: list[list[float]],
-    property_name: str
+    property_name: str,
 ) -> int:
     """Update Document nodes with embeddings."""
     updated = 0
     with driver.session() as session:
-        for element_id, embedding in zip(element_ids, embeddings):
+        for element_id, embedding in zip(element_ids, embeddings, strict=False):
             query = f"""
             MATCH (d:Document)
             WHERE elementId(d) = $element_id
@@ -179,10 +187,11 @@ def log_summary(config: EmbedderConfig, total_updated: int) -> None:
     logger.info("")
     logger.info("You can now use this embedder in batch retrieval:")
     logger.info("  - type: vector")
-    logger.info(f"    embedder: \"{config.name}\"")
+    logger.info(f'    embedder: "{config.name}"')
 
 
-async def main():
+async def main() -> None:
+    """Add embeddings from a specified provider to Document nodes."""
     args = parse_args()
     config = get_embedder_config(args.embedder)
 
@@ -194,7 +203,7 @@ async def main():
 
     driver = GraphDatabase.driver(
         settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value())
+        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
     )
 
     try:
@@ -204,7 +213,9 @@ async def main():
         # Check for existing embeddings
         existing_count = check_existing_embeddings(driver, config.property_name)
         if existing_count > 0:
-            logger.info(f"Property '{config.property_name}' already exists on {existing_count} documents")
+            logger.info(
+                f"Property '{config.property_name}' already exists on {existing_count} documents"
+            )
             logger.info("Skipping embedding generation (already exists)")
             return
 
@@ -226,7 +237,7 @@ async def main():
 
         with tqdm(total=len(documents), desc="Embedding documents", unit="doc") as pbar:
             for i in range(0, len(documents), batch_size):
-                batch = documents[i:i + batch_size]
+                batch = documents[i : i + batch_size]
                 batch_texts = [doc[0] for doc in batch]
                 batch_ids = [doc[1] for doc in batch]
 
@@ -241,18 +252,22 @@ async def main():
                     f"{batch_time:.2f}s ({len(batch_texts) / batch_time:.1f} docs/sec)"
                 )
 
-                updated = update_documents(driver, batch_ids, embeddings, config.property_name)
+                updated = update_documents(
+                    driver, batch_ids, embeddings, config.property_name
+                )
                 total_updated += updated
                 pbar.update(len(batch))
 
-        logger.info(f"Successfully added {config.property_name} to {total_updated} documents")
+        logger.info(
+            f"Successfully added {config.property_name} to {total_updated} documents"
+        )
 
         # Create vector index
         logger.info(f"Creating vector index: {config.index_name}...")
         create_embedding_index(
             property_name=config.property_name,
             index_name=config.index_name,
-            dimension=config.dimension
+            dimension=config.dimension,
         )
         logger.info(f"Vector index '{config.index_name}' created")
 

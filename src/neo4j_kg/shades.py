@@ -1,17 +1,20 @@
-from typing import List
+import neo4j
 
 from data_processing.shades import SummonInfo
+from neo4j_kg.query_utils import single_value
 from utils.logger import logger
 
 
-def create_summon_relationships(tx, summons: List[SummonInfo]) -> int:
-    """
-    Create SUMMONS relationships between cards.
+def create_summon_relationships(
+    tx: neo4j.ManagedTransaction, summons: list[SummonInfo]
+) -> int:
+    """Create SUMMONS relationships between cards.
 
     Links summoner cards (items, companions, or shades) to the shades they summon.
     e.g., (Beepop Mask)-[:SUMMONS]->(Beepop)
 
     Args:
+        tx: Neo4j managed transaction
         summons: List of SummonInfo with summoner_name and shade_name
 
     Returns:
@@ -20,7 +23,9 @@ def create_summon_relationships(tx, summons: List[SummonInfo]) -> int:
     if not summons:
         return 0
 
-    pairs = [{'summoner_name': s.summoner_name, 'shade_name': s.shade_name} for s in summons]
+    pairs = [
+        {"summoner_name": s.summoner_name, "shade_name": s.shade_name} for s in summons
+    ]
 
     query = """
     UNWIND $pairs AS pair
@@ -30,6 +35,6 @@ def create_summon_relationships(tx, summons: List[SummonInfo]) -> int:
     RETURN count(*) AS created
     """
     result = tx.run(query, pairs=pairs)
-    count = result.single()["created"]
+    count = single_value(result, "created")
     logger.info(f"Created {count} SUMMONS relationships")
     return count

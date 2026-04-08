@@ -1,5 +1,4 @@
-"""
-VectorThenCypherRetriever for WildFrostRAG.
+"""VectorThenCypherRetriever for WildFrostRAG.
 
 Combines vector similarity search with graph traversal to enrich results
 with related Card, Tribe, CardType, Keyword, Stat, and other graph data.
@@ -9,7 +8,8 @@ The name "VectorThenCypher" makes the order explicit:
 2. Cypher traversal SECOND (enrich with graph data)
 """
 
-from typing import List, Dict, Any, Optional, Callable
+from typing import Any
+from collections.abc import Callable
 
 from neo4j import Driver
 
@@ -19,8 +19,7 @@ from rag.retrievers.traversal_patterns import GRAPH_TRAVERSAL_QUERY
 
 
 class VectorThenCypherRetriever(BaseNeo4jRetriever):
-    """
-    Retriever that combines vector search with graph traversal enrichment.
+    """Retriever that combines vector search with graph traversal enrichment.
 
     This is the "Graph RAG" approach: use semantic similarity to find relevant
     Document nodes, then traverse the graph to enrich results with structured
@@ -37,11 +36,10 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         self,
         driver: Driver,
         embed_fn: Callable[[str], list[float]],
-        neo4j_database: Optional[str] = None,
-        index_name: Optional[str] = None,
-    ):
-        """
-        Initialize the VectorThenCypherRetriever.
+        neo4j_database: str | None = None,
+        index_name: str | None = None,
+    ) -> None:
+        """Initialize the VectorThenCypherRetriever.
 
         Args:
             driver: Neo4j driver instance
@@ -53,9 +51,8 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         self._embed_fn = embed_fn
         self.index_name = index_name or settings.vector_index_name
 
-    def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Search using vector similarity + graph traversal.
+    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+        """Search using vector similarity + graph traversal.
 
         Args:
             query: Natural language query
@@ -79,4 +76,4 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         }
 
         results = self._execute_query(combined_query, params)
-        return self._add_metadata(results, 'vector_then_cypher')
+        return self._add_metadata(results, "vector_then_cypher")

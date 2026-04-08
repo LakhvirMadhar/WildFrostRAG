@@ -1,5 +1,4 @@
-"""
-AST-based code quality analyzer.
+"""AST-based code quality analyzer.
 
 Analyzes Python files for common code smells and complexity metrics.
 """
@@ -7,11 +6,21 @@ Analyzes Python files for common code smells and complexity metrics.
 import ast
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Generator
+from collections.abc import Generator
+
+# Thresholds for code quality analysis
+LONG_FUNCTION = 50  # lines
+MANY_ARGS = 5
+DEEP_NESTING = 4
+MANY_BRANCHES = 10
+LARGE_CLASS = 200  # lines
+MANY_METHODS = 15
 
 
 @dataclass
 class FunctionMetrics:
+    """Metrics collected for a single function."""
+
     name: str
     file: str
     line: int
@@ -26,6 +35,8 @@ class FunctionMetrics:
 
 @dataclass
 class ClassMetrics:
+    """Metrics collected for a single class."""
+
     name: str
     file: str
     line: int
@@ -37,6 +48,8 @@ class ClassMetrics:
 
 @dataclass
 class FileMetrics:
+    """Metrics collected for a single Python file."""
+
     path: str
     lines_of_code: int
     num_functions: int
@@ -49,7 +62,8 @@ class FileMetrics:
 class CodeAnalyzer(ast.NodeVisitor):
     """AST visitor that collects code metrics."""
 
-    def __init__(self, file_path: str, source: str):
+    def __init__(self, file_path: str, source: str) -> None:
+        """Initialize the analyzer for a single file."""
         self.file_path = file_path
         self.source = source
         self.lines = source.splitlines()
@@ -60,11 +74,16 @@ class CodeAnalyzer(ast.NodeVisitor):
 
     def _count_lines(self, node: ast.AST) -> int:
         """Count lines of code for a node."""
-        if hasattr(node, 'end_lineno') and hasattr(node, 'lineno'):
-            return node.end_lineno - node.lineno + 1
+        end_lineno = getattr(node, "end_lineno", None)
+        lineno = getattr(node, "lineno", None)
+        if end_lineno is not None and lineno is not None:
+            result: int = end_lineno - lineno + 1
+            return result
         return 0
 
-    def _has_docstring(self, node: ast.FunctionDef | ast.ClassDef) -> bool:
+    def _has_docstring(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+    ) -> bool:
         """Check if function/class has a docstring."""
         if node.body and isinstance(node.body[0], ast.Expr):
             if isinstance(node.body[0].value, ast.Constant):
@@ -75,8 +94,18 @@ class CodeAnalyzer(ast.NodeVisitor):
         """Count branching statements in a node."""
         count = 0
         for child in ast.walk(node):
-            if isinstance(child, (ast.If, ast.For, ast.While, ast.Try,
-                                  ast.ExceptHandler, ast.With, ast.Match)):
+            if isinstance(
+                child,
+                (
+                    ast.If,
+                    ast.For,
+                    ast.While,
+                    ast.Try,
+                    ast.ExceptHandler,
+                    ast.With,
+                    ast.Match,
+                ),
+            ):
                 count += 1
         return count
 
@@ -92,7 +121,7 @@ class CodeAnalyzer(ast.NodeVisitor):
                 max_depth = max(max_depth, child_depth)
         return max_depth
 
-    def _count_local_vars(self, node: ast.FunctionDef) -> int:
+    def _count_local_vars(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
         """Count local variable assignments."""
         count = 0
         for child in ast.walk(node):
@@ -102,7 +131,7 @@ class CodeAnalyzer(ast.NodeVisitor):
                 count += 1
         return count
 
-    def _count_returns(self, node: ast.FunctionDef) -> int:
+    def _count_returns(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
         """Count return statements."""
         count = 0
         for child in ast.walk(node):
@@ -110,26 +139,32 @@ class CodeAnalyzer(ast.NodeVisitor):
                 count += 1
         return count
 
-    def visit_Import(self, node: ast.Import):
+    def visit_Import(self, node: ast.Import) -> None:
+        """Count import statements."""
         self.num_imports += len(node.names)
         self.generic_visit(node)
 
-    def visit_ImportFrom(self, node: ast.ImportFrom):
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        """Count import-from statements."""
         self.num_imports += len(node.names)
         self.generic_visit(node)
 
-    def visit_FunctionDef(self, node: ast.FunctionDef):
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        """Analyze a function definition."""
         self._analyze_function(node)
         self.generic_visit(node)
 
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        """Analyze an async function definition."""
         self._analyze_function(node)
         self.generic_visit(node)
 
-    def _analyze_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef):
+    def _analyze_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         # Skip methods (they'll be counted in class analysis)
         # We still want to analyze them, just mark them differently
-        num_args = len(node.args.args) + len(node.args.posonlyargs) + len(node.args.kwonlyargs)
+        num_args = (
+            len(node.args.args) + len(node.args.posonlyargs) + len(node.args.kwonlyargs)
+        )
         if node.args.vararg:
             num_args += 1
         if node.args.kwarg:
@@ -149,9 +184,13 @@ class CodeAnalyzer(ast.NodeVisitor):
         )
         self.functions.append(metrics)
 
-    def visit_ClassDef(self, node: ast.ClassDef):
-        num_methods = sum(1 for child in node.body
-                         if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)))
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        """Analyze a class definition."""
+        num_methods = sum(
+            1
+            for child in node.body
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+        )
 
         # Count class-level attributes
         num_attrs = 0
@@ -177,7 +216,7 @@ class CodeAnalyzer(ast.NodeVisitor):
 def analyze_file(file_path: Path) -> FileMetrics | None:
     """Analyze a single Python file."""
     try:
-        source = file_path.read_text(encoding='utf-8')
+        source = file_path.read_text(encoding="utf-8")
         tree = ast.parse(source)
     except (SyntaxError, UnicodeDecodeError) as e:
         print(f"  Skipping {file_path}: {e}")
@@ -201,22 +240,17 @@ def find_python_files(directory: Path) -> Generator[Path, None, None]:
     """Find all Python files in directory, excluding venv and hidden dirs."""
     for path in directory.rglob("*.py"):
         parts = path.parts
-        if any(part.startswith('.') or part in ('venv', '.venv', '__pycache__', 'node_modules')
-               for part in parts):
+        if any(
+            part.startswith(".")
+            or part in ("venv", ".venv", "__pycache__", "node_modules")
+            for part in parts
+        ):
             continue
         yield path
 
 
-def print_report(all_metrics: list[FileMetrics]):
+def print_report(all_metrics: list[FileMetrics]) -> None:  # noqa: C901
     """Print analysis report."""
-    # Thresholds for "bad" code
-    LONG_FUNCTION = 50  # lines
-    MANY_ARGS = 5
-    DEEP_NESTING = 4
-    MANY_BRANCHES = 10
-    LARGE_CLASS = 200  # lines
-    MANY_METHODS = 15
-
     print("\n" + "=" * 70)
     print("CODE QUALITY REPORT")
     print("=" * 70)
@@ -243,8 +277,12 @@ def print_report(all_metrics: list[FileMetrics]):
     class_doc_pct = (classes_with_docs / total_classes * 100) if total_classes else 0
 
     print("\nDOCSTRING COVERAGE")
-    print(f"  Functions with docstrings: {funcs_with_docs}/{total_functions} ({func_doc_pct:.1f}%)")
-    print(f"  Classes with docstrings: {classes_with_docs}/{total_classes} ({class_doc_pct:.1f}%)")
+    print(
+        f"  Functions with docstrings: {funcs_with_docs}/{total_functions} ({func_doc_pct:.1f}%)"
+    )
+    print(
+        f"  Classes with docstrings: {classes_with_docs}/{total_classes} ({class_doc_pct:.1f}%)"
+    )
 
     # Problem areas
     print(f"\n{'=' * 70}")
@@ -294,7 +332,9 @@ def print_report(all_metrics: list[FileMetrics]):
             print(f"  {c.file}:{c.line} - {c.name} - {c.num_methods} methods")
 
     # No issues found
-    if not any([long_funcs, many_args, deep_nest, branchy, large_classes, method_heavy]):
+    if not any(
+        [long_funcs, many_args, deep_nest, branchy, large_classes, method_heavy]
+    ):
         print("\n[OK] No major issues found!")
 
     # Top 10 largest functions
@@ -303,16 +343,23 @@ def print_report(all_metrics: list[FileMetrics]):
     print("=" * 70)
     for f in sorted(all_functions, key=lambda x: x.lines_of_code, reverse=True)[:10]:
         doc_marker = "[D]" if f.has_docstring else "  "
-        print(f"  {doc_marker} {f.lines_of_code:3d} lines | {f.name}() @ {f.file}:{f.line}")
+        print(
+            f"  {doc_marker} {f.lines_of_code:3d} lines | {f.name}() @ {f.file}:{f.line}"
+        )
 
     print()
 
 
-def main():
+def main() -> None:
+    """Run code quality analysis on the specified path."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Analyze Python code quality using AST")
-    parser.add_argument("path", nargs="?", default=".", help="Directory or file to analyze")
+    parser = argparse.ArgumentParser(
+        description="Analyze Python code quality using AST"
+    )
+    parser.add_argument(
+        "path", nargs="?", default=".", help="Directory or file to analyze"
+    )
     args = parser.parse_args()
 
     target = Path(args.path)

@@ -1,5 +1,4 @@
-"""
-Bells parsing for WildFrostRAG.
+"""Bells parsing for WildFrostRAG.
 
 Parses the Bells wiki page to extract Sun Bells, Storm Bells, and Modifier Bells.
 """
@@ -8,9 +7,8 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
 
-from bs4 import BeautifulSoup, Comment
+from bs4 import BeautifulSoup, Comment, Tag
 
 from data_processing.text_utils import clean_element_text
 from utils.logger import logger
@@ -20,6 +18,7 @@ _clean_text = clean_element_text
 
 class BellCategory(Enum):
     """Categories of bells in the game."""
+
     SUN = "sun"
     STORM = "storm"
     MODIFIER = "modifier"
@@ -28,21 +27,22 @@ class BellCategory(Enum):
 @dataclass
 class BellInfo:
     """Represents a Bell from the game."""
+
     name: str
     category: BellCategory
     description: str
-    notes: Optional[str] = None
-    storm_strength: Optional[int] = None
-    url: Optional[str] = None
-    bell_html: Optional[str] = None
+    notes: str | None = None
+    storm_strength: int | None = None
+    url: str | None = None
+    bell_html: str | None = None
 
     def sanitized_name(self) -> str:
         """Get sanitized bell name safe for filenames."""
-        return re.sub(r'[\\/:*?"<>|]', '', self.name)
+        return re.sub(r'[\\/:*?"<>|]', "", self.name)
 
     def save_path(self) -> str:
         """Generate the save path for this bell's HTML."""
-        return f'data/structured_outputs/bells/{self.sanitized_name()}.html'
+        return f"data/structured_outputs/bells/{self.sanitized_name()}.html"
 
     def save_html(self) -> bool:
         """Save the bell's HTML to file."""
@@ -54,17 +54,17 @@ class BellInfo:
             save_path = Path(self.save_path())
             save_path.parent.mkdir(parents=True, exist_ok=True)
 
-            soup = BeautifulSoup(self.bell_html, 'html.parser')
+            soup = BeautifulSoup(self.bell_html, "html.parser")
             comments = soup.find_all(string=lambda text: isinstance(text, Comment))
             for comment in comments:
                 comment.extract()
 
-            with open(save_path, 'w', encoding='utf-8') as f:
+            with open(save_path, "w", encoding="utf-8") as f:
                 f.write(soup.prettify())
             return True
 
         except Exception as e:
-            logger.error(f'Failed to save HTML for {self.name}: {e}')
+            logger.error(f"Failed to save HTML for {self.name}: {e}")
             return False
 
 
@@ -78,17 +78,16 @@ _TABLE_CATEGORY_MAP = {
 }
 
 
-def _extract_url(name_cell, base_url: str) -> Optional[str]:
+def _extract_url(name_cell: Tag, base_url: str) -> str | None:
     """Extract bell URL from the name cell's <a href>. Skips red links (pages that don't exist)."""
-    link = name_cell.find('a')
-    if link and link.get('href') and 'new' not in (link.get('class') or []):
+    link = name_cell.find("a")
+    if link and link.get("href") and "new" not in (link.get("class") or []):
         return f"{base_url}{link['href']}"
     return None
 
 
-def parse_bells_page(html: str, base_url: str = "") -> List[BellInfo]:
-    """
-    Parse the Bells wiki page HTML to extract all bells.
+def parse_bells_page(html: str, base_url: str = "") -> list[BellInfo]:
+    """Parse the Bells wiki page HTML to extract all bells.
 
     Args:
         html: Raw HTML content of the Bells page
@@ -98,7 +97,7 @@ def parse_bells_page(html: str, base_url: str = "") -> List[BellInfo]:
         List of BellInfo objects
     """
     soup = BeautifulSoup(html, "html.parser")
-    bells: List[BellInfo] = []
+    bells: list[BellInfo] = []
 
     tables = soup.find_all("table", class_="wikitable")
 
@@ -128,14 +127,16 @@ def parse_bells_page(html: str, base_url: str = "") -> List[BellInfo]:
                 except ValueError:
                     storm_strength = None
 
-                bells.append(BellInfo(
-                    name=name,
-                    category=category,
-                    description=description,
-                    notes=notes,
-                    storm_strength=storm_strength,
-                    url=url,
-                ))
+                bells.append(
+                    BellInfo(
+                        name=name,
+                        category=category,
+                        description=description,
+                        notes=notes,
+                        storm_strength=storm_strength,
+                        url=url,
+                    )
+                )
             else:
                 if len(cells) < 4:
                     continue
@@ -144,13 +145,15 @@ def parse_bells_page(html: str, base_url: str = "") -> List[BellInfo]:
                 description = _clean_text(cells[2])
                 notes = _clean_text(cells[3]) or None
 
-                bells.append(BellInfo(
-                    name=name,
-                    category=category,
-                    description=description,
-                    notes=notes,
-                    url=url,
-                ))
+                bells.append(
+                    BellInfo(
+                        name=name,
+                        category=category,
+                        description=description,
+                        notes=notes,
+                        url=url,
+                    )
+                )
 
     logger.info(f"Parsed {len(bells)} bells from Bells page")
     return bells

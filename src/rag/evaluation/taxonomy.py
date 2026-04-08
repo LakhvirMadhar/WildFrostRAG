@@ -1,5 +1,4 @@
-"""
-Synthetic Taxonomy Generator for WildFrostRAG.
+"""Synthetic Taxonomy Generator for WildFrostRAG.
 
 This module provides functionality to generate axial codes from open codes
 using LLMs. It analyzes qualitative coding results from the evaluation process
@@ -18,8 +17,7 @@ from prompts.taxonomy_prompts import TAXONOMY_SYSTEM_PROMPT_V1, TAXONOMY_USER_PR
 
 
 async def generate_taxonomy(open_codes: list[str]) -> str:
-    """
-    Generate axial codes from open codes.
+    """Generate axial codes from open codes.
 
     Args:
         open_codes: List of open code strings
@@ -28,25 +26,27 @@ async def generate_taxonomy(open_codes: list[str]) -> str:
         Markdown formatted taxonomy with axial codes
     """
     # Remove duplicates and filter out empty values
-    unique_codes = list(set([code for code in open_codes if code and code.strip() != '']))
+    unique_codes = list({code for code in open_codes if code and code.strip() != ""})
 
     # Sort for consistency
     sorted_codes = sorted(unique_codes)
 
     # Create a numbered list of codes
-    codes_text = "\n".join([f"{i+1}. {code}" for i, code in enumerate(sorted_codes)])
+    codes_text = "\n".join([f"{i + 1}. {code}" for i, code in enumerate(sorted_codes)])
 
     # Format user message using the versioned prompt
     user_message = format_prompt_tuple(
-        TAXONOMY_USER_PROMPT_V1.prompt_tuple,
-        codes_text=codes_text
+        TAXONOMY_USER_PROMPT_V1.prompt_tuple, codes_text=codes_text
     )
 
     try:
         return await call_openai_api(
             messages=[
-                {"role": "system", "content": TAXONOMY_SYSTEM_PROMPT_V1.prompt_tuple[0]},
-                {"role": "user", "content": user_message}
+                {
+                    "role": "system",
+                    "content": TAXONOMY_SYSTEM_PROMPT_V1.prompt_tuple[0],
+                },
+                {"role": "user", "content": user_message},
             ],
             model=settings.taxonomy_model,
             temperature=settings.taxonomy_temperature,
@@ -57,8 +57,7 @@ async def generate_taxonomy(open_codes: list[str]) -> str:
 
 
 async def generate_taxonomy_from_annotations(experiment_path: Path) -> None:
-    """
-    Generate axial codes taxonomy from a generation experiment's annotations.json.
+    """Generate axial codes taxonomy from a generation experiment's annotations.json.
 
     Args:
         experiment_path: Path to the generation experiment directory
@@ -71,12 +70,12 @@ async def generate_taxonomy_from_annotations(experiment_path: Path) -> None:
         logger.error(f"No annotations.json found at {annotations_path}")
         return
 
-    with open(annotations_path, "r", encoding="utf-8") as f:
+    with open(annotations_path, encoding="utf-8") as f:
         annotations = json.load(f)
 
     # Extract open_coding values from all annotated queries
     open_codes = []
-    for query_id, annotation in annotations.items():
+    for _query_id, annotation in annotations.items():
         if "open_coding" in annotation and annotation["open_coding"]:
             open_codes.append(annotation["open_coding"])
 
@@ -90,7 +89,9 @@ async def generate_taxonomy_from_annotations(experiment_path: Path) -> None:
     if output_path.exists():
         logger.warning(f"File already exists at {output_path}")
         logger.info("Skipping taxonomy generation to avoid overwriting existing file.")
-        logger.info("Delete or rename the existing file if you want to generate a new taxonomy.")
+        logger.info(
+            "Delete or rename the existing file if you want to generate a new taxonomy."
+        )
         return
 
     logger.info("Generating axial codes from open codes...")

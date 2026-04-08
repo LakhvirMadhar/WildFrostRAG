@@ -1,5 +1,1 @@
-"""
-To Put Streamlit Application Here (or maybe even FastAPI?)
-
-
-"""
+"""To Put Streamlit Application Here (or maybe even FastAPI?)."""

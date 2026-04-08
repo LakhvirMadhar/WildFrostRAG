@@ -5,12 +5,12 @@ from asyncio import Semaphore
 from bs4 import BeautifulSoup, Comment
 import aiohttp
 import requests
-from typing import List, Dict, Any, Optional
+from typing import Any
 from utils.logger import logger
 
-def scrape_sitemap(sitemap_url: str) -> List[Dict[str, Any]]:
-    """
-    Scrapes a sitemap XML file and extracts URLs with their last modification dates.
+
+def scrape_sitemap(sitemap_url: str) -> list[dict[str, Any]]:
+    """Scrapes a sitemap XML file and extracts URLs with their last modification dates.
 
     Args:
         sitemap_url (str): The URL pointing to the sitemap.xml file.
@@ -27,32 +27,37 @@ def scrape_sitemap(sitemap_url: str) -> List[Dict[str, Any]]:
     logger.info(f"Starting sitemap scrape for: {sitemap_url}")
 
     try:
-        response = requests.get(sitemap_url)
+        response = requests.get(sitemap_url, timeout=30)
         response.raise_for_status()
         logger.info(f"Successfully fetched sitemap: {sitemap_url}")
 
-        soup = BeautifulSoup(response.content, features='lxml-xml')
-        url_tags = soup.find_all('url')
+        soup = BeautifulSoup(response.content, features="lxml-xml")
+        url_tags = soup.find_all("url")
         logger.info(f"Found {len(url_tags)} URLs in sitemap")
 
         sitemap_links_to_scrape = []
         for url_tag in url_tags:
+            loc_element = url_tag.find("loc")
+            lastmod_element = url_tag.find("lastmod")
 
-            loc_tag = url_tag.find('loc').text.strip()
-            lastmod_tag = url_tag.find('lastmod').text.strip()
-
-            if loc_tag is None:
+            if loc_element is None:
                 logger.warning("Found URL tag without 'loc' element, skipping")
                 continue
 
-            dict_item = {
-                'url': loc_tag,
-                'last_updated': lastmod_tag
-            }
+            loc_tag = loc_element.text.strip()
+            lastmod_tag = lastmod_element.text.strip() if lastmod_element else ""
+
+            if not loc_tag:
+                logger.warning("Found URL tag without 'loc' element, skipping")
+                continue
+
+            dict_item = {"url": loc_tag, "last_updated": lastmod_tag}
 
             sitemap_links_to_scrape.append(dict_item)
 
-        logger.info(f"Successfully parsed {len(sitemap_links_to_scrape)} URLs from sitemap")
+        logger.info(
+            f"Successfully parsed {len(sitemap_links_to_scrape)} URLs from sitemap"
+        )
         return sitemap_links_to_scrape
 
     except requests.exceptions.RequestException as e:
@@ -63,9 +68,8 @@ def scrape_sitemap(sitemap_url: str) -> List[Dict[str, Any]]:
         return []
 
 
-def process_sitemap_urls(sitemap_urls: List[Dict[str, Any]]) -> List[str]:
-    """
-    Extracts URL strings from sitemap data dictionaries.
+def process_sitemap_urls(sitemap_urls: list[dict[str, Any]]) -> list[str]:
+    """Extracts URL strings from sitemap data dictionaries.
 
     Args:
         sitemap_urls (List[Dict[str, Any]]): List of dictionaries containing
@@ -76,15 +80,16 @@ def process_sitemap_urls(sitemap_urls: List[Dict[str, Any]]) -> List[str]:
     """
     logger.info(f"Processing {len(sitemap_urls)} sitemap URLs")
 
-    urls = [url['url'] for url in sitemap_urls]
+    urls = [url["url"] for url in sitemap_urls]
 
     logger.info(f"Extracted {len(urls)} URL strings")
     return urls
 
 
-async def scrape_single_link(session: aiohttp.ClientSession, semaphore: Semaphore, url: str) -> Optional[str]:
-    """
-    Scrapes a single URL asynchronously with semaphore-based concurrency control.
+async def scrape_single_link(
+    session: aiohttp.ClientSession, semaphore: Semaphore, url: str
+) -> str | None:
+    """Scrapes a single URL asynchronously with semaphore-based concurrency control.
 
     Args:
         session (aiohttp.ClientSession): HTTP session for making requests.
@@ -94,7 +99,6 @@ async def scrape_single_link(session: aiohttp.ClientSession, semaphore: Semaphor
     Returns:
         Optional[str]: HTML content of the scraped page, or None if scraping failed.
     """
-
     async with semaphore:
         try:
             logger.debug(f"Starting scrape for: {url}")
@@ -114,9 +118,8 @@ async def scrape_single_link(session: aiohttp.ClientSession, semaphore: Semaphor
             return None
 
 
-async def scrape_multiple_links(urls:List[str], max_concurrent: int = 5) -> List[str]:
-    """
-    Scrape multiple URLs asynchronously with concurrent request limiting
+async def scrape_multiple_links(urls: list[str], max_concurrent: int = 5) -> list[str]:
+    """Scrape multiple URLs asynchronously with concurrent request limiting.
 
     Args:
         urls: List of URL strings to scrape
@@ -126,7 +129,9 @@ async def scrape_multiple_links(urls:List[str], max_concurrent: int = 5) -> List
         List[str]: List of HTML content from scraped pages. Failed requests
                    return None in their respective positions.
     """
-    logger.info(f"Starting batch scrape of {len(urls)} URLs with max_concurrent={max_concurrent}")
+    logger.info(
+        f"Starting batch scrape of {len(urls)} URLs with max_concurrent={max_concurrent}"
+    )
 
     if not urls:
         logger.warning("No URLs provided for scraping")
@@ -139,63 +144,74 @@ async def scrape_multiple_links(urls:List[str], max_concurrent: int = 5) -> List
         results = await asyncio.gather(*tasks)
 
         successful_scrapes = sum(1 for result in results if result is not None)
-        logger.info(f"Batch scrape completed: {successful_scrapes}/{len(urls)} URLs successful")
+        logger.info(
+            f"Batch scrape completed: {successful_scrapes}/{len(urls)} URLs successful"
+        )
 
-        return results
+        return [r for r in results if r is not None]
 
 
-def process_raw_html_output(html_output: str, sub_directory: str='raw_htmls') -> Optional[str]:
-    """
-    Processes HTML content by cleaning it and saving it to a file.
+def process_raw_html_output(
+    html_output: str, sub_directory: str = "raw_htmls"
+) -> str | None:
+    """Processes HTML content by cleaning it and saving it to a file.
 
     Args:
         html_output (str): Raw HTML content to process.
-        sub_directory (str):
+        sub_directory (str): Subdirectory within data/ to save the file.
+
     Returns:
         Optional[str]: The filename where the HTML was saved, or None if processing failed.
     """
-    soup = BeautifulSoup(html_output, 'html.parser')
+    soup = BeautifulSoup(html_output, "html.parser")
 
     # Remove the comments from the HTML
-    comments = soup.find_all(string=lambda text:isinstance(text, Comment))
+    comments = soup.find_all(string=lambda text: isinstance(text, Comment))
     for comment in comments:
         comment.extract()
 
     # Extract title & remove characters that are invalid in filenames
-    title = soup.find('title').text if soup.find('title') else "untitled"
-    sanitized_title = re.sub(r'[\\/:*?"<>|]', '', title)
+    title_tag = soup.find("title")
+    title = title_tag.text if title_tag else "untitled"
+    sanitized_title = re.sub(r'[\\/:*?"<>|]', "", title)
 
     if not sanitized_title:
         sanitized_title = "output"
 
     # Sanitize sub_directory to prevent path traversal
-    safe_sub_directory = os.path.normpath(sub_directory).replace('..', '').replace('/', '_').replace('\\', '_')
+    safe_sub_directory = (
+        os.path.normpath(sub_directory)
+        .replace("..", "")
+        .replace("/", "_")
+        .replace("\\", "_")
+    )
     filename = f"data/{safe_sub_directory}/{sanitized_title}.html"
 
     # Ensure the filename is within the expected directory
     full_path = os.path.abspath(filename)
-    expected_prefix = os.path.abspath('data')
+    expected_prefix = os.path.abspath("data")
     if not full_path.startswith(expected_prefix):
         logger.error(f"Invalid path detected: {filename}")
         return None
 
     # save the html
-    with open(filename, 'w', encoding='utf-8') as f:
+    with open(filename, "w", encoding="utf-8") as f:
         f.write(soup.prettify())
 
+    return None
 
-def save_raw_html_outputs(html_outputs: List[Optional[str]], sub_directory: str) -> None:
-    """
-    Processes and saves multiple HTML outputs to individual files.
+
+def save_raw_html_outputs(html_outputs: list[str | None], sub_directory: str) -> None:
+    """Processes and saves multiple HTML outputs to individual files.
 
     Args:
         html_outputs: List of HTML content strings from scraping results
-        sub_directory:
+        sub_directory: Subdirectory within data/ to save the files.
+
     Returns:
         None: This function performs file I/O operations but doesn't return a value.
     """
     logger.info(f"Starting to process {len(html_outputs)} HTML outputs")
     for html_output in html_outputs:
-        process_raw_html_output(html_output, sub_directory)
-
-
+        if html_output is not None:
+            process_raw_html_output(html_output, sub_directory)

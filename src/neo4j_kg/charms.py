@@ -1,10 +1,13 @@
-from typing import List
+import neo4j
 
 from data_processing.charms import CharmInfo
 from data_processing.tribes import TribeExclusivity
+from neo4j_kg.query_utils import single_value
 
 
-def create_charms_from_parsed(tx, charms: List[CharmInfo]):
+def create_charms_from_parsed(
+    tx: neo4j.ManagedTransaction, charms: list[CharmInfo]
+) -> int:
     """Create Charm nodes from parsed CharmInfo objects."""
     charm_data = [charm.to_dict() for charm in charms]
 
@@ -20,12 +23,13 @@ def create_charms_from_parsed(tx, charms: List[CharmInfo]):
     RETURN count(c) AS charmsCreated
     """
     result = tx.run(query, charms=charm_data)
-    return result.single()["charmsCreated"]
+    return single_value(result, "charmsCreated")
 
 
-def create_charm_tribe_relationships(tx, charms: List[CharmInfo]):
-    """
-    Create EXCLUSIVE_TO relationships between Charms and Tribes.
+def create_charm_tribe_relationships(
+    tx: neo4j.ManagedTransaction, charms: list[CharmInfo]
+) -> int:
+    """Create EXCLUSIVE_TO relationships between Charms and Tribes.
 
     "All" expands to all 3 tribes (same pattern as cards).
     Handles multi-tribe like "Snowdwellers,Clunkmasters".
@@ -41,13 +45,15 @@ def create_charm_tribe_relationships(tx, charms: List[CharmInfo]):
             tribes = exclusivity.get_tribes()
         except ValueError:
             # Handle multi-tribe like "Snowdwellers,Clunkmasters"
-            tribes = [t.strip() for t in charm.tribe_exclusive.split(',')]
+            tribes = [t.strip() for t in charm.tribe_exclusive.split(",")]
 
         for tribe_name in tribes:
-            charm_tribe_pairs.append({
-                'charm_name': charm.name,
-                'tribe_name': tribe_name,
-            })
+            charm_tribe_pairs.append(
+                {
+                    "charm_name": charm.name,
+                    "tribe_name": tribe_name,
+                }
+            )
 
     if not charm_tribe_pairs:
         return 0
@@ -60,4 +66,4 @@ def create_charm_tribe_relationships(tx, charms: List[CharmInfo]):
     RETURN count(*) AS created
     """
     result = tx.run(query, pairs=charm_tribe_pairs)
-    return result.single()["created"]
+    return single_value(result, "created")

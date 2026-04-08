@@ -1,9 +1,11 @@
+import neo4j
+
 from data_processing.crowns import CROWNS, CROWNABLE_CARD_TYPES
+from neo4j_kg.query_utils import single_value
 
 
-def create_crowns(tx, url: str = None):
-    """
-    Create Crown nodes from hardcoded crown definitions.
+def create_crowns(tx: neo4j.ManagedTransaction, url: str | None = None) -> int:
+    """Create Crown nodes from hardcoded crown definitions.
 
     Args:
         tx: Neo4j transaction
@@ -11,10 +13,10 @@ def create_crowns(tx, url: str = None):
     """
     crown_data = [
         {
-            'name': crown.name,
-            'removable': crown.removable,
-            'description': crown.description,
-            'max_per_card': crown.max_per_card,
+            "name": crown.name,
+            "removable": crown.removable,
+            "description": crown.description,
+            "max_per_card": crown.max_per_card,
         }
         for crown in CROWNS
     ]
@@ -29,16 +31,13 @@ def create_crowns(tx, url: str = None):
     RETURN count(c) AS crownsCreated
     """
     result = tx.run(query, crowns=crown_data, url=url)
-    return result.single()["crownsCreated"]
+    return single_value(result, "crownsCreated")
 
 
-def create_crown_relationships(tx):
-    """
-    Create all Crown relationships:
-    - IS_CURSED_VERSION_OF: Cursed Crown -> Crown
-    - CAN_BE_PLACED_ON: Crown -> CardType (companions, items, clunkers, pets)
-    - REDUCES: Cursed Crown -> Stat (Health, Attack)
-    - STARTS_WITH_PERMANENT: CardType:leaders -> Crown
+def create_crown_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create all Crown relationships in the knowledge graph.
+
+    Includes IS_CURSED_VERSION_OF, CAN_BE_PLACED_ON, REDUCES, and STARTS_WITH_PERMANENT.
     """
     relationships_created = 0
 
@@ -50,7 +49,7 @@ def create_crown_relationships(tx):
     RETURN count(*) AS created
     """
     result = tx.run(query_cursed)
-    relationships_created += result.single()["created"]
+    relationships_created += single_value(result, "created")
 
     # CAN_BE_PLACED_ON: Crown -> CardType
     query_placeable = """
@@ -61,7 +60,7 @@ def create_crown_relationships(tx):
     RETURN count(*) AS created
     """
     result = tx.run(query_placeable, card_types=CROWNABLE_CARD_TYPES)
-    relationships_created += result.single()["created"]
+    relationships_created += single_value(result, "created")
 
     # Cursed Crown can also be placed on same card types
     query_cursed_placeable = """
@@ -72,7 +71,7 @@ def create_crown_relationships(tx):
     RETURN count(*) AS created
     """
     result = tx.run(query_cursed_placeable, card_types=CROWNABLE_CARD_TYPES)
-    relationships_created += result.single()["created"]
+    relationships_created += single_value(result, "created")
 
     # REDUCES: Cursed Crown -> Stat (Health, Attack)
     # Find the cursed crown and create REDUCES relationships
@@ -89,9 +88,9 @@ def create_crown_relationships(tx):
                 query_reduces,
                 crown_name=crown.name,
                 stats=crown.reduces_stats,
-                amount=crown.reduces_amount
+                amount=crown.reduces_amount,
             )
-            relationships_created += result.single()["created"]
+            relationships_created += single_value(result, "created")
 
     # STARTS_WITH_PERMANENT: CardType:leaders -> Crown
     query_leader_crown = """
@@ -101,6 +100,6 @@ def create_crown_relationships(tx):
     RETURN count(*) AS created
     """
     result = tx.run(query_leader_crown)
-    relationships_created += result.single()["created"]
+    relationships_created += single_value(result, "created")
 
     return relationships_created

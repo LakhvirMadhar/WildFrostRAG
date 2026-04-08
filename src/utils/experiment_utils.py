@@ -1,5 +1,4 @@
-"""
-Experiment tracking utilities for metadata-driven experiment management.
+"""Experiment tracking utilities for metadata-driven experiment management.
 
 This module provides utilities for creating, managing, and querying experiments
 in a metadata-driven approach inspired by MLflow and Weights & Biases.
@@ -9,7 +8,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from utils.config import settings
 from utils.logger import logger
@@ -18,32 +17,26 @@ from utils.logger import logger
 @dataclass
 class QueryStats:
     """Statistics for queries processed in an experiment."""
+
     total: int
     successful: int
     failed: int = 0
 
 
 def get_next_experiment_id(base_path: Path) -> str:
-    """
-    Generate next sequential experiment ID with zero-padding.
+    """Generate next sequential experiment ID with zero-padding.
 
     Args:
         base_path: Directory containing existing experiments
 
     Returns:
         Next experiment ID (e.g., "001", "002", "003")
-
-    Examples:
-        >>> get_next_experiment_id(Path("outputs/run_1/retrievals/bm25"))
-        "001"  # If directory is empty
-        "003"  # If 001 and 002 exist
     """
     if not base_path.exists():
         return "001"
 
     existing_ids = [
-        int(d.name) for d in base_path.iterdir()
-        if d.is_dir() and d.name.isdigit()
+        int(d.name) for d in base_path.iterdir() if d.is_dir() and d.name.isdigit()
     ]
 
     if not existing_ids:
@@ -62,10 +55,9 @@ def create_retrieval_config(
     successful_queries: int,
     failed_queries: int = 0,
     description: str = "",
-    **kwargs
-) -> Dict[str, Any]:
-    """
-    Create config.json for retrieval experiment.
+    **kwargs: str | int | float | bool | None,
+) -> dict[str, Any]:
+    """Create config.json for retrieval experiment.
 
     Args:
         run_num: Run number
@@ -110,17 +102,30 @@ def create_retrieval_config(
 
     # Add text2cypher-specific fields
     if retriever_type == "text2cypher":
-        config["text2cypher_prompt_version"] = kwargs.get("text2cypher_prompt_version", "V1")
-        config["text2cypher_llm_model"] = kwargs.get("text2cypher_llm_model", settings.text2cypher_model)
-        config["text2cypher_temperature"] = kwargs.get("text2cypher_temperature", settings.text2cypher_temperature)
-        config["text2cypher_seed"] = kwargs.get("text2cypher_seed", settings.openai_seed)
+        config["text2cypher_prompt_version"] = kwargs.get(
+            "text2cypher_prompt_version", "V1"
+        )
+        config["text2cypher_llm_model"] = kwargs.get(
+            "text2cypher_llm_model", settings.text2cypher_model
+        )
+        config["text2cypher_temperature"] = kwargs.get(
+            "text2cypher_temperature", settings.text2cypher_temperature
+        )
+        config["text2cypher_seed"] = kwargs.get(
+            "text2cypher_seed", settings.openai_seed
+        )
         if "notes" in kwargs:
             config["notes"] = kwargs["notes"]
 
     # Add any additional metadata
     excluded_keys = {"embedding_model", "embedding_provider", "vector_index_name", "k"}
-    additional_metadata = {k: v for k, v in kwargs.items()
-                          if k not in config and k not in excluded_keys and not k.startswith("text2cypher_")}
+    additional_metadata = {
+        k: v
+        for k, v in kwargs.items()
+        if k not in config
+        and k not in excluded_keys
+        and not k.startswith("text2cypher_")
+    }
     config["additional_metadata"] = additional_metadata
 
     return config
@@ -131,15 +136,14 @@ def create_generation_config(
     generation_id: str,
     retrieval_reference: str,
     system_prompt_version: str,
-    rag_prompt_version: str,
+    rag_prompt_version: str | None,
     total_queries: int,
     successful_queries: int,
     failed_queries: int = 0,
     description: str = "",
-    **kwargs
-) -> Dict[str, Any]:
-    """
-    Create config.json for generation experiment.
+    **kwargs: str | int | float | bool | None,
+) -> dict[str, Any]:
+    """Create config.json for generation experiment.
 
     Args:
         run_num: Run number
@@ -167,7 +171,7 @@ def create_generation_config(
         "seed": kwargs.get("seed", 42),
         "prompts": {
             "system_prompt_version": system_prompt_version,
-            "rag_prompt_version": rag_prompt_version
+            "rag_prompt_version": rag_prompt_version,
         },
         "description": description,
         "dataset": "simple_reference_based_queries.csv",
@@ -177,30 +181,29 @@ def create_generation_config(
     }
 
     # Add any additional metadata
-    additional_metadata = {k: v for k, v in kwargs.items()
-                          if k not in ["llm_model", "temperature", "seed"]}
+    additional_metadata = {
+        k: v for k, v in kwargs.items() if k not in ["llm_model", "temperature", "seed"]
+    }
     config["additional_metadata"] = additional_metadata
 
     return config
 
 
-def save_config(config: Dict[str, Any], output_dir: Path) -> None:
-    """
-    Save config.json to experiment directory.
+def save_config(config: dict[str, Any], output_dir: Path) -> None:
+    """Save config.json to experiment directory.
 
     Args:
         config: Config dictionary
         output_dir: Directory to save config in
     """
     config_path = output_dir / "config.json"
-    with open(config_path, 'w', encoding='utf-8') as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
     logger.info(f"Saved config to {config_path}")
 
 
-def load_config(config_path: Path) -> Dict[str, Any]:
-    """
-    Load config.json from experiment directory.
+def load_config(config_path: Path) -> dict[str, Any]:
+    """Load config.json from experiment directory.
 
     Args:
         config_path: Path to config.json file
@@ -214,15 +217,16 @@ def load_config(config_path: Path) -> Dict[str, Any]:
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
-    with open(config_path, 'r', encoding='utf-8') as f:
-        config = json.load(f)
-
-    return config
+    with open(config_path, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        logger.error(f"Expected dict in {config_path}, got {type(data)}")
+        raise TypeError(f"Expected dict in {config_path}, got {type(data)}")
+    return data
 
 
 def validate_retrieval_reference(run_num: int, retrieval_reference: str) -> bool:
-    """
-    Validate that retrieval reference exists.
+    """Validate that retrieval reference exists.
 
     Args:
         run_num: Run number
@@ -230,18 +234,15 @@ def validate_retrieval_reference(run_num: int, retrieval_reference: str) -> bool
 
     Returns:
         True if reference exists, False otherwise
-
-    Examples:
-        >>> validate_retrieval_reference(1, "bm25/001")
-        True  # If outputs/run_1/retrievals/bm25/001 exists
     """
-    retrieval_path = settings.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
+    retrieval_path = (
+        settings.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
+    )
     return retrieval_path.exists() and (retrieval_path / "config.json").exists()
 
 
-def list_available_retrievals(run_num: int) -> List[str]:
-    """
-    List all available retrieval experiments for a run.
+def list_available_retrievals(run_num: int) -> list[str]:
+    """List all available retrieval experiments for a run.
 
     Args:
         run_num: Run number
@@ -267,22 +268,20 @@ def list_available_retrievals(run_num: int) -> List[str]:
     return sorted(available)
 
 
-def save_results(results: List[Dict[str, Any]], output_path: Path) -> None:
-    """
-    Save results to JSON file.
+def save_results(results: list[dict[str, Any]], output_path: Path) -> None:
+    """Save results to JSON file.
 
     Args:
         results: List of result dictionaries
         output_path: Path to save results
     """
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
     logger.info(f"Saved {len(results)} results to {output_path}")
 
 
-def load_results(results_path: Path) -> List[Dict[str, Any]]:
-    """
-    Load results from JSON file.
+def load_results(results_path: Path) -> list[dict[str, Any]]:
+    """Load results from JSON file.
 
     Args:
         results_path: Path to results file
@@ -293,38 +292,35 @@ def load_results(results_path: Path) -> List[Dict[str, Any]]:
     if not results_path.exists():
         raise FileNotFoundError(f"Results file not found: {results_path}")
 
-    with open(results_path, 'r', encoding='utf-8') as f:
-        results = json.load(f)
-
-    return results
+    with open(results_path, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        logger.error(f"Expected list in {results_path}, got {type(data)}")
+        raise TypeError(f"Expected list in {results_path}, got {type(data)}")
+    return data
 
 
 def save_cypher_queries(
-    queries: List[Dict[str, Any]],
+    queries: list[dict[str, Any]],
     output_path: Path,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None,
 ) -> None:
-    """
-    Save generated Cypher queries to JSON file (for text2cypher).
+    """Save generated Cypher queries to JSON file (for text2cypher).
 
     Args:
         queries: List of query dictionaries with generated Cypher
         output_path: Path to save queries
         metadata: Optional metadata about the queries
     """
-    output_data = {
-        "metadata": metadata or {},
-        "queries": queries
-    }
+    output_data = {"metadata": metadata or {}, "queries": queries}
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output_data, f, indent=2, ensure_ascii=False)
     logger.info(f"Saved {len(queries)} Cypher queries to {output_path}")
 
 
-def load_cypher_queries(queries_path: Path) -> Dict[str, Any]:
-    """
-    Load Cypher queries from JSON file.
+def load_cypher_queries(queries_path: Path) -> dict[str, Any]:
+    """Load Cypher queries from JSON file.
 
     Args:
         queries_path: Path to cypher_queries.json
@@ -335,30 +331,30 @@ def load_cypher_queries(queries_path: Path) -> Dict[str, Any]:
     if not queries_path.exists():
         raise FileNotFoundError(f"Cypher queries file not found: {queries_path}")
 
-    with open(queries_path, 'r', encoding='utf-8') as f:
+    with open(queries_path, encoding="utf-8") as f:
         data = json.load(f)
-
+    if not isinstance(data, dict):
+        logger.error(f"Expected dict in {queries_path}, got {type(data)}")
+        raise TypeError(f"Expected dict in {queries_path}, got {type(data)}")
     return data
 
 
 def save_individual_results(
-    individual_results_per_query: List[Dict[str, Any]],
+    individual_results_per_query: list[dict[str, Any]],
     output_path: Path,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None,
 ) -> None:
-    """
-    Save individual retriever results to JSON file (for hybrid retrievers).
+    """Save individual retriever results to JSON file (for hybrid retrievers).
 
     Args:
         individual_results_per_query: List of dicts with query_id and individual results
         output_path: Path to save individual results
         metadata: Optional metadata about the retrievers
     """
-    output_data = {
-        "metadata": metadata or {},
-        "queries": individual_results_per_query
-    }
+    output_data = {"metadata": metadata or {}, "queries": individual_results_per_query}
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output_data, f, indent=2, ensure_ascii=False)
-    logger.info(f"Saved individual results for {len(individual_results_per_query)} queries to {output_path}")
+    logger.info(
+        f"Saved individual results for {len(individual_results_per_query)} queries to {output_path}"
+    )

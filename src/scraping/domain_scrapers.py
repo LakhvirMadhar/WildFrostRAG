@@ -1,13 +1,24 @@
 import os
-from typing import List
 
 from data_processing.leaders import parse_leaders_page
 from data_processing.stats import parse_stats_page, StatInfo
 from data_processing.keywords import parse_keywords_page, KeywordInfo
 from data_processing.charms import parse_charms_page, CharmInfo
-from data_processing.bling import parse_bling_page, parse_shop_page, parse_clunker_prices, EnemyBlingDrop, ShopListing
+from data_processing.bling import (
+    parse_bling_page,
+    parse_shop_page,
+    parse_clunker_prices,
+    EnemyBlingDrop,
+    ShopListing,
+)
 from data_processing.bells import parse_bells_page, BellInfo
-from data_processing.map import parse_map_page, get_fight_page_mapping, ZoneInfo, MapEventInfo, FightSlotInfo
+from data_processing.map import (
+    parse_map_page,
+    get_fight_page_mapping,
+    ZoneInfo,
+    MapEventInfo,
+    FightSlotInfo,
+)
 from data_processing.fights import parse_fight_enemies
 from data_processing.shades import parse_shades_page, SummonInfo
 from data_processing.cards import CardInfo
@@ -21,8 +32,7 @@ PageUrls = dict[str, str]
 
 
 async def _get_html(page_name: str, output_subdir: str) -> tuple[str | None, PageUrls]:
-    """
-    Load HTML from cache if available, otherwise scrape it.
+    """Load HTML from cache if available, otherwise scrape it.
 
     Returns:
         Tuple of (html_content, page_urls). HTML is None if scraping failed.
@@ -36,7 +46,7 @@ async def _get_html(page_name: str, output_subdir: str) -> tuple[str | None, Pag
     return await scrape_wiki_page(page_name, output_subdir), urls
 
 
-async def scrape_leaders() -> tuple[List[CardInfo], PageUrls]:
+async def scrape_leaders() -> tuple[list[CardInfo], PageUrls]:
     """Parse the Leaders page (from cache or web)."""
     html, urls = await _get_html("Leaders", "leaders")
     if not html:
@@ -47,7 +57,7 @@ async def scrape_leaders() -> tuple[List[CardInfo], PageUrls]:
     return leader_cards, urls
 
 
-async def scrape_stats() -> tuple[List[StatInfo], PageUrls]:
+async def scrape_stats() -> tuple[list[StatInfo], PageUrls]:
     """Parse the Stats page (from cache or web)."""
     html, urls = await _get_html("Stats", "stats")
     if not html:
@@ -58,9 +68,8 @@ async def scrape_stats() -> tuple[List[StatInfo], PageUrls]:
     return stats, urls
 
 
-async def scrape_individual_stat_pages(stats: List[StatInfo]) -> PageUrls:
-    """
-    Scrape individual stat wiki pages for per-stat Document content.
+async def scrape_individual_stat_pages(stats: list[StatInfo]) -> PageUrls:
+    """Scrape individual stat wiki pages for per-stat Document content.
 
     Checks cache first (via stat.save_path()), scrapes any missing pages.
     Each stat's HTML is saved to data/structured_outputs/stats/{name}.html.
@@ -84,13 +93,17 @@ async def scrape_individual_stat_pages(stats: List[StatInfo]) -> PageUrls:
             continue
         stats_to_scrape.append(stat)
 
-    logger.info(f"Individual stat pages: {len(stats) - len(stats_to_scrape)} cached, {len(stats_to_scrape)} to scrape")
+    logger.info(
+        f"Individual stat pages: {len(stats) - len(stats_to_scrape)} cached, {len(stats_to_scrape)} to scrape"
+    )
 
     if stats_to_scrape:
-        urls = [s.url for s in stats_to_scrape]
-        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
+        urls = [s.url for s in stats_to_scrape if s.url is not None]
+        htmls = await scrape_multiple_links(
+            urls, max_concurrent=settings.max_concurrent_requests
+        )
 
-        for stat, html in zip(stats_to_scrape, htmls):
+        for stat, html in zip(stats_to_scrape, htmls, strict=False):
             if html is None:
                 logger.warning(f"Failed to scrape individual page for {stat.name}")
                 continue
@@ -100,7 +113,7 @@ async def scrape_individual_stat_pages(stats: List[StatInfo]) -> PageUrls:
     return page_urls
 
 
-async def scrape_keywords() -> tuple[List[KeywordInfo], PageUrls]:
+async def scrape_keywords() -> tuple[list[KeywordInfo], PageUrls]:
     """Parse the Keywords page (from cache or web)."""
     html, urls = await _get_html("Keywords", "keywords")
     if not html:
@@ -111,7 +124,7 @@ async def scrape_keywords() -> tuple[List[KeywordInfo], PageUrls]:
     return keywords, urls
 
 
-async def scrape_charms() -> tuple[List[CharmInfo], PageUrls]:
+async def scrape_charms() -> tuple[list[CharmInfo], PageUrls]:
     """Parse the Charms page (from cache or web)."""
     html, urls = await _get_html("Charms", "charms")
     if not html:
@@ -122,9 +135,8 @@ async def scrape_charms() -> tuple[List[CharmInfo], PageUrls]:
     return charms, urls
 
 
-async def scrape_individual_charm_pages(charms: List[CharmInfo]) -> PageUrls:
-    """
-    Scrape individual charm wiki pages for per-charm Document content.
+async def scrape_individual_charm_pages(charms: list[CharmInfo]) -> PageUrls:
+    """Scrape individual charm wiki pages for per-charm Document content.
 
     Checks cache first (via charm.save_path()), scrapes any missing pages.
     Each charm's HTML is saved to data/structured_outputs/charms/{name}.html.
@@ -148,13 +160,17 @@ async def scrape_individual_charm_pages(charms: List[CharmInfo]) -> PageUrls:
             continue
         charms_to_scrape.append(charm)
 
-    logger.info(f"Individual charm pages: {len(charms) - len(charms_to_scrape)} cached, {len(charms_to_scrape)} to scrape")
+    logger.info(
+        f"Individual charm pages: {len(charms) - len(charms_to_scrape)} cached, {len(charms_to_scrape)} to scrape"
+    )
 
     if charms_to_scrape:
-        urls = [c.url for c in charms_to_scrape]
-        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
+        urls = [c.url for c in charms_to_scrape if c.url is not None]
+        htmls = await scrape_multiple_links(
+            urls, max_concurrent=settings.max_concurrent_requests
+        )
 
-        for charm, html in zip(charms_to_scrape, htmls):
+        for charm, html in zip(charms_to_scrape, htmls, strict=False):
             if html is None:
                 logger.warning(f"Failed to scrape individual page for {charm.name}")
                 continue
@@ -164,7 +180,7 @@ async def scrape_individual_charm_pages(charms: List[CharmInfo]) -> PageUrls:
     return page_urls
 
 
-async def scrape_shades() -> tuple[List[SummonInfo], PageUrls]:
+async def scrape_shades() -> tuple[list[SummonInfo], PageUrls]:
     """Parse the Shades page for summoning relationships (from cache or web)."""
     html, urls = await _get_html("Shades", "shades")
     if not html:
@@ -175,7 +191,9 @@ async def scrape_shades() -> tuple[List[SummonInfo], PageUrls]:
     return summons, urls
 
 
-async def scrape_map() -> tuple[List[ZoneInfo], List[MapEventInfo], List[FightSlotInfo], dict[str, str], PageUrls]:
+async def scrape_map() -> tuple[
+    list[ZoneInfo], list[MapEventInfo], list[FightSlotInfo], dict[str, str], PageUrls
+]:
     """Parse the Map page (from cache or web)."""
     html, urls = await _get_html("Map", "maps")
     if not html:
@@ -183,12 +201,16 @@ async def scrape_map() -> tuple[List[ZoneInfo], List[MapEventInfo], List[FightSl
 
     zones, map_events, fight_slots = parse_map_page(html)
     fight_page_mapping = get_fight_page_mapping(html)
-    logger.info(f"Parsed {len(zones)} zones, {len(map_events)} map events, {len(fight_slots)} fight slots")
+    logger.info(
+        f"Parsed {len(zones)} zones, {len(map_events)} map events, {len(fight_slots)} fight slots"
+    )
     logger.info(f"Extracted {len(fight_page_mapping)} fight page mappings")
     return zones, map_events, fight_slots, fight_page_mapping, urls
 
 
-async def scrape_fight_pages(fight_page_mapping: dict[str, str]) -> tuple[dict[str, List[str]], PageUrls]:
+async def scrape_fight_pages(
+    fight_page_mapping: dict[str, str],
+) -> tuple[dict[str, list[str]], PageUrls]:
     """Parse individual fight pages and extract enemy names (from cache or web).
 
     Returns:
@@ -212,7 +234,9 @@ async def scrape_fight_pages(fight_page_mapping: dict[str, str]) -> tuple[dict[s
     return fight_enemies, page_urls
 
 
-async def scrape_bling(boss_names: List[str], miniboss_names: List[str]) -> tuple[List[EnemyBlingDrop], PageUrls]:
+async def scrape_bling(
+    boss_names: list[str], miniboss_names: list[str]
+) -> tuple[list[EnemyBlingDrop], PageUrls]:
     """Parse the Bling page for enemy drop values (from cache or web)."""
     html, urls = await _get_html("Bling", "bling")
     if not html:
@@ -223,7 +247,9 @@ async def scrape_bling(boss_names: List[str], miniboss_names: List[str]) -> tupl
     return drops, urls
 
 
-async def scrape_shop(page_name: str, subdir: str) -> tuple[List[ShopListing], PageUrls]:
+async def scrape_shop(
+    page_name: str, subdir: str
+) -> tuple[list[ShopListing], PageUrls]:
     """Parse a shop page for item/charm listings (from cache or web)."""
     html, urls = await _get_html(page_name, subdir)
     if not html:
@@ -234,7 +260,7 @@ async def scrape_shop(page_name: str, subdir: str) -> tuple[List[ShopListing], P
     return listings, urls
 
 
-async def scrape_clunker_prices() -> tuple[List[ShopListing], PageUrls]:
+async def scrape_clunker_prices() -> tuple[list[ShopListing], PageUrls]:
     """Parse the Clunkers page for clunker shop prices (from cache or web)."""
     html, urls = await _get_html("Clunkers", "clunkers_page")
     if not html:
@@ -245,7 +271,7 @@ async def scrape_clunker_prices() -> tuple[List[ShopListing], PageUrls]:
     return listings, urls
 
 
-async def scrape_bells() -> tuple[List[BellInfo], PageUrls]:
+async def scrape_bells() -> tuple[list[BellInfo], PageUrls]:
     """Parse the Bells page (from cache or web)."""
     html, urls = await _get_html("Bells", "bells")
     if not html:
@@ -256,9 +282,8 @@ async def scrape_bells() -> tuple[List[BellInfo], PageUrls]:
     return bells, urls
 
 
-async def scrape_individual_bell_pages(bells: List[BellInfo]) -> PageUrls:
-    """
-    Scrape individual bell wiki pages for per-bell Document content.
+async def scrape_individual_bell_pages(bells: list[BellInfo]) -> PageUrls:
+    """Scrape individual bell wiki pages for per-bell Document content.
 
     Only bells with real wiki pages (not red links) get scraped.
     Each bell's HTML is saved to data/structured_outputs/bells/{name}.html.
@@ -282,13 +307,17 @@ async def scrape_individual_bell_pages(bells: List[BellInfo]) -> PageUrls:
             continue
         bells_to_scrape.append(bell)
 
-    logger.info(f"Individual bell pages: {len(page_urls)} have pages, {len(bells_to_scrape)} to scrape")
+    logger.info(
+        f"Individual bell pages: {len(page_urls)} have pages, {len(bells_to_scrape)} to scrape"
+    )
 
     if bells_to_scrape:
-        urls = [b.url for b in bells_to_scrape]
-        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
+        urls = [b.url for b in bells_to_scrape if b.url is not None]
+        htmls = await scrape_multiple_links(
+            urls, max_concurrent=settings.max_concurrent_requests
+        )
 
-        for bell, html in zip(bells_to_scrape, htmls):
+        for bell, html in zip(bells_to_scrape, htmls, strict=False):
             if html is None:
                 logger.warning(f"Failed to scrape individual page for {bell.name}")
                 continue

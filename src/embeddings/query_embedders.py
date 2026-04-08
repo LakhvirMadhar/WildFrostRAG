@@ -1,5 +1,4 @@
-"""
-Query-time embedding functions for WildFrostRAG retrievers.
+"""Query-time embedding functions for WildFrostRAG retrievers.
 
 Provides a factory that returns the correct embedding function for each
 embedder provider (hf, gemma, openai). Each function takes a query string
@@ -8,21 +7,28 @@ and returns a list of floats — ready to pass to Neo4j vector search.
 Models are cached at module level so they're loaded once per process.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 import ollama
+from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
 from utils.config import settings
 from utils.logger import logger
 
-# Module-level cache: embedder name -> loaded model/client
-_model_cache: dict[str, object] = {}
+
+class _EmbedderCache:
+    """Typed cache for lazily-loaded embedding models/clients."""
+
+    hf_model: SentenceTransformer | None = None
+    openai_client: OpenAI | None = None
+
+
+_cache = _EmbedderCache()
 
 
 def get_query_embed_fn(embedder: str) -> Callable[[str], list[float]]:
-    """
-    Return an embedding function for the given embedder provider.
+    """Return an embedding function for the given embedder provider.
 
     Args:
         embedder: Provider name — must be a key in settings.embedding_configs
@@ -54,33 +60,42 @@ def get_query_embed_fn(embedder: str) -> Callable[[str], list[float]]:
 
 def _make_hf_embed_fn(model_name: str) -> Callable[[str], list[float]]:
     """Build embed function for HuggingFace SentenceTransformer models."""
+
     def embed(query: str) -> list[float]:
-        if "hf" not in _model_cache:
+        if _cache.hf_model is None:
             logger.info(f"Loading HF embedding model: {model_name}")
-            _model_cache["hf"] = SentenceTransformer(model_name)
-        model = _model_cache["hf"]
-        return model.encode(query).tolist()
+            _cache.hf_model = SentenceTransformer(model_name)
+        result: list[float] = _cache.hf_model.encode(query).tolist()
+        return result
+
     return embed
 
 
 def _make_ollama_embed_fn(model_name: str) -> Callable[[str], list[float]]:
     """Build embed function for Ollama-served models (e.g. Gemma)."""
+
     def embed(query: str) -> list[float]:
         response = ollama.embed(model=model_name, input=[query])
-        return response["embeddings"][0]
+        embeddings: list[float] = response["embeddings"][0]
+        return embeddings
+
     return embed
 
 
 def _make_openai_embed_fn(model_name: str) -> Callable[[str], list[float]]:
     """Build embed function for OpenAI embedding models."""
+
     def embed(query: str) -> list[float]:
-        if "openai" not in _model_cache:
-            from openai import OpenAI
+        if _cache.openai_client is None:
             logger.info(f"Initializing OpenAI client for model: {model_name}")
-            _model_cache["openai"] = OpenAI(
+            if settings.openai_api_key is None:
+                raise ValueError("OPENAI_API_KEY not configured")
+            _cache.openai_client = OpenAI(
                 api_key=settings.openai_api_key.get_secret_value()
             )
-        client = _model_cache["openai"]
-        response = client.embeddings.create(input=[query], model=model_name)
+        response = _cache.openai_client.embeddings.create(
+            input=[query], model=model_name
+        )
         return response.data[0].embedding
+
     return embed

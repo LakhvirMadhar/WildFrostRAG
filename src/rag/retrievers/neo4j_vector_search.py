@@ -1,20 +1,20 @@
-"""
-Neo4j-based retrieval implementations for WildFrostRAG.
+"""Neo4j-based retrieval implementations for WildFrostRAG.
 
 This module provides various retrieval strategies using Neo4j:
 - Vector search (semantic similarity)
 - Future implementations: BM25, Hybrid, Text2Cypher, Graph RAG
 """
 
-from typing import List, Dict, Any, Optional, Callable
+from typing import Any
+from collections.abc import Callable
 from neo4j import Driver
 from utils.config import settings
 from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
 class Neo4jVectorSearch(BaseNeo4jRetriever):
-    """
-    Implements semantic similarity retrieval using Neo4j vector indexes.
+    """Implements semantic similarity retrieval using Neo4j vector indexes.
+
     This corresponds to the 'Cosine Similarity' approach in the research goals.
     """
 
@@ -22,11 +22,10 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
         self,
         driver: Driver,
         embed_fn: Callable[[str], list[float]],
-        neo4j_database: Optional[str] = None,
-        index_name: Optional[str] = None
-    ):
-        """
-        Initialize the Neo4j vector search retriever.
+        neo4j_database: str | None = None,
+        index_name: str | None = None,
+    ) -> None:
+        """Initialize the Neo4j vector search retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
@@ -39,9 +38,8 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
         self._embed_fn = embed_fn
         self.index_name = index_name or settings.vector_index_name
 
-    def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Retrieve the top-k most relevant document chunks from Neo4j based on semantic similarity.
+    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+        """Retrieve the top-k most relevant document chunks from Neo4j based on semantic similarity.
 
         This method performs vector similarity search using Neo4j's built-in vector indexing
         capabilities, which implements cosine similarity between embedded queries and stored
@@ -68,8 +66,8 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
         params = {
             "index_name": self.index_name,
             "query_embedding": query_embedding,
-            "k": k
+            "k": k,
         }
 
         results = self._execute_query(search_query, params)
-        return self._add_metadata(results, 'vector')
+        return self._add_metadata(results, "vector")

@@ -1,5 +1,4 @@
-"""
-WildFrostRAG GUI module.
+"""WildFrostRAG GUI module.
 
 This module provides annotation GUIs for experiments:
 - ExperimentBrowserGUI: Discover and select experiments
@@ -22,15 +21,15 @@ from gui.experiment_browser_gui import ExperimentBrowserGUI, browse_experiments
 
 __all__ = [
     # Adapters
-    'ExperimentDataAdapter',
-    'ExperimentRegistry',
-    'QueryResult',
-    'ExperimentMetadata',
-    'get_adapter',
+    "ExperimentDataAdapter",
+    "ExperimentRegistry",
+    "QueryResult",
+    "ExperimentMetadata",
+    "get_adapter",
     # GUIs
-    'UnifiedAnnotationGUI',
-    'ExperimentBrowserGUI',
+    "UnifiedAnnotationGUI",
+    "ExperimentBrowserGUI",
     # Convenience functions
-    'create_unified_gui',
-    'browse_experiments',
+    "create_unified_gui",
+    "browse_experiments",
 ]

@@ -1,13 +1,15 @@
 import re
-from typing import List
+from typing import Any
+
+import neo4j
 
 from data_processing.stats import StatInfo
+from neo4j_kg.query_utils import single_value
 from utils.logger import logger
 
 
-def parse_other_stats(other_stats_str: str) -> List[tuple]:
-    """
-    Parse the other_stats string into (stat_name, value) tuples.
+def parse_other_stats(other_stats_str: str) -> list[tuple[str, int]]:
+    """Parse the other_stats string into (stat_name, value) tuples.
 
     Examples:
         "2 Teeth" -> [("Teeth", 2)]
@@ -20,12 +22,12 @@ def parse_other_stats(other_stats_str: str) -> List[tuple]:
         return []
 
     # Known multi-word stat names (order matters - check longer names first)
-    multi_word_stats = ['Resist Snow']
+    multi_word_stats = ["Resist Snow"]
 
     results = []
 
     # Split by comma
-    parts = [p.strip() for p in other_stats_str.split(',')]
+    parts = [p.strip() for p in other_stats_str.split(",")]
 
     for part in parts:
         if not part:
@@ -36,14 +38,14 @@ def parse_other_stats(other_stats_str: str) -> List[tuple]:
         for multi_stat in multi_word_stats:
             if multi_stat in remaining:
                 results.append((multi_stat, 1))
-                remaining = remaining.replace(multi_stat, '').strip()
+                remaining = remaining.replace(multi_stat, "").strip()
 
         if not remaining:
             continue
 
         # Pattern: optional "x" + optional number + stat name
         # e.g., "2 Teeth", "x3 Frenzy", "Reaction"
-        match = re.match(r'^x?(\d+)?\s*(.+)$', remaining)
+        match = re.match(r"^x?(\d+)?\s*(.+)$", remaining)
         if match:
             value_str, stat_name = match.groups()
             stat_name = stat_name.strip()
@@ -56,51 +58,62 @@ def parse_other_stats(other_stats_str: str) -> List[tuple]:
 
 # Mapping from card field names to Stat node names
 STAT_FIELD_MAPPING = {
-    'health': 'Health',
-    'attack': 'Attack',
-    'scrap': 'Scrap',
-    'counter': 'Counter',
+    "health": "Health",
+    "attack": "Attack",
+    "scrap": "Scrap",
+    "counter": "Counter",
 }
 
 
-def _extract_primary_stats(card: dict) -> List[dict]:
+def _extract_primary_stats(card: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract primary stats (health, attack, scrap, counter) from card fields."""
     stats = []
-    card_name = card['card_name']
+    card_name = card["card_name"]
     for field_name, stat_name in STAT_FIELD_MAPPING.items():
         if field_name in card and card[field_name] is not None:
-            stats.append({'card_name': card_name, 'stat_name': stat_name, 'value': card[field_name]})
+            stats.append(
+                {
+                    "card_name": card_name,
+                    "stat_name": stat_name,
+                    "value": card[field_name],
+                }
+            )
     return stats
 
 
-def _extract_other_stats(card: dict) -> List[dict]:
+def _extract_other_stats(card: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract stats from other_stats field (buffs/debuffs like '2 Teeth', 'x3 Frenzy')."""
     stats = []
-    card_name = card['card_name']
-    if 'other_stats' in card and card['other_stats']:
-        for stat_name, value in parse_other_stats(card['other_stats']):
-            stats.append({'card_name': card_name, 'stat_name': stat_name, 'value': value})
+    card_name = card["card_name"]
+    if "other_stats" in card and card["other_stats"]:
+        for stat_name, value in parse_other_stats(card["other_stats"]):
+            stats.append(
+                {"card_name": card_name, "stat_name": stat_name, "value": value}
+            )
     return stats
 
 
-def _extract_ability_stats(card: dict, all_stat_names: List[str]) -> List[dict]:
+def _extract_ability_stats(
+    card: dict[str, Any], all_stat_names: list[str]
+) -> list[dict[str, str]]:
     """Extract stats mentioned in abilities (simple string match, no value)."""
-    stats = []
-    ability = card.get('abilities_specific', '')
+    stats: list[dict[str, str]] = []
+    ability = card.get("abilities_specific", "")
     if not ability:
         return stats
 
-    card_name = card['card_name']
+    card_name = card["card_name"]
     ability_lower = ability.lower()
     for stat_name in all_stat_names:
         if stat_name.lower() in ability_lower:
-            stats.append({'card_name': card_name, 'stat_name': stat_name})
+            stats.append({"card_name": card_name, "stat_name": stat_name})
     return stats
 
 
-def create_card_stat_relationships(tx, cards_data):
-    """
-    Create HAS_STAT relationships between Cards and existing Stat nodes.
+def create_card_stat_relationships(
+    tx: neo4j.ManagedTransaction, cards_data: list[dict[str, Any]]
+) -> int:
+    """Create HAS_STAT relationships between Cards and existing Stat nodes.
 
     Note: Stat nodes must be created first via create_stats_from_parsed().
     Sources: primary stats (with value), other_stats (with value), abilities (no value).
@@ -122,33 +135,40 @@ def create_card_stat_relationships(tx, cards_data):
 
     # Run queries
     if stats_with_value:
-        tx.run("""
+        tx.run(
+            """
             UNWIND $card_stats AS cs
             MATCH (c:Card {card_name: cs.card_name})
             MATCH (stat:Stat {name: cs.stat_name})
             MERGE (c)-[:HAS_STAT {value: cs.value}]->(stat)
-        """, card_stats=stats_with_value)
+        """,
+            card_stats=stats_with_value,
+        )
 
     if stats_no_value:
-        tx.run("""
+        tx.run(
+            """
             UNWIND $card_stats AS cs
             MATCH (c:Card {card_name: cs.card_name})
             MATCH (stat:Stat {name: cs.stat_name})
             MERGE (c)-[:HAS_STAT]->(stat)
-        """, card_stats=stats_no_value)
+        """,
+            card_stats=stats_no_value,
+        )
 
     total = len(stats_with_value) + len(stats_no_value)
-    logger.info(f"Creating {total} card-stat relationships ({len(stats_with_value)} with value, {len(stats_no_value)} from abilities)")
-    return len(set(c['card_name'] for c in stats_with_value + stats_no_value))
+    logger.info(
+        f"Creating {total} card-stat relationships ({len(stats_with_value)} with value, {len(stats_no_value)} from abilities)"
+    )
+    return len({c["card_name"] for c in stats_with_value + stats_no_value})
 
 
 # Stats that are passive traits only — NOT game mechanics that cards "apply"
-STATS_NOT_KEYWORDS = {'Reaction', 'Resist Snow'}
+STATS_NOT_KEYWORDS = {"Reaction", "Resist Snow"}
 
 
-def add_keyword_label_to_stats(tx):
-    """
-    Add :Keyword label to Stat nodes that also function as keywords.
+def add_keyword_label_to_stats(tx: neo4j.ManagedTransaction) -> int:
+    """Add :Keyword label to Stat nodes that also function as keywords.
 
     Stats like Frost, Shroom, Bom etc. are both numeric stats AND game mechanics
     that cards actively "apply". Adding the :Keyword label lets them be found
@@ -156,20 +176,24 @@ def add_keyword_label_to_stats(tx):
 
     Excludes passive-only stats (Reaction, Resist Snow) that are never "applied".
     """
-    result = tx.run("""
+    result = tx.run(
+        """
         MATCH (s:Stat)
         WHERE NOT s.name IN $exclude
         SET s:Keyword
         RETURN count(s) AS labeled
-    """, exclude=list(STATS_NOT_KEYWORDS))
-    count = result.single()["labeled"]
+    """,
+        exclude=list(STATS_NOT_KEYWORDS),
+    )
+    count = single_value(result, "labeled")
     logger.info(f"Added :Keyword label to {count} Stat nodes")
     return count
 
 
-def create_stats_from_parsed(tx, stats: List[StatInfo]):
-    """
-    Create Stat nodes from parsed StatInfo objects.
+def create_stats_from_parsed(
+    tx: neo4j.ManagedTransaction, stats: list[StatInfo]
+) -> int:
+    """Create Stat nodes from parsed StatInfo objects.
 
     Args:
         tx: Neo4j transaction
@@ -180,12 +204,12 @@ def create_stats_from_parsed(tx, stats: List[StatInfo]):
     """
     stat_data = [
         {
-            'name': stat.name,
-            'category': stat.category.value,
-            'description': stat.description,
-            'additional_info': stat.additional_info,
-            'url': stat.url,
-            'filename': f"{stat.sanitized_name()}.html",
+            "name": stat.name,
+            "category": stat.category.value,
+            "description": stat.description,
+            "additional_info": stat.additional_info,
+            "url": stat.url,
+            "filename": f"{stat.sanitized_name()}.html",
         }
         for stat in stats
     ]
@@ -201,4 +225,4 @@ def create_stats_from_parsed(tx, stats: List[StatInfo]):
     RETURN count(s) AS statsCreated
     """
     result = tx.run(query, stats=stat_data)
-    return result.single()["statsCreated"]
+    return single_value(result, "statsCreated")

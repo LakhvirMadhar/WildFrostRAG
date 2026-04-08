@@ -1,22 +1,22 @@
-"""
-Crown data definitions.
+"""Crown data definitions.
 
 Crowns are items that make cards deploy with the Leader at battle start.
 There are two types: regular Crown (removable) and Cursed Crown (permanent, with stat penalties).
 """
+
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class CrownInfo:
     """Represents a Crown type in the game."""
+
     name: str
     removable: bool
     description: str
     max_per_card: int = 1
-    reduces_stats: Optional[list[str]] = None  # e.g., ["Health", "Attack"]
-    reduces_amount: Optional[int] = None
+    reduces_stats: list[str] | None = None  # e.g., ["Health", "Attack"]
+    reduces_amount: int | None = None
 
 
 # Hardcoded crown definitions

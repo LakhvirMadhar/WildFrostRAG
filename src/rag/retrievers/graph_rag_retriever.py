@@ -1,29 +1,26 @@
-"""
-Placeholder Graph RAG retriever for WildFrostRAG.
+"""Placeholder Graph RAG retriever for WildFrostRAG.
 
 This module will implement retrieval using graph traversal patterns based on the
 knowledge graph structure to find relevant information for a query.
 """
 
-from typing import List, Dict, Any
+from typing import Any
+from neo4j import Driver
 from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
 class GraphRagRetriever(BaseNeo4jRetriever):
-    """
-    Implements retrieval using graph traversal patterns in the knowledge graph.
+    """Implements retrieval using graph traversal patterns in the knowledge graph.
+
     This leverages the relationships between entities to find relevant information.
     """
-    
-    def __init__(self):
-        """
-        Initialize the Graph RAG retriever.
-        """
-        super().__init__()
 
-    def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Retrieve results using graph traversal based on the knowledge graph structure.
+    def __init__(self, driver: Driver, neo4j_database: str | None = None) -> None:
+        """Initialize the Graph RAG retriever."""
+        super().__init__(driver, neo4j_database)
+
+    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+        """Retrieve results using graph traversal based on the knowledge graph structure.
 
         Args:
             query: Natural language query string to search for

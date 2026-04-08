@@ -1,5 +1,4 @@
-"""
-FulltextThenCypherRetriever for WildFrostRAG.
+"""FulltextThenCypherRetriever for WildFrostRAG.
 
 Combines Neo4j fulltext search with graph traversal to enrich results
 with related Card, Tribe, CardType, Keyword, Stat, and other graph data.
@@ -9,7 +8,7 @@ The name "FulltextThenCypher" makes the order explicit:
 2. Cypher traversal SECOND (enrich with graph data)
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 import nltk
 from nltk.corpus import stopwords
@@ -23,8 +22,7 @@ from rag.retrievers.traversal_patterns import GRAPH_TRAVERSAL_QUERY
 
 
 class FulltextThenCypherRetriever(BaseNeo4jRetriever):
-    """
-    Retriever that combines fulltext search with graph traversal enrichment.
+    """Retriever that combines fulltext search with graph traversal enrichment.
 
     Flow:
         1. Fulltext search finds relevant Document nodes via Lucene index
@@ -35,12 +33,11 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
     def __init__(
         self,
         driver: Driver,
-        neo4j_database: Optional[str] = None,
-        index_name: Optional[str] = None,
+        neo4j_database: str | None = None,
+        index_name: str | None = None,
         remove_stopwords: bool = False,
-    ):
-        """
-        Initialize the FulltextThenCypherRetriever.
+    ) -> None:
+        """Initialize the FulltextThenCypherRetriever.
 
         Args:
             driver: Neo4j driver instance
@@ -54,27 +51,28 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
         if self.remove_stopwords:
             self._initialize_nltk()
 
-    def _initialize_nltk(self):
+    def _initialize_nltk(self) -> None:
         """Initialize NLTK resources for stop word removal."""
         try:
-            nltk.data.find('tokenizers/punkt')
+            nltk.data.find("tokenizers/punkt")
         except LookupError:
-            nltk.download('punkt')
+            nltk.download("punkt")
         try:
-            nltk.data.find('corpora/stopwords')
+            nltk.data.find("corpora/stopwords")
         except LookupError:
-            nltk.download('stopwords')
+            nltk.download("stopwords")
 
     def _preprocess_query(self, query: str) -> str:
         """Remove stop words from query before sending to Lucene."""
         tokens = word_tokenize(query.lower())
-        stop_words = set(stopwords.words('english'))
-        filtered = [token for token in tokens if token.isalpha() and token not in stop_words]
+        stop_words = set(stopwords.words("english"))
+        filtered = [
+            token for token in tokens if token.isalpha() and token not in stop_words
+        ]
         return " ".join(filtered)
 
-    def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Search using fulltext similarity + graph traversal.
+    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+        """Search using fulltext similarity + graph traversal.
 
         Args:
             query: Natural language query
@@ -86,7 +84,9 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
         search_query_text = query
         if self.remove_stopwords:
             search_query_text = self._preprocess_query(query)
-            logger.debug(f"Fulltext query after stop word removal: '{search_query_text}'")
+            logger.debug(
+                f"Fulltext query after stop word removal: '{search_query_text}'"
+            )
 
         combined_query = f"""
         CALL db.index.fulltext.queryNodes($index_name, $query)
@@ -102,4 +102,4 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
         }
 
         results = self._execute_query(combined_query, params)
-        return self._add_metadata(results, 'fulltext_then_cypher')
+        return self._add_metadata(results, "fulltext_then_cypher")

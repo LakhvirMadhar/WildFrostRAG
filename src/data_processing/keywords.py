@@ -1,5 +1,4 @@
-"""
-Keywords parsing for WildFrostRAG.
+"""Keywords parsing for WildFrostRAG.
 
 Parses the Keywords wiki page to extract keyword definitions across categories:
 Targeting, Damaging/Attack, Restriction, Miscellaneous, Enemy-Specific, Special, Hidden.
@@ -7,15 +6,15 @@ Targeting, Damaging/Attack, Restriction, Miscellaneous, Enemy-Specific, Special,
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from utils.logger import logger
 
 
 class KeywordCategory(Enum):
     """Categories of keywords in the game."""
+
     TARGETING = "targeting"
     DAMAGING = "damaging"
     RESTRICTION = "restriction"
@@ -28,11 +27,12 @@ class KeywordCategory(Enum):
 @dataclass
 class KeywordInfo:
     """Represents a Keyword from the game."""
+
     name: str
     category: KeywordCategory
-    description_field: Optional[str] = None
-    description_items: Optional[str] = None
-    cards_with_keyword: List[str] = field(default_factory=list)
+    description_field: str | None = None
+    description_items: str | None = None
+    cards_with_keyword: list[str] = field(default_factory=list)
 
 
 # Maps table index to category. The Keywords page has 7 wikitables in order.
@@ -61,16 +61,57 @@ def _clean_keyword_name(raw_name: str) -> str:
     return raw_name
 
 
-def _parse_card_list(raw_text: str) -> List[str]:
+def _parse_card_list(raw_text: str) -> list[str]:
     """Parse comma-separated card names from a table cell, filtering 'None'."""
     if not raw_text or raw_text.strip().lower() == "none":
         return []
     return [name.strip() for name in raw_text.split(",") if name.strip()]
 
 
-def parse_keywords_page(html: str) -> List[KeywordInfo]:
-    """
-    Parse the Keywords wiki page HTML to extract all keywords.
+def _parse_five_col_row(
+    name: str, cells: list[Tag], category: KeywordCategory
+) -> KeywordInfo | None:
+    """Parse a 5-column keyword row (Name, Field, Items, Cards, Sources)."""
+    if len(cells) < 4:
+        return None
+    return KeywordInfo(
+        name=name,
+        category=category,
+        description_field=cells[1].get_text(strip=True),
+        description_items=cells[2].get_text(strip=True),
+        cards_with_keyword=_parse_card_list(cells[3].get_text(strip=True)),
+    )
+
+
+def _parse_three_col_row(
+    name: str, cells: list[Tag], category: KeywordCategory
+) -> KeywordInfo | None:
+    """Parse a 3-column keyword row (Name, Description, Enemies/Causes)."""
+    if len(cells) < 3:
+        return None
+    return KeywordInfo(
+        name=name,
+        category=category,
+        description_field=cells[1].get_text(strip=True),
+        cards_with_keyword=_parse_card_list(cells[2].get_text(strip=True)),
+    )
+
+
+def _parse_two_col_row(
+    name: str, cells: list[Tag], category: KeywordCategory
+) -> KeywordInfo | None:
+    """Parse a 2-column keyword row (Name, Description)."""
+    if len(cells) < 2:
+        return None
+    return KeywordInfo(
+        name=name,
+        category=category,
+        description_field=cells[1].get_text(strip=True),
+    )
+
+
+def parse_keywords_page(html: str) -> list[KeywordInfo]:
+    """Parse the Keywords wiki page HTML to extract all keywords.
 
     Args:
         html: Raw HTML content of the Keywords page
@@ -79,7 +120,7 @@ def parse_keywords_page(html: str) -> List[KeywordInfo]:
         List of KeywordInfo objects
     """
     soup = BeautifulSoup(html, "html.parser")
-    keywords: List[KeywordInfo] = []
+    keywords: list[KeywordInfo] = []
 
     tables = soup.find_all("table", class_="wikitable")
 
@@ -88,49 +129,24 @@ def parse_keywords_page(html: str) -> List[KeywordInfo]:
         if category is None:
             break
 
-        rows = table.find_all("tr")
+        # Select parser based on table column count
+        if table_idx in _FIVE_COL_TABLES:
+            row_parser = _parse_five_col_row
+        elif table_idx in _THREE_COL_TABLES:
+            row_parser = _parse_three_col_row
+        elif table_idx in _TWO_COL_TABLES:
+            row_parser = _parse_two_col_row
+        else:
+            continue
 
-        for row in rows[1:]:
+        for row in table.find_all("tr")[1:]:
             cells = row.find_all("td")
             if not cells:
                 continue
-
             name = _clean_keyword_name(cells[0].get_text(strip=True))
-
-            if table_idx in _FIVE_COL_TABLES:
-                if len(cells) < 4:
-                    continue
-                description_field = cells[1].get_text(strip=True)
-                description_items = cells[2].get_text(strip=True)
-                cards_raw = cells[3].get_text(strip=True)
-                cards_with_keyword = _parse_card_list(cards_raw)
-
-            elif table_idx in _THREE_COL_TABLES:
-                if len(cells) < 3:
-                    continue
-                description_field = cells[1].get_text(strip=True)
-                description_items = None
-                cards_raw = cells[2].get_text(strip=True)
-                cards_with_keyword = _parse_card_list(cards_raw)
-
-            elif table_idx in _TWO_COL_TABLES:
-                if len(cells) < 2:
-                    continue
-                description_field = cells[1].get_text(strip=True)
-                description_items = None
-                cards_with_keyword = []
-
-            else:
-                continue
-
-            keyword = KeywordInfo(
-                name=name,
-                category=category,
-                description_field=description_field,
-                description_items=description_items,
-                cards_with_keyword=cards_with_keyword,
-            )
-            keywords.append(keyword)
+            keyword = row_parser(name, cells, category)
+            if keyword:
+                keywords.append(keyword)
 
     logger.info(f"Parsed {len(keywords)} keywords from Keywords page")
     return keywords

@@ -1,16 +1,14 @@
-"""
-Retrieval metrics for evaluating RAG systems in WildFrostRAG.
+"""Retrieval metrics for evaluating RAG systems in WildFrostRAG.
 
 This module provides standard information retrieval metrics to evaluate
 the effectiveness of different retrieval strategies (vector search, BM25, hybrid, etc.).
 """
 
-from typing import List, Any
+from typing import Any
 
 
-def hit_at_k(retrieved_ids: List[Any], relevant_ids: List[Any], k: int) -> int:
-    """
-    Calculate Hit@k metric.
+def hit_at_k(retrieved_ids: list[Any], relevant_ids: list[Any], k: int) -> int:
+    """Calculate Hit@k metric.
 
     Hit@k measures whether at least one relevant document appears in the top-k
     retrieved results. It's a boolean measure (1 if hit, 0 if miss).
@@ -30,9 +28,8 @@ def hit_at_k(retrieved_ids: List[Any], relevant_ids: List[Any], k: int) -> int:
     return 0
 
 
-def mrr(retrieved_ids: List[Any], relevant_ids: List[Any]) -> float:
-    """
-    Calculate Mean Reciprocal Rank (MRR).
+def mrr(retrieved_ids: list[Any], relevant_ids: list[Any]) -> float:
+    """Calculate Mean Reciprocal Rank (MRR).
 
     MRR measures the ranking quality by considering the rank of the first
     relevant document. Higher scores indicate better ranking.
@@ -50,9 +47,10 @@ def mrr(retrieved_ids: List[Any], relevant_ids: List[Any]) -> float:
     return 0.0
 
 
-def calculate_precision_at_k(retrieved_ids: List[Any], relevant_ids: List[Any], k: int) -> float:
-    """
-    Calculate Precision@k metric.
+def calculate_precision_at_k(
+    retrieved_ids: list[Any], relevant_ids: list[Any], k: int
+) -> float:
+    """Calculate Precision@k metric.
 
     Precision@k measures the proportion of relevant documents among the top-k
     retrieved results. It focuses on the accuracy of the top results.
@@ -72,9 +70,10 @@ def calculate_precision_at_k(retrieved_ids: List[Any], relevant_ids: List[Any], 
     return relevant_count / k
 
 
-def calculate_recall_at_k(retrieved_ids: List[Any], relevant_ids: List[Any], k: int) -> float:
-    """
-    Calculate Recall@k metric.
+def calculate_recall_at_k(
+    retrieved_ids: list[Any], relevant_ids: list[Any], k: int
+) -> float:
+    """Calculate Recall@k metric.
 
     Recall@k measures the proportion of total relevant documents that are
     found in the top-k retrieved results. It focuses on the completeness

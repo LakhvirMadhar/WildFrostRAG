@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Test script for Neo4j retrieval in WildFrostRAG.
+"""Test script for Neo4j retrieval in WildFrostRAG.
 
 This script tests different retrieval strategies:
 1. Takes a query string as input
@@ -21,7 +20,8 @@ Usage:
 import sys
 from pathlib import Path
 import argparse
-from neo4j import GraphDatabase
+from typing import Any
+from neo4j import Driver, GraphDatabase
 
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -33,14 +33,14 @@ from rag.retrievers import (
     BM25VectorHybridRetriever,
     FulltextVectorHybridRetriever,
     BM25FulltextVectorHybridRetriever,
-    Text2CypherRetriever
+    Text2CypherRetriever,
 )
 from utils.config import settings
 from utils.logger import logger
 
-def get_retriever(retriever_type: str, driver):
-    """
-    Factory function to create the appropriate retriever based on type.
+
+def get_retriever(retriever_type: str, driver: Driver) -> Any:  # noqa: ANN401
+    """Factory function to create the appropriate retriever based on type.
 
     Args:
         retriever_type: Type of retriever to create
@@ -50,31 +50,49 @@ def get_retriever(retriever_type: str, driver):
         An instance of the specified retriever
     """
     retrievers = {
-        'vector': Neo4jVectorSearch,
-        'fulltext': Neo4jFullTextSearch,
-        'bm25': BM25Retriever,
-        'bm25_vector': BM25VectorHybridRetriever,
-        'fulltext_vector': FulltextVectorHybridRetriever,
-        'bm25_fulltext_vector': BM25FulltextVectorHybridRetriever,
-        'text2cypher': Text2CypherRetriever,
+        "vector": Neo4jVectorSearch,
+        "fulltext": Neo4jFullTextSearch,
+        "bm25": BM25Retriever,
+        "bm25_vector": BM25VectorHybridRetriever,
+        "fulltext_vector": FulltextVectorHybridRetriever,
+        "bm25_fulltext_vector": BM25FulltextVectorHybridRetriever,
+        "text2cypher": Text2CypherRetriever,
     }
 
     if retriever_type not in retrievers:
-        raise ValueError(f"Unknown retriever type: {retriever_type}. Available types: {list(retrievers.keys())}")
+        raise ValueError(
+            f"Unknown retriever type: {retriever_type}. Available types: {list(retrievers.keys())}"
+        )
 
     return retrievers[retriever_type](driver)
 
-def main():
+
+def main() -> None:
+    """Test retrieval for a single query against Neo4j."""
     parser = argparse.ArgumentParser(description="Test retrieval for a single query")
     parser.add_argument("query", type=str, help="The search query")
-    parser.add_argument("--retriever", type=str,
-                       choices=["vector", "fulltext", "bm25", "bm25_vector", "fulltext_vector", "bm25_fulltext_vector", "text2cypher"],
-                       default="vector", help="Retrieval method to use (default: vector)")
+    parser.add_argument(
+        "--retriever",
+        type=str,
+        choices=[
+            "vector",
+            "fulltext",
+            "bm25",
+            "bm25_vector",
+            "fulltext_vector",
+            "bm25_fulltext_vector",
+            "text2cypher",
+        ],
+        default="vector",
+        help="Retrieval method to use (default: vector)",
+    )
     parser.add_argument("--k", type=int, default=5, help="Number of chunks to retrieve")
 
     args = parser.parse_args()
 
-    logger.info(f"Searching for: '{args.query}' using {args.retriever} retriever (k={args.k})")
+    logger.info(
+        f"Searching for: '{args.query}' using {args.retriever} retriever (k={args.k})"
+    )
 
     # Create driver once at the start (efficient pattern)
     uri = settings.neo4j_uri.get_secret_value()
@@ -87,19 +105,23 @@ def main():
         results = retriever.search(args.query, k=args.k)
 
         # Check if this is a hybrid result and display individual retriever results first
-        is_hybrid = results and 'individual_results' in results[0]
+        is_hybrid = results and "individual_results" in results[0]
 
         if is_hybrid:
             logger.info("Individual retriever results before fusion:\n")
-            individual_results = results[0]['individual_results']
+            individual_results = results[0]["individual_results"]
             for retriever_name, retriever_results in individual_results.items():
                 logger.info(f"--- {retriever_name.upper()} RETRIEVER RESULTS ---")
-                for j, chunk in enumerate(retriever_results[:args.k]):  # Show top k from each retriever
-                    score = chunk.get('score', 0)
-                    source = chunk.get('source_file', 'unknown')
-                    search_type = chunk.get('search_type', 'unknown')
-                    text = chunk.get('text', '')[:200].replace('\n', ' ') + "..."
-                    logger.info(f"  [{j+1}] Score: {score:.4f} | Source: {source} | Search Type: {search_type}")
+                for j, chunk in enumerate(
+                    retriever_results[: args.k]
+                ):  # Show top k from each retriever
+                    score = chunk.get("score", 0)
+                    source = chunk.get("source_file", "unknown")
+                    search_type = chunk.get("search_type", "unknown")
+                    text = chunk.get("text", "")[:200].replace("\n", " ") + "..."
+                    logger.info(
+                        f"  [{j + 1}] Score: {score:.4f} | Source: {source} | Search Type: {search_type}"
+                    )
                     logger.info(f"      Text: {text}")
                 logger.info("")  # Empty line after each retriever's results
 
@@ -110,20 +132,24 @@ def main():
             logger.info(f"Retrieval results ({len(results)} total):\n")
 
         for i, chunk in enumerate(results):
-            score = chunk.get('score', 0)
-            source = chunk.get('source_file', 'unknown')
-            search_type = chunk.get('search_type', 'unknown')
-            text = chunk.get('text', '')[:200].replace('\n', ' ') + "..."
+            score = chunk.get("score", 0)
+            source = chunk.get("source_file", "unknown")
+            search_type = chunk.get("search_type", "unknown")
+            text = chunk.get("text", "")[:200].replace("\n", " ") + "..."
 
             if is_hybrid:
-                rrf_score = chunk.get('rrf_score', 0)
-                source_retriever = chunk.get('source_retriever', '')
-                retriever_scores = chunk.get('retriever_scores', {})
-                logger.info(f"[{i+1}] RRF Score: {rrf_score:.4f} | Original Scores: {retriever_scores} | Source: {source} | Search Type: {search_type}")
+                rrf_score = chunk.get("rrf_score", 0)
+                source_retriever = chunk.get("source_retriever", "")
+                retriever_scores = chunk.get("retriever_scores", {})
+                logger.info(
+                    f"[{i + 1}] RRF Score: {rrf_score:.4f} | Original Scores: {retriever_scores} | Source: {source} | Search Type: {search_type}"
+                )
                 if source_retriever:
                     logger.info(f"    Source Retriever: {source_retriever}")
             else:
-                logger.info(f"[{i+1}] Score: {score:.4f} | Source: {source} | Search Type: {search_type}")
+                logger.info(
+                    f"[{i + 1}] Score: {score:.4f} | Source: {source} | Search Type: {search_type}"
+                )
 
             logger.info(f"    Text: {text}\n")
 
@@ -134,6 +160,7 @@ def main():
         # Close driver at the end (only closed once for entire script)
         driver.close()
         logger.info("Neo4j driver closed")
+
 
 if __name__ == "__main__":
     main()

@@ -1,12 +1,10 @@
-"""
-Bling parsing for WildFrostRAG.
+"""Bling parsing for WildFrostRAG.
 
 Parses the Bling wiki page (enemy drop values) and shop pages
 (Charm Merchant, The Woolly Snail) for item/charm pricing.
 """
 
 from dataclasses import dataclass
-from typing import List
 
 from bs4 import BeautifulSoup
 
@@ -16,6 +14,7 @@ from utils.logger import logger
 @dataclass
 class EnemyBlingDrop:
     """An enemy's base bling drop value."""
+
     card_name: str
     amount: int
 
@@ -23,6 +22,7 @@ class EnemyBlingDrop:
 @dataclass
 class ShopListing:
     """An item or charm listing in a shop."""
+
     card_name: str
     base_price: int
 
@@ -38,9 +38,10 @@ _BAM_BOOZLE = {"Bam", "Boozle"}
 _NO_DROP_BOSSES = {"Bamboozle"}
 
 
-def parse_bling_page(html: str, boss_names: List[str], miniboss_names: List[str]) -> List[EnemyBlingDrop]:
-    """
-    Parse the Bling wiki page to extract enemy drop values.
+def parse_bling_page(
+    html: str, boss_names: list[str], miniboss_names: list[str]
+) -> list[EnemyBlingDrop]:
+    """Parse the Bling wiki page to extract enemy drop values.
 
     Combines the table data (regular enemies) with known boss/miniboss
     values from the wiki text.
@@ -64,7 +65,7 @@ def parse_bling_page(html: str, boss_names: List[str], miniboss_names: List[str]
     table = tables[0]
     rows = table.find_all("tr")
 
-    drops: List[EnemyBlingDrop] = []
+    drops: list[EnemyBlingDrop] = []
     seen_names = set()
 
     for row in rows[1:]:  # skip header
@@ -78,7 +79,9 @@ def parse_bling_page(html: str, boss_names: List[str], miniboss_names: List[str]
         try:
             amount = int(gold_text)
         except ValueError:
-            logger.warning(f"Could not parse bling amount for {card_name}: '{gold_text}'")
+            logger.warning(
+                f"Could not parse bling amount for {card_name}: '{gold_text}'"
+            )
             continue
 
         drops.append(EnemyBlingDrop(card_name=card_name, amount=amount))
@@ -103,9 +106,8 @@ def parse_bling_page(html: str, boss_names: List[str], miniboss_names: List[str]
     return drops
 
 
-def parse_shop_page(html: str) -> List[ShopListing]:
-    """
-    Parse a shop page (Charm Merchant or Woolly Snail) to extract listings.
+def parse_shop_page(html: str) -> list[ShopListing]:
+    """Parse a shop page (Charm Merchant or Woolly Snail) to extract listings.
 
     Both shops use the same table format: Image | Card Name | Description | Price.
     Only table 0 is the shop inventory; later tables are navigation/language.
@@ -126,7 +128,7 @@ def parse_shop_page(html: str) -> List[ShopListing]:
     table = tables[0]
     rows = table.find_all("tr")
 
-    listings: List[ShopListing] = []
+    listings: list[ShopListing] = []
 
     for row in rows[1:]:  # skip header
         cells = row.find_all("td")
@@ -148,9 +150,8 @@ def parse_shop_page(html: str) -> List[ShopListing]:
     return listings
 
 
-def parse_clunker_prices(html: str) -> List[ShopListing]:
-    """
-    Parse the Clunkers wiki page to extract clunker shop prices.
+def parse_clunker_prices(html: str) -> list[ShopListing]:
+    """Parse the Clunkers wiki page to extract clunker shop prices.
 
     Table format: Image | Card Name | Scrap | Attack | Counter | Other | Description | Tribe-exclusive? | Price
     Price is the last column (index 8).
@@ -171,7 +172,7 @@ def parse_clunker_prices(html: str) -> List[ShopListing]:
     table = tables[0]
     rows = table.find_all("tr")
 
-    listings: List[ShopListing] = []
+    listings: list[ShopListing] = []
 
     for row in rows[1:]:  # skip header
         cells = row.find_all("td")
@@ -184,7 +185,9 @@ def parse_clunker_prices(html: str) -> List[ShopListing]:
         try:
             base_price = int(price_text)
         except ValueError:
-            logger.warning(f"Could not parse clunker price for {card_name}: '{price_text}'")
+            logger.warning(
+                f"Could not parse clunker price for {card_name}: '{price_text}'"
+            )
             continue
 
         listings.append(ShopListing(card_name=card_name, base_price=base_price))

@@ -1,5 +1,4 @@
-"""
-Configuration for multi-phase card detection edge cases.
+"""Configuration for multi-phase card detection edge cases.
 
 The auto-detect heuristic (base name matching) handles most cases:
 - Same base name + same type → PHASES

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Unified experiment CLI - MLflow-like interface for WildFrostRAG.
+"""Unified experiment CLI - MLflow-like interface for WildFrostRAG.
 
 This provides convenient shortcuts and automation for running experiments:
 - Auto-manages run numbers
@@ -30,7 +29,7 @@ Usage:
 """
 
 import argparse
-import subprocess
+import asyncio
 import sys
 from pathlib import Path
 
@@ -38,42 +37,37 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from experiment_tracker import ExperimentRegistry
+from scripts.evaluate_retrievers import run as run_retrieval
+from scripts.run_llm_generation import run as run_generation
 from utils.logger import logger
 
 
-def cmd_retrieval(args):
+def cmd_retrieval(args: argparse.Namespace) -> None:
     """Run a retrieval experiment."""
     registry = ExperimentRegistry()
     run_num = args.run if args.run != "current" else registry.get_current_run()
 
-    # Build command for evaluate_retrievers.py
-    cmd = [
-        sys.executable, "-m", "scripts.evaluate_retrievers",
-        "--run-num", str(run_num),
-        "--retriever", args.retriever,
-        "--chunking", args.chunking,
-    ]
+    retrieval_args = argparse.Namespace(
+        run_num=run_num,
+        retriever=args.retriever,
+        chunking=args.chunking,
+        description=args.description or "",
+        text2cypher_prompt=args.text2cypher_prompt,
+        query_ids=getattr(args, "query_ids", None),
+        exclude_query_ids=getattr(args, "exclude_query_ids", None),
+        k=args.k,
+        file="queries/simple_reference_based_queries.csv",
+        embedder="hf",
+        queries_json=None,
+        sw_query="yes",
+        sw_docs="yes",
+    )
 
-    if args.description:
-        cmd.extend(["--description", args.description])
-
-    if args.retriever == "text2cypher" and args.text2cypher_prompt:
-        cmd.extend(["--text2cypher-prompt", args.text2cypher_prompt])
-
-    if args.query_ids:
-        cmd.extend(["--query-ids", args.query_ids])
-
-    if args.exclude_query_ids:
-        cmd.extend(["--exclude-query-ids", args.exclude_query_ids])
-
-    if args.k != 10:  # Only add if non-default
-        cmd.extend(["--k", str(args.k)])
-
-    logger.info(f"Running: {' '.join(cmd)}")
-    subprocess.run(cmd, check=True)
+    logger.info(f"Running retrieval: {args.retriever} (run {run_num})")
+    asyncio.run(run_retrieval(retrieval_args))
 
 
-def cmd_generation(args):
+def cmd_generation(args: argparse.Namespace) -> None:
     """Run a generation experiment."""
     registry = ExperimentRegistry()
     run_num = args.run if args.run != "current" else registry.get_current_run()
@@ -87,38 +81,31 @@ def cmd_generation(args):
             logger.info(f"  - {ret['reference']}: {ret.get('description', '')}")
         sys.exit(1)
 
-    # Build command for run_llm_generation.py
-    cmd = [
-        sys.executable, "-m", "scripts.run_llm_generation",
-        "--run-num", str(run_num),
-        "--retrieval-reference", retrieval_ref,
-        "--system-prompt", args.prompt,
-    ]
+    generation_args = argparse.Namespace(
+        run_num=run_num,
+        retrieval_reference=retrieval_ref,
+        system_prompt=args.prompt,
+        description=args.description or "",
+        zero_shot=False,
+        rag_prompt=getattr(args, "rag_prompt", "RAG_PROMPT_V1"),
+        query_ids=getattr(args, "query_ids", None),
+        exclude_query_ids=getattr(args, "exclude_query_ids", None),
+    )
 
-    if args.description:
-        cmd.extend(["--description", args.description])
-
-    if args.batch_size:
-        cmd.extend(["--batch-size", str(args.batch_size)])
-
-    if args.query_ids:
-        cmd.extend(["--query-ids", args.query_ids])
-
-    if args.exclude_query_ids:
-        cmd.extend(["--exclude-query-ids", args.exclude_query_ids])
-
-    logger.info(f"Running: {' '.join(cmd)}")
-    subprocess.run(cmd, check=True)
+    logger.info(
+        f"Running generation: {args.prompt} with {retrieval_ref} (run {run_num})"
+    )
+    asyncio.run(run_generation(generation_args))
 
 
-def cmd_list(args):
+def cmd_list(args: argparse.Namespace) -> None:
     """List experiments."""
     registry = ExperimentRegistry()
     run_num = args.run if args.run != "current" else registry.get_current_run()
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Experiments for Run {run_num}")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     if args.type in [None, "retrieval"]:
         print("RETRIEVAL EXPERIMENTS")
@@ -127,8 +114,12 @@ def cmd_list(args):
         if retrievals:
             for ret in retrievals:
                 print(f"  {ret['reference']:<20} {ret.get('description', '')}")
-                print(f"    Retriever: {ret.get('retriever_type')}, Chunking: {ret.get('chunking')}")
-                print(f"    Queries: {ret.get('successful_queries')}/{ret.get('total_queries')}")
+                print(
+                    f"    Retriever: {ret.get('retriever_type')}, Chunking: {ret.get('chunking')}"
+                )
+                print(
+                    f"    Queries: {ret.get('successful_queries')}/{ret.get('total_queries')}"
+                )
                 print(f"    Time: {ret.get('timestamp')}")
                 print()
         else:
@@ -143,14 +134,16 @@ def cmd_list(args):
                 print(f"  {gen['reference']:<20} {gen.get('description', '')}")
                 print(f"    Retrieval: {gen.get('retrieval_reference')}")
                 print(f"    Prompt: {gen.get('system_prompt_version')}")
-                print(f"    Queries: {gen.get('successful_queries')}/{gen.get('total_queries')}")
+                print(
+                    f"    Queries: {gen.get('successful_queries')}/{gen.get('total_queries')}"
+                )
                 print(f"    Time: {gen.get('timestamp')}")
                 print()
         else:
             print("  No generation experiments found.\n")
 
 
-def cmd_search(args):
+def cmd_search(args: argparse.Namespace) -> None:
     """Search for experiments."""
     registry = ExperimentRegistry()
 
@@ -164,21 +157,23 @@ def cmd_search(args):
     results = registry.search_experiments(
         run_num=None,  # Search all runs
         experiment_type=args.type,
-        **filters
+        **filters,
     )
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Search Results ({len(results)} matches)")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     if results:
         for exp in results:
             print(f"  Run {exp['run_num']} - {exp['reference']}")
             print(f"    Type: {exp['type']}")
             print(f"    Description: {exp.get('description', '')}")
-            if exp['type'] == 'retrieval':
-                print(f"    Retriever: {exp.get('retriever_type')}, Chunking: {exp.get('chunking')}")
-            elif exp['type'] == 'generation':
+            if exp["type"] == "retrieval":
+                print(
+                    f"    Retriever: {exp.get('retriever_type')}, Chunking: {exp.get('chunking')}"
+                )
+            elif exp["type"] == "generation":
                 print(f"    Retrieval: {exp.get('retrieval_reference')}")
                 print(f"    Prompt: {exp.get('system_prompt_version')}")
             print()
@@ -186,64 +181,118 @@ def cmd_search(args):
         print("  No matching experiments found.\n")
 
 
-def cmd_new_run(args):
+def cmd_new_run(args: argparse.Namespace) -> None:
     """Increment to new run number."""
     registry = ExperimentRegistry()
     new_run = registry.increment_run()
     print(f"\nIncremented to run {new_run}\n")
 
 
-def cmd_current(args):
+def cmd_current(args: argparse.Namespace) -> None:
     """Show current run number."""
     registry = ExperimentRegistry()
     current = registry.get_current_run()
     print(f"\nCurrent run: {current}\n")
 
 
-def main():
+def main() -> None:
+    """Unified experiment CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Unified experiment CLI for WildFrostRAG",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     # Retrieval command
-    retrieval_parser = subparsers.add_parser("retrieval", help="Run retrieval experiment")
-    retrieval_parser.add_argument("--run", default="current", help="Run number (default: current)")
-    retrieval_parser.add_argument("--retriever", required=True,
-                                  choices=["vector", "fulltext", "bm25", "bm25_vector", "fulltext_vector",
-                                          "bm25_fulltext_vector", "text2cypher"],
-                                  help="Retriever type")
-    retrieval_parser.add_argument("--chunking", choices=["yes", "no"], default="no", help="Chunking enabled")
-    retrieval_parser.add_argument("--description", default="", help="Experiment description")
-    retrieval_parser.add_argument("--text2cypher-prompt", default="TEXT2CYPHER_PROMPT_V1",
-                                  help="Text2Cypher prompt (for text2cypher retriever)")
-    retrieval_parser.add_argument("--query-ids", help="Comma-separated query IDs to include (e.g., '1,5,10')")
-    retrieval_parser.add_argument("--exclude-query-ids", help="Comma-separated query IDs to exclude")
-    retrieval_parser.add_argument("--k", type=int, default=10, help="Number of chunks to retrieve per query (default: 10)")
+    retrieval_parser = subparsers.add_parser(
+        "retrieval", help="Run retrieval experiment"
+    )
+    retrieval_parser.add_argument(
+        "--run", default="current", help="Run number (default: current)"
+    )
+    retrieval_parser.add_argument(
+        "--retriever",
+        required=True,
+        choices=[
+            "vector",
+            "fulltext",
+            "bm25",
+            "bm25_vector",
+            "fulltext_vector",
+            "bm25_fulltext_vector",
+            "text2cypher",
+        ],
+        help="Retriever type",
+    )
+    retrieval_parser.add_argument(
+        "--chunking", choices=["yes", "no"], default="no", help="Chunking enabled"
+    )
+    retrieval_parser.add_argument(
+        "--description", default="", help="Experiment description"
+    )
+    retrieval_parser.add_argument(
+        "--text2cypher-prompt",
+        default="TEXT2CYPHER_PROMPT_V1",
+        help="Text2Cypher prompt (for text2cypher retriever)",
+    )
+    retrieval_parser.add_argument(
+        "--query-ids", help="Comma-separated query IDs to include (e.g., '1,5,10')"
+    )
+    retrieval_parser.add_argument(
+        "--exclude-query-ids", help="Comma-separated query IDs to exclude"
+    )
+    retrieval_parser.add_argument(
+        "--k",
+        type=int,
+        default=10,
+        help="Number of chunks to retrieve per query (default: 10)",
+    )
 
     # Generation command
-    generation_parser = subparsers.add_parser("generation", help="Run generation experiment")
-    generation_parser.add_argument("--run", default="current", help="Run number (default: current)")
-    generation_parser.add_argument("--retrieval", required=True,
-                                   help="Retrieval reference (e.g., 'bm25/001' or 'latest/bm25')")
+    generation_parser = subparsers.add_parser(
+        "generation", help="Run generation experiment"
+    )
+    generation_parser.add_argument(
+        "--run", default="current", help="Run number (default: current)"
+    )
+    generation_parser.add_argument(
+        "--retrieval",
+        required=True,
+        help="Retrieval reference (e.g., 'bm25/001' or 'latest/bm25')",
+    )
     generation_parser.add_argument("--prompt", required=True, help="System prompt name")
-    generation_parser.add_argument("--description", default="", help="Experiment description")
-    generation_parser.add_argument("--batch-size", type=int, help="Batch size for processing")
-    generation_parser.add_argument("--query-ids", help="Comma-separated query IDs to include")
-    generation_parser.add_argument("--exclude-query-ids", help="Comma-separated query IDs to exclude")
+    generation_parser.add_argument(
+        "--description", default="", help="Experiment description"
+    )
+    generation_parser.add_argument(
+        "--batch-size", type=int, help="Batch size for processing"
+    )
+    generation_parser.add_argument(
+        "--query-ids", help="Comma-separated query IDs to include"
+    )
+    generation_parser.add_argument(
+        "--exclude-query-ids", help="Comma-separated query IDs to exclude"
+    )
 
     # List command
     list_parser = subparsers.add_parser("list", help="List experiments")
-    list_parser.add_argument("--run", default="current", help="Run number (default: current)")
-    list_parser.add_argument("--type", choices=["retrieval", "generation"], help="Filter by type")
+    list_parser.add_argument(
+        "--run", default="current", help="Run number (default: current)"
+    )
+    list_parser.add_argument(
+        "--type", choices=["retrieval", "generation"], help="Filter by type"
+    )
 
     # Search command
     search_parser = subparsers.add_parser("search", help="Search experiments")
-    search_parser.add_argument("--type", choices=["retrieval", "generation"], help="Filter by type")
+    search_parser.add_argument(
+        "--type", choices=["retrieval", "generation"], help="Filter by type"
+    )
     search_parser.add_argument("--retriever-type", help="Filter by retriever type")
-    search_parser.add_argument("--chunking", choices=["yes", "no"], help="Filter by chunking")
+    search_parser.add_argument(
+        "--chunking", choices=["yes", "no"], help="Filter by chunking"
+    )
 
     # New run command
     subparsers.add_parser("new-run", help="Increment to next run number")

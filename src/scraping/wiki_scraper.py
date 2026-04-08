@@ -7,12 +7,11 @@ from utils.logger import logger
 
 def clean_name_for_url(name: str) -> str:
     """Clean card name for use in URLs by replacing spaces with underscores."""
-    return re.sub(r'\s+', '_', name)
+    return re.sub(r"\s+", "_", name)
 
 
 async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
-    """
-    Scrape a wiki page and save HTML.
+    """Scrape a wiki page and save HTML.
 
     Args:
         page_name: Name of the wiki page (e.g., "Crowns", "Leaders", "Stats")
@@ -30,9 +29,9 @@ async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
         logger.warning(f"Failed to scrape {page_name} page")
         return None
 
-    output_path = settings.structured_outputs_dir / output_subdir / f'{page_name}.html'
+    output_path = settings.structured_outputs_dir / output_subdir / f"{page_name}.html"
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
     logger.info(f"Saved {page_name} HTML to {output_path}")
 
@@ -40,8 +39,7 @@ async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
 
 
 def load_cached_html(page_name: str, output_subdir: str) -> str | None:
-    """
-    Load a previously scraped wiki page from disk.
+    """Load a previously scraped wiki page from disk.
 
     Args:
         page_name: Name of the wiki page (e.g., "Crowns", "Leaders", "Stats")
@@ -50,12 +48,12 @@ def load_cached_html(page_name: str, output_subdir: str) -> str | None:
     Returns:
         HTML content if file exists, None otherwise
     """
-    path = settings.structured_outputs_dir / output_subdir / f'{page_name}.html'
+    path = settings.structured_outputs_dir / output_subdir / f"{page_name}.html"
     if not path.exists():
         logger.warning(f"Cached HTML not found: {path}")
         return None
 
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding="utf-8") as f:
         html = f.read()
     logger.info(f"Loaded cached {page_name} from {path}")
     return html

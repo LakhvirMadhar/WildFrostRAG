@@ -1,5 +1,4 @@
-"""
-Text2Cypher retriever for WildFrostRAG using LLM to generate Cypher queries.
+"""Text2Cypher retriever for WildFrostRAG using LLM to generate Cypher queries.
 
 This module implements retrieval by using an LLM to convert natural language
 queries into Cypher queries based on the Neo4j schema.
@@ -7,7 +6,7 @@ queries into Cypher queries based on the Neo4j schema.
 
 from typing import Any
 
-from neo4j import Driver
+from neo4j import Driver, ManagedTransaction, Record, Session
 
 from utils.config import settings
 from utils.logger import logger
@@ -17,8 +16,8 @@ from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
 class Text2CypherRetriever(BaseNeo4jRetriever):
-    """
-    Implements retrieval by using an LLM to generate Cypher queries from natural language.
+    """Implements retrieval by using an LLM to generate Cypher queries from natural language.
+
     This simulates the Text2Cypher functionality by using an LLM to understand the schema
     and generate appropriate Cypher queries.
     """
@@ -28,9 +27,8 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         driver: Driver,
         text2cypher_prompt: VersionedPrompt,
         neo4j_database: str | None = None,
-    ):
-        """
-        Initialize the Text2Cypher retriever.
+    ) -> None:
+        """Initialize the Text2Cypher retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
@@ -42,9 +40,8 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         self.prompt_version = text2cypher_prompt.prompt_version_name
         self.prompt_template = text2cypher_prompt.prompt_tuple
 
-    def _get_schema(self, session) -> dict[str, Any]:
-        """
-        Get the schema of the Neo4j database with relationship directions.
+    def _get_schema(self, session: Session) -> dict[str, Any]:
+        """Get the schema of the Neo4j database with relationship directions.
 
         Args:
             session: Neo4j session
@@ -55,28 +52,27 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         nodes = self._get_node_schema(session)
         relationship_patterns = self._get_relationship_patterns(session)
 
-        return {
-            "nodes": nodes,
-            "relationship_patterns": relationship_patterns
-        }
+        return {"nodes": nodes, "relationship_patterns": relationship_patterns}
 
-    def _get_node_schema(self, session) -> dict[str, list[dict[str, str]]]:
+    def _get_node_schema(self, session: Session) -> dict[str, list[dict[str, str]]]:
         """Get node labels and their properties with types from the database."""
         query = """
         CALL db.schema.nodeTypeProperties() YIELD nodeType, propertyName, propertyTypes, mandatory
         RETURN nodeType, collect({propertyName: propertyName, propertyTypes: propertyTypes, mandatory: mandatory}) as properties
         """
 
-        def _read_tx(tx):
+        def _read_tx(tx: ManagedTransaction) -> dict[str, list[dict[str, str]]]:
             result = tx.run(query)
-            nodes = {}
+            nodes: dict[str, list[dict[str, str]]] = {}
             for record in result:
                 node_type = record["nodeType"]
                 properties = record["properties"]
                 nodes[node_type] = [
                     {
                         "name": prop["propertyName"],
-                        "type": prop["propertyTypes"][0] if prop["propertyTypes"] else "Unknown"
+                        "type": prop["propertyTypes"][0]
+                        if prop["propertyTypes"]
+                        else "Unknown",
                     }
                     for prop in properties
                 ]
@@ -84,9 +80,10 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
 
         return session.execute_read(_read_tx)
 
-    def _get_relationship_patterns(self, session) -> list[str]:
+    def _get_relationship_patterns(self, session: Session) -> list[str]:
         """Get relationship patterns with directions from the database."""
-        def _read_tx(tx):
+
+        def _read_tx(tx: ManagedTransaction) -> list[str]:
             query = "CALL db.schema.visualization()"
             viz_result = tx.run(query)
             viz_record = viz_result.single()
@@ -99,7 +96,9 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             patterns = []
             for rel in relationships:
                 start_node, end_node = rel.nodes
-                start_label = list(start_node.labels)[0] if start_node.labels else "Unknown"
+                start_label = (
+                    list(start_node.labels)[0] if start_node.labels else "Unknown"
+                )
                 end_label = list(end_node.labels)[0] if end_node.labels else "Unknown"
                 pattern = f"({start_label})-[:{rel.type}]->({end_label})"
                 patterns.append(pattern)
@@ -111,7 +110,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
     def _format_schema_for_prompt(self, schema: dict[str, Any]) -> str:
         """Format schema into a string for the LLM prompt."""
         nodes_str = ""
-        for node_label, properties in schema['nodes'].items():
+        for node_label, properties in schema["nodes"].items():
             clean_label = node_label.strip(":").strip("`")
             nodes_str += f"\n  Label: `{clean_label}`\n  Properties:\n"
             for prop in properties:
@@ -120,7 +119,9 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
                 else:
                     nodes_str += f"    - {prop}\n"
 
-        patterns_str = "\n".join(f"  {pattern}" for pattern in schema['relationship_patterns'])
+        patterns_str = "\n".join(
+            f"  {pattern}" for pattern in schema["relationship_patterns"]
+        )
 
         return f"""Node labels and their properties:{nodes_str}
         Relationship patterns (with directions):
@@ -129,18 +130,19 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
     def _clean_cypher_response(self, response: str) -> str:
         """Remove markdown formatting and trailing semicolons from LLM response."""
         if response.startswith("```"):
-            lines = response.split('\n')
-            if lines[0].strip().startswith('```'):
+            lines = response.split("\n")
+            if lines[0].strip().startswith("```"):
                 lines = lines[1:]
-            if lines and lines[-1].strip().startswith('```'):
+            if lines and lines[-1].strip().startswith("```"):
                 lines = lines[:-1]
-            response = '\n'.join(lines)
+            response = "\n".join(lines)
 
-        return response.strip().rstrip(';').strip()
+        return response.strip().rstrip(";").strip()
 
-    async def _generate_cypher_query(self, natural_query: str, schema: dict[str, Any]) -> str:
-        """
-        Generate a Cypher query from a natural language query using an LLM.
+    async def _generate_cypher_query(
+        self, natural_query: str, schema: dict[str, Any]
+    ) -> str:
+        """Generate a Cypher query from a natural language query using an LLM.
 
         Args:
             natural_query: Natural language query
@@ -152,9 +154,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         schema_str = self._format_schema_for_prompt(schema)
 
         prompt = format_prompt_tuple(
-            self.prompt_template,
-            schema=schema_str,
-            query=natural_query
+            self.prompt_template, schema=schema_str, query=natural_query
         )
 
         response = await call_openai_api(
@@ -176,9 +176,10 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             return f"{cypher_query} LIMIT {k}"
         return cypher_query
 
-    def _record_to_dict_with_cypher(self, record, cypher_query: str, index: int) -> dict[str, Any]:
-        """
-        Convert a Neo4j record to a result dictionary with Text2Cypher-specific fields.
+    def _record_to_dict_with_cypher(
+        self, record: Record, cypher_query: str, index: int
+    ) -> dict[str, Any]:
+        """Convert a Neo4j record to a result dictionary with Text2Cypher-specific fields.
 
         Uses base class _record_to_dict() for generic record handling,
         then adds Text2Cypher-specific metadata.
@@ -187,44 +188,49 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         result_dict = super()._record_to_dict(record)
 
         # Add Text2Cypher-specific fields
-        result_dict["score"] = result_dict.get("score", 1.0)  # Default score if not in query
+        result_dict["score"] = result_dict.get(
+            "score", 1.0
+        )  # Default score if not in query
         result_dict["generated_cypher"] = cypher_query
         result_dict["result_index"] = index
 
         return result_dict
 
     def _execute_cypher_query(
-        self, session, cypher_query: str, k: int
+        self, session: Session, cypher_query: str, k: int
     ) -> list[dict[str, Any]]:
         """Execute Cypher query as a read-only transaction and return results."""
         try:
-            def _read_tx(tx):
+
+            def _read_tx(tx: ManagedTransaction) -> list[dict[str, Any]]:
                 result = tx.run(cypher_query)
                 return [
                     self._record_to_dict_with_cypher(record, cypher_query, i)
-                    for i, record in enumerate(result) if i < k
+                    for i, record in enumerate(result)
+                    if i < k
                 ]
 
             results = session.execute_read(_read_tx)
 
             if not results:
-                return self._add_metadata([{
-                    "generated_cypher": cypher_query,
-                    "no_results": True
-                }], 'text2cypher_llm_no_results')
+                return self._add_metadata(
+                    [{"generated_cypher": cypher_query, "no_results": True}],
+                    "text2cypher_llm_no_results",
+                )
 
-            return self._add_metadata(results, 'text2cypher_llm')
+            return self._add_metadata(results, "text2cypher_llm")
 
         except Exception as e:
-            error_results = [{
-                "error": f"Generated Cypher query failed: {str(e)}",
-                "generated_cypher": cypher_query
-            }]
-            return self._add_metadata(error_results, 'text2cypher_llm_error')
+            error_results = [
+                {
+                    "error": f"Generated Cypher query failed: {str(e)}",
+                    "generated_cypher": cypher_query,
+                }
+            ]
+            return self._add_metadata(error_results, "text2cypher_llm_error")
 
     async def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
-        """
-        Retrieve results by generating and executing a Cypher query from the natural language query.
+        """Retrieve results by generating and executing a Cypher query from the natural language query.
 
         Args:
             query: Natural language query string to search for

@@ -1,5 +1,4 @@
-"""
-Batch auto-annotation for retrieval experiments.
+"""Batch auto-annotation for retrieval experiments.
 
 Matches retrieved chunks against ground truth doc_references using
 bidirectional URL substring matching, then saves relevance annotations
@@ -8,36 +7,34 @@ GUI so it can run as a batch step after retrieval.
 """
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from gui.experiment_adapters import get_adapter
 from utils.logger import logger
 
 
-def _load_ground_truth(queries_json_path: Path) -> Dict[int, list[str]]:
-    """
-    Load doc_references for each query from the queries JSON.
+def _load_ground_truth(queries_json_path: Path) -> dict[int, list[str]]:
+    """Load doc_references for each query from the queries JSON.
 
     Returns:
         Dict mapping query_id -> list of doc_reference URLs
     """
     import json
 
-    with open(queries_json_path, 'r', encoding='utf-8') as f:
+    with open(queries_json_path, encoding="utf-8") as f:
         data = json.load(f)
 
     ground_truth = {}
-    for query in data.get('queries', []):
-        query_id = query['query_id']
-        doc_refs = query.get('doc_references', [])
+    for query in data.get("queries", []):
+        query_id = query["query_id"]
+        doc_refs = query.get("doc_references", [])
         ground_truth[query_id] = doc_refs
 
     return ground_truth
 
 
 def _url_matches(source_url: str, doc_refs: list[str]) -> bool:
-    """
-    Check if source_url matches any doc_reference via bidirectional substring.
+    """Check if source_url matches any doc_reference via bidirectional substring.
 
     This handles cases like:
     - source_url = "https://wildfrostwiki.com/Mimik"
@@ -56,10 +53,9 @@ def _url_matches(source_url: str, doc_refs: list[str]) -> bool:
 
 def run_auto_annotation(
     experiment_path: Path,
-    queries_json_path: Optional[Path] = None,
-) -> Dict[str, Any]:
-    """
-    Run batch auto-annotation on a retrieval experiment.
+    queries_json_path: Path | None = None,
+) -> dict[str, Any]:
+    """Run batch auto-annotation on a retrieval experiment.
 
     For each query's retrieved chunks, checks if the chunk's source_url
     matches any ground truth doc_reference. If so, saves is_relevant=True
@@ -78,7 +74,12 @@ def run_auto_annotation(
     experiment_path = Path(experiment_path)
     if queries_json_path is None:
         logger.info("No queries JSON path provided, skipping auto-annotation")
-        return {'total_checked': 0, 'auto_annotated': 0, 'skipped_existing': 0, 'queries_processed': 0}
+        return {
+            "total_checked": 0,
+            "auto_annotated": 0,
+            "skipped_existing": 0,
+            "queries_processed": 0,
+        }
 
     # Load ground truth
     ground_truth = _load_ground_truth(queries_json_path)
@@ -107,12 +108,13 @@ def run_auto_annotation(
 
         # Get existing relevance annotations for this query
         query_annotations = existing_annotations.get(str(query_id), {})
-        existing_relevance = query_annotations.get('relevance_annotations', [])
+        existing_relevance = query_annotations.get("relevance_annotations", [])
 
         # Build set of already-annotated chunk indices
         annotated_indices = {
-            ann.get('chunk_index') for ann in existing_relevance
-            if ann.get('chunk_index') is not None
+            ann.get("chunk_index")
+            for ann in existing_relevance
+            if ann.get("chunk_index") is not None
         }
 
         for chunk_idx, chunk in enumerate(query_result.retrieved_chunks):
@@ -123,7 +125,7 @@ def run_auto_annotation(
                 skipped_existing += 1
                 continue
 
-            source_url = chunk.get('source_url', '')
+            source_url = chunk.get("source_url", "")
             if _url_matches(source_url, doc_refs):
                 adapter.save_chunk_relevance(
                     query_id, chunk_idx, True, auto_populated=True
@@ -131,10 +133,10 @@ def run_auto_annotation(
                 auto_annotated += 1
 
     summary = {
-        'total_checked': total_checked,
-        'auto_annotated': auto_annotated,
-        'skipped_existing': skipped_existing,
-        'queries_processed': queries_processed,
+        "total_checked": total_checked,
+        "auto_annotated": auto_annotated,
+        "skipped_existing": skipped_existing,
+        "queries_processed": queries_processed,
     }
 
     logger.info(

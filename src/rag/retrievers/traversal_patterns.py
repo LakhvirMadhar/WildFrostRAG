@@ -1,5 +1,4 @@
-"""
-Shared graph traversal patterns for WildFrostRAG retrievers.
+"""Shared graph traversal patterns for WildFrostRAG retrievers.
 
 Used by VectorThenCypherRetriever and FulltextThenCypherRetriever to enrich
 initial search results with structured graph data.

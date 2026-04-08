@@ -1,5 +1,4 @@
-"""
-Parser for the Leaders wiki page.
+"""Parser for the Leaders wiki page.
 
 Leaders are special cards with:
 - No fixed names (randomly generated in-game)
@@ -7,8 +6,8 @@ Leaders are special cards with:
 - Abilities that define the leader archetype
 - Single tribe exclusivity (not ALL_TRIBES)
 """
+
 import re
-from typing import Optional
 from bs4 import BeautifulSoup, Tag
 
 from data_processing.cards import CardInfo, CardType
@@ -18,15 +17,14 @@ from utils.logger import logger
 
 # Map tribe section IDs to TribeExclusivity enum
 TRIBE_SECTION_MAP = {
-    'Snowdwellers': TribeExclusivity.SNOWDWELLERS,
-    'Shademancers': TribeExclusivity.SHADMANCERS,
-    'Clunkmasters': TribeExclusivity.CLUNKMASTERS,
+    "Snowdwellers": TribeExclusivity.SNOWDWELLERS,
+    "Shademancers": TribeExclusivity.SHADMANCERS,
+    "Clunkmasters": TribeExclusivity.CLUNKMASTERS,
 }
 
 
-def parse_stat_range(stat_text: str) -> tuple[Optional[int], Optional[int]]:
-    """
-    Parse a stat value that may be a range or single value.
+def parse_stat_range(stat_text: str) -> tuple[int | None, int | None]:
+    """Parse a stat value that may be a range or single value.
 
     Examples:
         "5-9" -> (5, 9)
@@ -43,7 +41,7 @@ def parse_stat_range(stat_text: str) -> tuple[Optional[int], Optional[int]]:
         return (None, None)
 
     # Check for range pattern: "5-9"
-    range_match = re.match(r'^(\d+)-(\d+)$', stat_text)
+    range_match = re.match(r"^(\d+)-(\d+)$", stat_text)
     if range_match:
         return (int(range_match.group(1)), int(range_match.group(2)))
 
@@ -57,8 +55,7 @@ def parse_stat_range(stat_text: str) -> tuple[Optional[int], Optional[int]]:
 
 
 def extract_ability_text(description_cell: Tag) -> str:
-    """
-    Extract clean ability text from the description cell.
+    """Extract clean ability text from the description cell.
 
     Handles:
     - Keyword links (e.g., <a href="/Keywords">Aimless</a>)
@@ -66,41 +63,41 @@ def extract_ability_text(description_cell: Tag) -> str:
     - Line breaks (<br>)
     """
     # Get text, replacing <br> with newlines
-    for br in description_cell.find_all('br'):
-        br.replace_with('\n')
+    for br in description_cell.find_all("br"):
+        br.replace_with("\n")
 
-    text = description_cell.get_text(separator=' ', strip=True)
+    text = description_cell.get_text(separator=" ", strip=True)
 
     # Clean up whitespace
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
 
     return text
 
 
-def extract_other_stats(other_cell: Tag) -> Optional[str]:
-    """
-    Extract the 'Other' column content (Frenzy, Shell, Reaction, etc.)
-    """
-    text = other_cell.get_text(separator=' ', strip=True)
-    text = re.sub(r'\s+', ' ', text).strip()
+def extract_other_stats(other_cell: Tag) -> str | None:
+    """Extract the 'Other' column content (Frenzy, Shell, Reaction, etc.)."""
+    text = other_cell.get_text(separator=" ", strip=True)
+    text = re.sub(r"\s+", " ", text).strip()
 
     return text if text else None
 
 
-def parse_leader_table(table: Tag, tribe: TribeExclusivity, start_num: int, url: str = "") -> list[CardInfo]:
-    """
-    Parse a single tribe's leader table.
+def parse_leader_table(
+    table: Tag, tribe: TribeExclusivity, start_num: int, url: str = ""
+) -> list[CardInfo]:
+    """Parse a single tribe's leader table.
 
     Args:
         table: The BeautifulSoup table element
         tribe: The tribe this table belongs to
         start_num: Starting number for leader naming
+        url: Wiki URL for this leader page
 
     Returns:
         List of CardInfo objects for leaders in this table
     """
     leaders = []
-    rows = table.find_all('tr')
+    rows = table.find_all("tr")
 
     # Skip header row
     data_rows = rows[1:] if rows else []
@@ -108,7 +105,7 @@ def parse_leader_table(table: Tag, tribe: TribeExclusivity, start_num: int, url:
     tribe_name = tribe.value  # e.g., "Snowdwellers"
 
     for i, row in enumerate(data_rows, start=start_num):
-        cells = row.find_all('td')
+        cells = row.find_all("td")
 
         if len(cells) < 5:
             logger.warning(f"Skipping row with {len(cells)} cells (expected 5)")
@@ -155,21 +152,21 @@ def parse_leader_table(table: Tag, tribe: TribeExclusivity, start_num: int, url:
 
 
 def parse_leaders_page(html: str, url: str = "") -> list[CardInfo]:
-    """
-    Parse the Leaders wiki page and extract all leader cards.
+    """Parse the Leaders wiki page and extract all leader cards.
 
     Args:
         html: The raw HTML content of the Leaders page
+        url: Wiki URL for the Leaders page
 
     Returns:
         List of CardInfo objects for all leaders
     """
-    soup = BeautifulSoup(html, 'html.parser')
+    soup = BeautifulSoup(html, "html.parser")
     all_leaders = []
 
     for tribe_name, tribe_enum in TRIBE_SECTION_MAP.items():
         # Find the tribe section heading
-        heading = soup.find('span', {'id': tribe_name})
+        heading = soup.find("span", {"id": tribe_name})
 
         if not heading:
             logger.warning(f"Could not find section for {tribe_name}")
@@ -177,13 +174,13 @@ def parse_leaders_page(html: str, url: str = "") -> list[CardInfo]:
 
         # Find the table following this heading
         # The heading is inside h3, and the table follows
-        h3 = heading.find_parent('h3')
+        h3 = heading.find_parent("h3")
         if not h3:
             logger.warning(f"Could not find h3 parent for {tribe_name}")
             continue
 
         # Find the next sibling table
-        table = h3.find_next_sibling('table')
+        table = h3.find_next_sibling("table")
         if not table:
             logger.warning(f"Could not find table for {tribe_name}")
             continue
