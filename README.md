@@ -206,9 +206,7 @@ poetry run pytest
 Detailed design notes and diagrams live in [`docs/`](docs/), including:
 
 - [`docs/retriever_docs/`](docs/retriever_docs/) — how each retrieval strategy works
-- [`docs/experiment_structure_design.md`](docs/experiment_structure_design.md) — experiment tracking design
 - [`docs/data_ingestion_process.md`](docs/data_ingestion_process.md) / [`docs/query_answering_process.md`](docs/query_answering_process.md) — pipeline flow diagrams
-- [`docs/roadmap.md`](docs/roadmap.md) — working notes and planned next steps
 
 ---
 

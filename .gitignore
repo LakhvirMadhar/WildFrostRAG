@@ -3,7 +3,6 @@ data/
 outputs/
 reports/
 docs/*
-!docs/roadmap.md
 !docs/retrieval_comparison_run1.md
 commit_message.md
 
