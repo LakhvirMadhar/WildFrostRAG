@@ -58,6 +58,10 @@ packages = [
     {include = "gui", from = "src"},
 ]
 
+[tool.poetry.group.dev.dependencies]
+mypy = "1.20.0"
+pytest = "^9.0.2"
+
 [virtualenvs]
 in-project = true
 
