@@ -407,9 +407,7 @@ class CardInfo:
         )
 
     @staticmethod
-    def _detect_variant_card_type(
-        card_name: str, default_type: CardType
-    ) -> CardType:
+    def _detect_variant_card_type(card_name: str, default_type: CardType) -> CardType:
         """Detect card type from name suffix for variant cards."""
         if card_name.endswith("(Enemy)"):
             return CardType.NON_BOSS_ENEMIES

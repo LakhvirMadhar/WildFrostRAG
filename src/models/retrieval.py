@@ -56,8 +56,15 @@ class RetrievedChunk:
         """
         # Keys consumed by typed fields or filtered out (metadata-only)
         consumed_keys = {
-            "score", "search_type", "rag_context", "source_url", "doc_source_url",
-            "generated_cypher", "result_index", "no_results", "error",
+            "score",
+            "search_type",
+            "rag_context",
+            "source_url",
+            "doc_source_url",
+            "generated_cypher",
+            "result_index",
+            "no_results",
+            "error",
         }
         return cls(
             score=raw.get("score", 0.0),
@@ -77,6 +84,7 @@ class CypherExecution:
     cypher_error_message: str | None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict for JSON storage."""
         return {
             "cypher_query": self.cypher_query,
             "cypher_execution_status": self.cypher_execution_status,
@@ -85,6 +93,7 @@ class CypherExecution:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CypherExecution":
+        """Deserialize from a dict (as saved by to_dict)."""
         return cls(
             cypher_query=data.get("cypher_query"),
             cypher_execution_status=data.get("cypher_execution_status", "success"),
@@ -109,6 +118,7 @@ class QueryResult:
     relevance_annotations: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict for JSON storage."""
         return {
             "query_id": self.query_id,
             "query": self.query,
@@ -119,6 +129,7 @@ class QueryResult:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "QueryResult":
+        """Deserialize from a dict (as saved by to_dict)."""
         return cls(
             query_id=data["query_id"],
             query=data["query"],
