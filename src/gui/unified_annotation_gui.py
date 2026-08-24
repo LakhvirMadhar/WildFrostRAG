@@ -20,7 +20,7 @@ from gui.chunk_widgets import create_chunk_widget, create_chunks_summary
 from utils.logger import logger
 
 # Import query processing functions
-from scripts.process_queries import load_queries_json, add_doc_reference
+from rag.evaluation.query_data import load_queries_json, add_doc_reference
 
 
 class UnifiedAnnotationGUI:
