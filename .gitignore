@@ -2,7 +2,9 @@
 data/
 outputs/
 reports/
-docs/
+docs/*
+!docs/roadmap.md
+!docs/retrieval_comparison_run1.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -69,6 +71,9 @@ venv.bak/
 *.swo
 *~
 
+# Claude Code local state
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -87,7 +92,7 @@ data/
 # Model files (if large)
 *.pkl
 *.joblib
-models/
+/models/
 
 # Temporary files
 temp/
