@@ -1,343 +1,223 @@
-# WildFrostRAG Project Context
+# WildFrostRAG
 
-## Project Overview
-**WildFrostRAG** is a research-oriented Retrieval-Augmented Generation (RAG) system for the game *Wildfrost*. The primary objective is to evaluate and compare different retrieval strategies—ranging from traditional vector search to advanced Graph RAG—using game data (Cards, Tribes, Stats) scraped from the Wildfrost Wiki and stored in a Neo4j Knowledge Graph.
-This project can be viewed as an abalation study of retrieval and generation metrics.
+> A research-oriented Retrieval-Augmented Generation (RAG) system that benchmarks retrieval strategies — BM25, vector search, hybrid RRF, Text2Cypher, and Graph RAG — against a Neo4j knowledge graph built from the *Wildfrost* wiki.
 
-## Core Research Goals
-The project aims to benchmark the following RAG implementations:
-1.  **Base LLM:** Zero-shot performance using innate model knowledge (no retrieval).
-2.  **Traditional RAG:** 
-    *   **BM25:** Keyword-based retrieval.
-    *   **Cosine Similarity:** Standard vector-based retrieval.
-    *   **Hybrid:** Reciprocal Rank Fusion (RRF) of BM25 and Cosine Similarity.
-3.  **Text2Cypher:** Using Neo4j's Text2Cypher extension to generate Cypher queries against the established Wildfrost ontology in Neo4j.
-4.  **Graph RAG:** Implementing advanced graph traversal or community-based retrieval (the primary learning objective).
+WildFrostRAG is an ablation study answering one question: **is Graph RAG actually better than traditional retrieval for game-domain question answering, and why?** Card, tribe, and mechanics data is scraped from the Wildfrost Wiki, structured into a Neo4j knowledge graph, and queried by six different retrieval strategies. Each strategy is scored on retrieval metrics (NDCG, Hit@k, MRR) and generation quality, using an evaluation methodology inspired by Hamel Husain's RAG evaluation framework.
 
-## Evaluation Framework
-The project follows a rigorous evaluation style inspired by **Hamel Husain’s framework**:
-*   **Query Generation:** User-generated queries from random samples of documents based on game schemas (`query_generation.ipynb`).
-*   **Retrieval Metrics:** Measuring how accurately the system finds relevant chunks or nodes using metrics like NDCG and Hit@k.
-*   **Generation Metrics:** Evaluating the quality of the final answer based on user-defined criteria.
-*   **Qualitative Coding:** Using "Open Coding" and "Axial Coding" to categorize failure modes in `queries/simple_reference_based_queries.csv`.
+This is both a research project and a production-style engineering exercise — retrievers are dependency-injected, configuration is centralized and type-safe (Pydantic Settings), and experiments are tracked with an MLflow-like registry rather than scattered notebook output.
 
-## Architecture & Components
+---
 
-### 1. Data Layer (`data/`)
-*   `structured_outputs/`: Processed card data organized by `CardType`.
-*   `schemas/`: JSON definitions of card types and game mechanics.
+## Table of Contents
 
-### 2. Knowledge Graph (`src/neo4j_kg/`)
-*   Manages the Neo4j instance.
-*   Maps relationships like `BELONGS_TO_TRIBE`, `HAS_CARD_TYPE`, and `HAS_STAT`.
-*   Nodes: `Card`, `Tribe`, `Stat`, `CardType`, `Document`.
+- [Architecture](#architecture)
+- [Retrieval Strategies](#retrieval-strategies)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+- [Project Structure](#project-structure)
+- [Tests](#tests)
+- [Documentation](#documentation)
+- [License](#license)
+- [Contact](#contact)
 
-### 3. Model Integrations
-*   **OpenAI:** Used for baseline zero-shot and RAG comparisons.
+---
 
-## Program Flow Diagram
-
-The following Mermaid sequence diagram illustrates the flow of operations in the WildFrostRAG project, showing how different components interact during key processes:
+## Architecture
 
 ```mermaid
 sequenceDiagram
     participant User
     participant IngestScript as scripts/ingest_data.py
-    participant WikiScraper as src/web_scraper/sitemap_scraper.py
-    participant Cards as src/data_processing/cards.py
-    participant Enrichment as src/data_processing/enrichment.py
-    participant HTMLSplitter as src/data_processing/html_splitter.py
-    participant EmbedGen as src/embeddings/generator.py
-    participant GraphBuilder as src/neo4j_kg/graph_builder.py
-    participant VectorStore as src/neo4j_kg/vector_store.py
+    participant WikiScraper as src/scraping
+    participant GraphBuilder as src/neo4j_kg
     participant Retriever as src/rag/retrievers/*
-    participant LLMGen as src/rag/augmented_generation/call_llm_generation.py
-    participant Eval as src/rag/evaluation/*
-    participant Config as src/utils/config.py
-    participant Logger as src/utils/logger.py
+    participant LLMGen as src/rag/augmented_generation
+    participant Eval as src/rag/evaluation
 
-    Note over User,Logger: Data Ingestion Process
-    User->>IngestScript: 1. Run ingestion script
-    IngestScript->>Config: 2. Load configuration
-    IngestScript->>WikiScraper: 3. Scrape Wildfrost Wiki
-    WikiScraper-->>IngestScript: 4. Return card data
-    IngestScript->>Cards: 5. Process card data
-    Cards->>HTMLSplitter: 6. Split HTML content
-    HTMLSplitter-->>Cards: 7. Return processed content
-    Cards->>Enrichment: 8. Enrich with additional data
-    Enrichment-->>Cards: 9. Return enriched data
-    IngestScript->>EmbedGen: 10. Generate embeddings
-    EmbedGen-->>IngestScript: 11. Return embeddings
-    IngestScript->>GraphBuilder: 12. Create graph nodes
-    GraphBuilder-->>IngestScript: 13. Nodes created
-    IngestScript->>VectorStore: 14. Store embeddings in vector index
-    VectorStore-->>IngestScript: 15. Embeddings stored
-    IngestScript->>Logger: 16. Log process completion
-
-    Note over User,Logger: Query Answering Process
-    User->>Retriever: 1. Submit query
-    Retriever->>Config: 2. Load configuration
-    Retriever->>VectorStore: 3. Search vector index
-    VectorStore-->>Retriever: 4. Return relevant chunks
-    Retriever->>LLMGen: 5. Generate response with context
-    LLMGen-->>User: 6. Return generated response
-    LLMGen->>Logger: 7. Log query and response
-
-    Note over User,Logger: Retrieval Evaluation Process
-    User->>Eval: 1. Run evaluation
-    Eval->>Retriever: 2. Test retrieval methods
-    Retriever-->>Eval: 3. Return results
-    Eval->>LLMGen: 4. Evaluate generation quality
-    LLMGen-->>Eval: 5. Return quality metrics
-    Eval->>Logger: 6. Log evaluation results
+    User->>IngestScript: Run ingestion (scrape -> process -> embed)
+    IngestScript->>WikiScraper: Scrape Wildfrost Wiki
+    IngestScript->>GraphBuilder: Build graph + vector index in Neo4j
+    User->>Retriever: Submit query
+    Retriever->>GraphBuilder: Query knowledge graph / vector index
+    Retriever->>LLMGen: Pass retrieved context
+    LLMGen-->>User: Generated answer
+    User->>Eval: Score retrieval + generation quality
+    Eval->>Retriever: Run retriever comparisons
+    Eval->>LLMGen: Score generated answers
 ```
 
-## Key Process Flows
+**Data flow:** Web Scraping → Data Processing → Neo4j Knowledge Graph → Embeddings → Retrieval → LLM Generation → Evaluation. See [`docs/`](docs/) for detailed per-stage diagrams.
 
-The diagram shows the following key operational sequences:
+## Retrieval Strategies
 
-1. **Data Ingestion Process**: How data flows from web scraping through processing, enrichment, embedding generation, and storage in the knowledge graph.
+| Strategy | Description |
+|---|---|
+| **Base LLM** | Zero-shot, no retrieval — the control group |
+| **BM25** | Keyword-based retrieval (`rank-bm25`) |
+| **Vector Search** | Cosine similarity over `sentence-transformers` embeddings |
+| **Hybrid (RRF)** | Reciprocal Rank Fusion combining BM25, fulltext, and vector search |
+| **Text2Cypher** | LLM-generated Cypher queries against the graph schema |
+| **Graph RAG** | Graph traversal / community-based retrieval (primary research target) |
 
-2. **Query Answering Process**: How user queries are handled by the retrieval system and passed to the LLM generation component.
+---
 
-3. **Retrieval Evaluation Process**: How the system evaluates the quality of retrieval and generation components.
+## Results
 
-## Detailed Process Diagrams
+Retrieval metrics from 50 hand-annotated reference queries, scored with Hit@k, MRR, and Recall@10 (regenerated 2026-08-23 against the current codebase — see [`docs/retrieval_comparison_run1.md`](docs/retrieval_comparison_run1.md) for exact reproduction commands). This is an early-stage comparison; a dedicated Graph RAG retriever is still in progress — see [Retrieval Strategies](#retrieval-strategies).
 
-For more detailed views of each process, see the individual diagrams below:
+| Retriever | Hit@1 | Hit@10 | MRR | Recall@10 |
+|---|---|---|---|---|
+| Text2Cypher | 0.700 | 0.720 | 0.710 | 0.720 |
+| Vector (MiniLM) | 0.820 | 0.960 | 0.877 | 0.960 |
+| Fulltext | 0.820 | 0.960 | 0.859 | 0.960 |
+| BM25 | 0.840 | 0.960 | 0.875 | 0.960 |
+| Vector (Gemma) | 0.900 | 0.980 | 0.928 | 0.980 |
+| BM25 + Vector (Gemma) Hybrid (RRF) | 0.900 | 0.980 | 0.927 | 0.980 |
+| **Fulltext + Vector (Gemma) Hybrid (RRF)** | **0.900** | **0.980** | **0.933** | **0.980** |
 
-### Data Ingestion Process
+**Key findings:**
+- **Text2Cypher is the weakest strategy by far** (Hit@1: 0.700, Hit@10: 0.720) — LLM-generated Cypher queries frequently return zero or wrong results, capping Hit@10 well below every other method.
+- Vector search benefits substantially from embedding model choice: Gemma clearly outperforms MiniLM (MRR 0.928 vs. 0.877).
+- **Fulltext + Vector (Gemma) hybrid RRF is the best performer**, with the highest MRR of any strategy tested.
+- Graph-traversal-augmented retrieval (vector/fulltext → Cypher expansion) currently scores **identically** to its non-graph base retriever on this query set — the Cypher-expansion step isn't yet adding measurable retrieval value, which is the open question this project is still investigating.
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant IngestScript as scripts/ingest_data.py
-    participant WikiScraper as src/web_scraper/sitemap_scraper.py
-    participant Cards as src/data_processing/cards.py
-    participant Enrichment as src/data_processing/enrichment.py
-    participant HTMLSplitter as src/data_processing/html_splitter.py
-    participant EmbedGen as src/embeddings/generator.py
-    participant GraphBuilder as src/neo4j_kg/graph_builder.py
-    participant VectorStore as src/neo4j_kg/vector_store.py
-    participant Config as src/utils/config.py
-    participant Logger as src/utils/logger.py
+Full breakdown and reproduction steps in [`docs/retrieval_comparison_run1.md`](docs/retrieval_comparison_run1.md).
 
-    User->>IngestScript: 1. Run ingestion script
-    IngestScript->>Config: 2. Load configuration
-    IngestScript->>WikiScraper: 3. Scrape Wildfrost Wiki
-    WikiScraper-->>IngestScript: 4. Return card data
-    IngestScript->>Cards: 5. Process card data
-    Cards->>HTMLSplitter: 6. Split HTML content
-    HTMLSplitter-->>Cards: 7. Return processed content
-    Cards->>Enrichment: 8. Enrich with additional data
-    Enrichment-->>Cards: 9. Return enriched data
-    IngestScript->>EmbedGen: 10. Generate embeddings
-    EmbedGen-->>IngestScript: 11. Return embeddings
-    IngestScript->>GraphBuilder: 12. Create graph nodes
-    GraphBuilder-->>IngestScript: 13. Nodes created
-    IngestScript->>VectorStore: 14. Store embeddings in vector index
-    VectorStore-->>IngestScript: 15. Embeddings stored
-    IngestScript->>Logger: 16. Log process completion
+---
+
+## Installation
+
+**Requirements:** Python 3.12, [Poetry](https://python-poetry.org/), a running Neo4j 5.x instance.
+
+```bash
+git clone https://github.com/LakhvirMadhar/WildFrostRAG.git
+cd WildFrostRAG
+
+poetry install
+poetry shell
 ```
 
-### Query Answering Process
+---
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Retriever as src/rag/retrievers/*
-    participant Config as src/utils/config.py
-    participant VectorStore as src/neo4j_kg/vector_store.py
-    participant LLMGen as src/rag/augmented_generation/call_llm_generation.py
-    participant Logger as src/utils/logger.py
+## Configuration
 
-    User->>Retriever: 1. Submit query
-    Retriever->>Config: 2. Load configuration
-    Retriever->>VectorStore: 3. Search vector index
-    VectorStore-->>Retriever: 4. Return relevant chunks
-    Retriever->>LLMGen: 5. Generate response with context
-    LLMGen-->>User: 6. Return generated response
-    LLMGen->>Logger: 7. Log query and response
+Copy the example env file and fill in your own values:
+
+```bash
+cp .env.example .env
 ```
 
-### Retrieval Evaluation Process
+| Variable | Description | Required |
+|---|---|---|
+| `NEO4J_URI` | Neo4j connection string, e.g. `bolt://localhost:7687` | Yes |
+| `NEO4J_USERNAME` | Neo4j username | Yes |
+| `NEO4J_PASSWORD` | Neo4j password | Yes |
+| `OPENAI_API_KEY` | OpenAI API key for generation | Yes |
+| `EMBEDDING_MODEL_NAME` | Sentence-transformers model name | No — defaults to `all-MiniLM-L6-v2` |
+| `OPENAI_MODEL_NAME` | OpenAI model for generation | No |
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Eval as src/rag/evaluation/*
-    participant Retriever as src/rag/retrievers/*
-    participant LLMGen as src/rag/augmented_generation/call_llm_generation.py
-    participant Logger as src/utils/logger.py
+All settings are loaded through `src/utils/config.py` (Pydantic Settings) — see that file for the full list of configurable values (RRF `k1`, index names, scraping concurrency, etc.).
 
-    User->>Eval: 1. Run evaluation
-    Eval->>Retriever: 2. Test retrieval methods
-    Retriever-->>Eval: 3. Return results
-    Eval->>LLMGen: 4. Evaluate generation quality
-    LLMGen-->>Eval: 5. Return quality metrics
-    Eval->>Logger: 6. Log evaluation results
+---
+
+## Quick Start
+
+Run the full ETL pipeline, then run and compare two retrievers:
+
+```bash
+# 1. Scrape, process, embed, and ingest into Neo4j
+poetry run python -m scripts.ingest_data --no-chunking
+
+# 2. Run a retrieval experiment
+poetry run python -m scripts.experiment retrieval --retriever bm25 --description "Baseline BM25"
+
+# 3. Generate answers using that retrieval
+poetry run python -m scripts.experiment generation --retrieval latest/bm25 --prompt SYSTEM_PROMPT_V1
+
+# 4. Score retrieval quality
+poetry run python -m scripts.calculate_retrieval_metrics --run-num 1
 ```
 
-## Planned Further Steps & Roadmap
+---
 
-### 1. Notebook Cleanup (COMPLETE)
-*   **`rag_eval_demo.ipynb`:** Currently acts as a scratchpad. Needs to be stripped of scraped logic, hardcoded paths, and unused imports. It should solely focus on *demonstrating* the pipeline, calling functions from the `src` directory.
-*   **`query_generation.ipynb`:** Contains a massive `QueryAnnotationGUI` class and mixed logic for generation and evaluation. The GUI code should be moved to a module, and the notebook should focus on the interactive analysis loop.
+## Usage
 
-### 2. Codebase Refactoring
-*   **Modularization:** Move the `QueryAnnotationGUI` class to `src/utils/gui.py` or `src/evaluation/gui.py`.
-*   **Consolidation:** Ensure `scrape_sitemap` and `process_sitemap_urls` are tightly integrated into a single ingestion pipeline rather than disjointed function calls.
-*   **Type Safety:** Add Pydantic models for configuration to replace loose environment variable fetching scattered across files.
+### Experiment CLI (recommended)
 
-### 3. Orchestration Scripts
-*   **`scripts/ingest_data.py`:** Create a dedicated CLI script to handle the full ETL pipeline (Scrape -> Process -> Vectorize -> Ingest to Neo4j). This removes the dependency on Jupyter for data setup.
-    *   *Usage:* `python -m scripts.ingest_data --force-scrape`
+```bash
+poetry run python -m scripts.experiment current                      # show current run number
+poetry run python -m scripts.experiment retrieval --retriever vector  # run a retriever
+poetry run python -m scripts.experiment list --type retrieval         # list experiments in current run
+poetry run python -m scripts.experiment search --retriever-type bm25  # search across all runs
+poetry run python -m scripts.experiment new-run                       # start a fresh run
+```
 
-### 4. Agent Suggestions (Recommended)
-*   **Evaluation Pipeline Module:** Create `src/evaluation/metrics.py` to house the logic for `NDCG`, `Hit@k`, and `Recall`. This allows these metrics to be computed programmatically during CI/CD or batch runs, not just in notebooks.
-*   **Configuration Management:** Implement a central `config.py` (using `pydantic-settings`) to manage model names, embedding dimensions, and database URIs. This prevents "magic strings" like `'all-MiniLM-L6-v2'` from appearing in multiple files.
-*   **Dependency Separation:** The project currently mixes "application" dependencies (FastAPI, Streamlit) with "analysis" dependencies (Jupyter, Pandas). Consider grouping these in `pyproject.toml` (e.g., `tool.poetry.group.dev.dependencies`).
+### Direct scripts (for debugging / full parameter control)
 
-##  Current Plan of Action
+```bash
+poetry run python -m scripts.evaluate_retrievers --run-num 1 --retriever text2cypher --chunking no
+poetry run python -m scripts.run_llm_generation --run-num 1 --retrieval-reference bm25/001 --system-prompt SYSTEM_PROMPT_V1
+```
 
-### Setting up other vector searches + adding in manual retrieval metrics
-1.  **BM25**
-    *   Setup rankbm25 library for articles (COMPLETE)
-    *   Setup Neo4j's Lucene 
+Full command reference lives in [`CLAUDE.md`](CLAUDE.md).
 
-2.  **Cosine Similarity** (DOUBLE CHECK IF COMPLETE)
-    *   Use cosine similarity for 
+---
 
-3.  **Hybrid Similarity** (COMPLETE I THINK)
-    *   Given the lexical and semanitc search, figure out a way to 
+## Project Structure
 
-4.  **Neo4j's text2Cypher library** (WIP)
-    *   Use Neo4j's text2Cypher library 
+```
+WildFrostRAG/
+├── scripts/                    # CLI entry points (ingest, experiment, evaluate)
+├── src/
+│   ├── scraping/                # Wildfrost Wiki scraping
+│   ├── data_processing/         # HTML parsing, card extraction, enrichment
+│   ├── embeddings/              # Embedding generation
+│   ├── neo4j_kg/                # Neo4j graph + vector store management
+│   ├── rag/
+│   │   ├── retrievers/          # BM25, vector, hybrid, Text2Cypher, GraphRAG
+│   │   ├── augmented_generation/# LLM generation (zero-shot + RAG)
+│   │   └── evaluation/          # Retrieval + generation metrics
+│   ├── experiment_tracker/      # MLflow-style experiment registry
+│   ├── prompts/                 # Versioned system / Text2Cypher prompts
+│   └── utils/                   # Config, logging
+├── tests/
+├── docs/                        # Per-component design docs and diagrams
+├── queries/                     # Annotated query dataset + failure mode taxonomy
+├── data/                        # Structured card data, schemas, raw HTML
+├── .env.example
+├── pyproject.toml
+└── LICENSE
+```
 
-5.  **Knowledge Graph** (NO IDEA)
-    *   Idk how a knowledge graph is supposed to work, but this is the goal. Is a knowledge graph "better" than the other methods?
+---
 
-Given the above retrieval techniques, we need to setup the retrieval metrics
-1.  **hit@k**
-    *   This establishes stuff like precision@k and recall@k, which k being the number of documents retrieved (eg. 1, 2, 5, 10).
+## Tests
 
-2.  **NCDG**
-    *   Does this make sense? I don't actually know the expected order
+```bash
+poetry run pytest
+```
 
-3.  **MRR**
-    *   Mean Recipricocal Rank, I think this one is applicable?
+---
 
-4.  **RRF**
-    *   Recipricol Rank Fusion, I don't remember what this means
+## Documentation
 
+Detailed design notes and diagrams live in [`docs/`](docs/), including:
 
-### Phase 3: Data Processing/Chunking
-1.  **Chunking**
-    *   Currently have a chunking option and no chunking option. No chunking is fine as is, it caputres the entire document.
-    *   The HTML splitter needs some work, as it splits headers but some headers are just the name of the card, therefore it becomes an irrelevant chunk during retrieval
+- [`docs/retriever_docs/`](docs/retriever_docs/) — how each retrieval strategy works
+- [`docs/experiment_structure_design.md`](docs/experiment_structure_design.md) — experiment tracking design
+- [`docs/data_ingestion_process.md`](docs/data_ingestion_process.md) / [`docs/query_answering_process.md`](docs/query_answering_process.md) — pipeline flow diagrams
+- [`docs/roadmap.md`](docs/roadmap.md) — working notes and planned next steps
 
-2.  **Missing Features/Pages to Still Scrape**
-    In this section, there are many pages I still need to scrape to capture the complete wiki. If it was just scraping the full site, that'd be easy. The problem is mapping the ontology considering there are many other things that make this very complicated.
+---
 
-    a. Cards with multiple phases or states (like Infernoko or Naked Gnome) or not properly being scraped atm
-        
-        - For cards with phases, we can have the following possible relationship: card -> has phase -> phase
-    
-    b. Adding fields to card nodes
-        
-        - Other Stats field  (Resist Snow, Frenzy, etc. This is the Stats page, which needs scraping and processing: https://wildfrostwiki.com/Stats)
-        
-        - flavor text (either null or str)
-        
-        - abilities, which are broken into two: The listed ability and the canonical ability to scrape from the excel sheet
-            -   Example: "Increase attack by 2" & "Increase attack by 1" is actually "Increase attack by <n>"
-    
-    c. Probably need to do a keyword or ability node as this can get complicated. Certain keywords are part of an ability: https://wildfrostwiki.com/Keywords
-        
-        - Example: "Apply 3 <keyword> Snow </keyword>." We would have to link abilities to keywords.
-            -- Card -> has ability -> ability
-            -- Ability -> has keyword -> keyword
-  
-    d. Need to add logic to scrape the Leaders page. 
-    
-        - For relations, it should link them to the tribe and to a leader node (there can only be one leader) 
-        - I should probably make a leader node.
-            -- Tribe -> has leader -> Leader
-            -- Leader -> has permanent crown -> Crown
-            -- if the leader dies, the run dies (whatever this would look like)
-            -- Leader -> belongs to tribe -> Tribe (each tribe has leaders)
-            -- Card -> has subtype -> Leader
-            -- Somehow figure out how to make the leader cards, they are a little different from a normal card
-            -- You can only have one leader
+## License
 
-    e. Pets should also get a pet node 
-        
-        - There can only be one pet chosen per run
-        - Pets are chosen to be part of the starting deck
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
-    f. I should add a starting deck
-        
-        - Leader -> starts in -> Player deck
-        - Pets -> starts in -> Player deck
-        - Starting item cards -> starts in -> Player deck (we'd also need to add the quantity)
-    
-    g. Crowns. They are a thing and I need to include them into my data
+## Contact
 
-    h. Maps have it's own ontology: https://wildfrostwiki.com/Map. 
-        
-        - Map -> contains -> zones
-        - Zones -> contains -> fights
-        - Zones -> contains -> map events (the inbetween after each fight, depending on the zone.) 
-        - Map Events -> contains -> events (the specific events?) what's different with the one above is it's the order of fights and events. 1st fight -> event-> etc. I want to capture the individual events as well and when they show up???
-    
-    i. Fights have their own kind of ontology too 
-        
-        - Enemies -> appear in -> fights 
-        - Fights -> has -> enemies
-        - Fights -> has -> waves
-        - Enemies -> appears in -> waves
-        - waves -> has -> enemies
-        - Need to somehow relate to this the playing field itself too and the bell system. Not fun
-    
-    j. Speaking of playing field, probably need to map this as well.
-        
-        - Hm, probably need something for how fights themselves play out (1 card is played OR player hits their sun bell, then enemy turn progresses). A lot I have to do here.
+Lakhvir Madhar — [171702328+LakhvirMadhar@users.noreply.github.com](mailto:171702328+LakhvirMadhar@users.noreply.github.com)
 
-    i. I need to add the bell system as they relate to everything as well.
-        
-        - You need to select the 10 bell difficulty to even do the final fight in map events. 
-        - Need to also scrape the pages as well
-
-    k. I'm not saving the card image anywhere, unsure if needed atm.
-    
-    l.   Need to update the to_dict method to capture more information I'm missing
-        
-        - *Important**: I need to make sure the to_dict method is expanded to make a very cleaned format of the HTML.
-    
-### 4. **Important**: Logger needs updating
-    
-    -   It's currently saving all to one file, we need to make it several files. Also need to fix print statements or tqdm write statements to instead be logger.
-    
-### 5. Support for multiple Embeddings
-    
-    -   Adding the ability to have multiple embeddings from different providers and testing that.
-
-### 6. Setting up the retrievers
-    
-    - Continue the work with setting up the retrievers
-
-### Overall Theme
-*   The `rag_eval_demo.ipynb` will be for any scraping and neo4j ingestion testing the user deems necessary.
-*   The `query_generation.ipynb` will remain the primary entry point for running RAG experiments and evaluations.
-
-## Building and Running
-
-### Prerequisites
-*   Python 3.12+ (managed by Poetry).
-*   Neo4j instance (Local Bolt: `bolt://localhost:7687`).
-*   Environment variables in `.env`: `OPENAI_API_KEY`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`.
-
-### Key Workflows
-*   **Data Prep:** Use `rag_eval_demo.ipynb` to test scraping and parsing of data, and ingest data into Neo4j.
-*   **Eval Run:** Use `query_generation.ipynb` to run experiments across different RAG versions.
-*   **Analysis:** Use the `QueryAnnotationGUI` (built with ipywidgets) to manually validate and code responses.
+Project link: [https://github.com/LakhvirMadhar/WildFrostRAG](https://github.com/LakhvirMadhar/WildFrostRAG)
