@@ -5,6 +5,7 @@ reports/
 docs/*
 !docs/roadmap.md
 !docs/retrieval_comparison_run1.md
+commit_message.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
