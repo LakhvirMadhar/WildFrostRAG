@@ -45,9 +45,7 @@ def parse_fight_enemies(html: str) -> list[str]:
     # Find all headings that contain "Enemies" (covers "Enemies" and "Summoned Enemies")
     all_headlines = soup.find_all("span", class_="mw-headline")
     enemy_headings = [
-        headline
-        for headline in all_headlines
-        if headline.string and "Enemies" in headline.string
+        headline for headline in all_headlines if headline.string and "Enemies" in headline.string
     ]
     if not enemy_headings:
         return []
@@ -85,7 +83,5 @@ def parse_all_fight_enemies(fight_htmls: dict[str, str]) -> dict[str, list[str]]
         logger.info(f"  {page_name}: {len(enemies)} enemies")
 
     total = sum(len(e) for e in results.values())
-    logger.info(
-        f"Parsed enemies from {len(results)} fight pages ({total} total enemy entries)"
-    )
+    logger.info(f"Parsed enemies from {len(results)} fight pages ({total} total enemy entries)")
     return results

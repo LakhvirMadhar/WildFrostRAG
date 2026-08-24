@@ -50,9 +50,7 @@ class BaseNeo4jRetriever:
         """
         if isinstance(value, Node):
             props = {
-                k: v
-                for k, v in value.items()
-                if k != "embedding" and not k.endswith("_embedding")
+                k: v for k, v in value.items() if k != "embedding" and not k.endswith("_embedding")
             }
             props["_labels"] = list(value.labels)
             return props
@@ -115,9 +113,7 @@ class BaseNeo4jRetriever:
 
         return result
 
-    def _execute_query(
-        self, query: str, params: dict[str, Any]
-    ) -> list[dict[str, Any]]:
+    def _execute_query(self, query: str, params: dict[str, Any]) -> list[dict[str, Any]]:
         """Execute a Neo4j query and return results using the shared driver.
 
         Handles ANY Cypher query structure - single nodes, multiple nodes,

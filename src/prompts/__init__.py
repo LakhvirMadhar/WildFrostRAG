@@ -26,8 +26,6 @@ def get_prompt(prompt_name: str) -> VersionedPrompt:
         The VersionedPrompt object.
     """
     if prompt_name not in PROMPT_REGISTRY:
-        logger.error(
-            f"Unknown prompt: {prompt_name}. Available: {list(PROMPT_REGISTRY.keys())}"
-        )
+        logger.error(f"Unknown prompt: {prompt_name}. Available: {list(PROMPT_REGISTRY.keys())}")
         raise ValueError(f"Unknown prompt: {prompt_name}")
     return PROMPT_REGISTRY[prompt_name]

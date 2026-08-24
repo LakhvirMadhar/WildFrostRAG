@@ -250,9 +250,7 @@ def generate_missed_queries(experiments: list[dict[str, Any]]) -> list[str]:
 
     # Filter to queries missed by at least one experiment
     missed_qids = sorted(
-        qid
-        for qid, data in query_map.items()
-        if any(data.get(name, 0) == 0 for name in exp_names)
+        qid for qid, data in query_map.items() if any(data.get(name, 0) == 0 for name in exp_names)
     )
 
     if not missed_qids:
@@ -261,9 +259,7 @@ def generate_missed_queries(experiments: list[dict[str, Any]]) -> list[str]:
     lines = []
 
     # Only show stopword column if any experiment uses stopword removal
-    any_sw = any(
-        exp["retriever_dir"] in STOPWORD_RELEVANT_RETRIEVERS for exp in experiments
-    )
+    any_sw = any(exp["retriever_dir"] in STOPWORD_RELEVANT_RETRIEVERS for exp in experiments)
 
     # Build table header
     if any_sw:
@@ -294,9 +290,7 @@ def generate_missed_queries(experiments: list[dict[str, Any]]) -> list[str]:
                 if t.strip("?.,!") and t.strip("?.,!") not in stop_words
             ]
             sw_removed = " ".join(filtered) if filtered else "—"
-            lines.append(
-                f"| {qid} | {query} | {sw_removed} | " + " | ".join(cells) + " |"
-            )
+            lines.append(f"| {qid} | {query} | {sw_removed} | " + " | ".join(cells) + " |")
         else:
             lines.append(f"| {qid} | {query} | " + " | ".join(cells) + " |")
 
@@ -312,9 +306,7 @@ def generate_missed_queries(experiments: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
-def generate_report(
-    sections: list[tuple[str, list[dict[str, Any]]]], run_num: int
-) -> str:
+def generate_report(sections: list[tuple[str, list[dict[str, Any]]]], run_num: int) -> str:
     """Generate a full multi-section markdown report."""
     lines = []
     lines.append(f"# Retrieval Comparison -- Run {run_num}")
@@ -382,9 +374,7 @@ def parse_sections(section_args: list[str]) -> list[tuple[str, list[str]]]:
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments for retrieval comparison."""
     parser = argparse.ArgumentParser(description="Compare retrieval experiment metrics")
-    parser.add_argument(
-        "--run-num", type=int, default=1, help="Run number (default: 1)"
-    )
+    parser.add_argument("--run-num", type=int, default=1, help="Run number (default: 1)")
     parser.add_argument(
         "--sections",
         nargs="+",
@@ -426,9 +416,7 @@ def main() -> None:
                 sw_str = f" [sw={'yes' if sw else 'no'}]" if sw is not None else ""
                 agg = exp["metrics"]["aggregate_metrics"]
                 mrr = agg.get("avg_mrr", 0)
-                print(
-                    f"  {retriever}/{exp['experiment_id']}: MRR={mrr:.3f}{sw_str} -- {desc}"
-                )
+                print(f"  {retriever}/{exp['experiment_id']}: MRR={mrr:.3f}{sw_str} -- {desc}")
         return
 
     if not args.sections:

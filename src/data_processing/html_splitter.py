@@ -48,9 +48,7 @@ def _parse_multi_column_row(headers: list[Tag], next_row: Tag) -> str | None:
     header_texts = [clean_element_text(h) for h in headers]
     value_cells = next_row.find_all("td", recursive=False)
     value_texts = [clean_element_text(v) for v in value_cells]
-    pairs = [
-        f"{h}: {v}" for h, v in zip(header_texts, value_texts, strict=False) if h and v
-    ]
+    pairs = [f"{h}: {v}" for h, v in zip(header_texts, value_texts, strict=False) if h and v]
     return " | ".join(pairs) if pairs else None
 
 
@@ -180,9 +178,7 @@ def _transform_soup_elements(soup: BeautifulSoup) -> None:
         for tag in soup.find_all(tag_name):
             heading_text = tag.get_text(separator=" ", strip=True)
             tag.replace_with(
-                NavigableString(
-                    f"{BLOCK_MARKER_DOUBLE}{prefix}{heading_text}{BLOCK_MARKER_DOUBLE}"
-                )
+                NavigableString(f"{BLOCK_MARKER_DOUBLE}{prefix}{heading_text}{BLOCK_MARKER_DOUBLE}")
             )
 
     # Add block markers after paragraphs, list items, line breaks

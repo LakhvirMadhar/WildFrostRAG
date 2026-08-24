@@ -57,9 +57,7 @@ class ExperimentBrowserGUI:
     def _create_widgets(self) -> None:
         """Create all browser widgets."""
         # Title
-        self.title = widgets.HTML(
-            value='<h2 style="margin: 0 0 20px 0;">Experiment Browser</h2>'
-        )
+        self.title = widgets.HTML(value='<h2 style="margin: 0 0 20px 0;">Experiment Browser</h2>')
 
         # Filters section
         self.run_dropdown = widgets.Dropdown(
@@ -209,12 +207,8 @@ class ExperimentBrowserGUI:
 
         # Basic info
         rows.append(f"<tr><td><b>ID:</b></td><td>{exp.get('id', 'unknown')}</td></tr>")
-        rows.append(
-            f"<tr><td><b>Type:</b></td><td>{exp.get('type', 'unknown')}</td></tr>"
-        )
-        rows.append(
-            f"<tr><td><b>Run:</b></td><td>{exp.get('run_number', '?')}</td></tr>"
-        )
+        rows.append(f"<tr><td><b>Type:</b></td><td>{exp.get('type', 'unknown')}</td></tr>")
+        rows.append(f"<tr><td><b>Run:</b></td><td>{exp.get('run_number', '?')}</td></tr>")
 
         # Timestamp
         ts = exp.get("timestamp", "")
@@ -246,15 +240,11 @@ class ExperimentBrowserGUI:
         # Query stats
         total = exp.get("total_queries", 0)
         successful = exp.get("successful_queries", 0)
-        rows.append(
-            f"<tr><td><b>Queries:</b></td><td>{successful}/{total} successful</td></tr>"
-        )
+        rows.append(f"<tr><td><b>Queries:</b></td><td>{successful}/{total} successful</td></tr>")
 
         # Description
         if exp.get("description"):
-            rows.append(
-                f"<tr><td><b>Description:</b></td><td>{exp['description']}</td></tr>"
-            )
+            rows.append(f"<tr><td><b>Description:</b></td><td>{exp['description']}</td></tr>")
 
         # Path
         path_str = str(exp.get("path", ""))
@@ -363,9 +353,7 @@ class ExperimentBrowserGUI:
                 widgets.HTML(value='<hr style="margin: 15px 0;">'),
                 content_row,
             ],
-            layout=widgets.Layout(
-                padding="20px", border="1px solid #ddd", border_radius="5px"
-            ),
+            layout=widgets.Layout(padding="20px", border="1px solid #ddd", border_radius="5px"),
         )
 
         # Full container with output area for annotation GUI

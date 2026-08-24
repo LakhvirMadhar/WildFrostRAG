@@ -117,11 +117,7 @@ def parse_stats_page(html: str, base_url: str = "") -> list[StatInfo]:
 
             name_cell = cells[1]
             name_link = name_cell.find("a")
-            name = (
-                name_link.get_text(strip=True)
-                if name_link
-                else name_cell.get_text(strip=True)
-            )
+            name = name_link.get_text(strip=True) if name_link else name_cell.get_text(strip=True)
             url = _extract_url(name_cell, base_url)
 
             description = cells[2].get_text(strip=True)

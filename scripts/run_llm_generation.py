@@ -47,9 +47,7 @@ from experiment_tracker import ExperimentRegistry
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Run LLM Generation Pipeline")
-    parser.add_argument(
-        "--run-num", type=int, default=1, help="Experiment run number (default: 1)"
-    )
+    parser.add_argument("--run-num", type=int, default=1, help="Experiment run number (default: 1)")
     parser.add_argument(
         "--system-prompt",
         type=str,
@@ -115,9 +113,7 @@ def load_retrieval_data(
             logger.info(f"  No retrievals found for run {run_num}")
         sys.exit(1)
 
-    retrieval_path = (
-        settings.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
-    )
+    retrieval_path = settings.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
     config = load_config(retrieval_path / "config.json")
     raw_results = load_results(retrieval_path / "results.json")
     results = [RetrievalQueryResult.from_dict(r) for r in raw_results]
@@ -133,9 +129,7 @@ def load_queries_for_zero_shot() -> list[RetrievalQueryResult]:
     """Load queries from the base query CSV for zero-shot mode."""
     import pandas as pd
 
-    queries_path = (
-        settings.project_root / "queries" / "simple_reference_based_queries.csv"
-    )
+    queries_path = settings.project_root / "queries" / "simple_reference_based_queries.csv"
     if not queries_path.exists():
         logger.error(f"Queries file not found: {queries_path}")
         sys.exit(1)
@@ -219,9 +213,7 @@ async def run_generation(
                     raise ValueError("No context available")
                 if rag_prompt is None:
                     raise ValueError("rag_prompt is required for RAG mode")
-                response = await generate_rag(
-                    qr.query, context, system_prompt, rag_prompt
-                )
+                response = await generate_rag(qr.query, context, system_prompt, rag_prompt)
             successful += 1
         except Exception as e:
             logger.error(f"Failed to generate response: {e}")

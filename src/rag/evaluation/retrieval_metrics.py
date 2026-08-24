@@ -47,9 +47,7 @@ def mrr(retrieved_ids: list[Any], relevant_ids: list[Any]) -> float:
     return 0.0
 
 
-def calculate_precision_at_k(
-    retrieved_ids: list[Any], relevant_ids: list[Any], k: int
-) -> float:
+def calculate_precision_at_k(retrieved_ids: list[Any], relevant_ids: list[Any], k: int) -> float:
     """Calculate Precision@k metric.
 
     Precision@k measures the proportion of relevant documents among the top-k
@@ -70,9 +68,7 @@ def calculate_precision_at_k(
     return relevant_count / k
 
 
-def calculate_recall_at_k(
-    retrieved_ids: list[Any], relevant_ids: list[Any], k: int
-) -> float:
+def calculate_recall_at_k(retrieved_ids: list[Any], relevant_ids: list[Any], k: int) -> float:
     """Calculate Recall@k metric.
 
     Recall@k measures the proportion of total relevant documents that are

@@ -35,9 +35,7 @@ def get_next_experiment_id(base_path: Path) -> str:
     if not base_path.exists():
         return "001"
 
-    existing_ids = [
-        int(d.name) for d in base_path.iterdir() if d.is_dir() and d.name.isdigit()
-    ]
+    existing_ids = [int(d.name) for d in base_path.iterdir() if d.is_dir() and d.name.isdigit()]
 
     if not existing_ids:
         return "001"
@@ -102,18 +100,14 @@ def create_retrieval_config(
 
     # Add text2cypher-specific fields
     if retriever_type == "text2cypher":
-        config["text2cypher_prompt_version"] = kwargs.get(
-            "text2cypher_prompt_version", "V1"
-        )
+        config["text2cypher_prompt_version"] = kwargs.get("text2cypher_prompt_version", "V1")
         config["text2cypher_llm_model"] = kwargs.get(
             "text2cypher_llm_model", settings.text2cypher_model
         )
         config["text2cypher_temperature"] = kwargs.get(
             "text2cypher_temperature", settings.text2cypher_temperature
         )
-        config["text2cypher_seed"] = kwargs.get(
-            "text2cypher_seed", settings.openai_seed
-        )
+        config["text2cypher_seed"] = kwargs.get("text2cypher_seed", settings.openai_seed)
         if "notes" in kwargs:
             config["notes"] = kwargs["notes"]
 
@@ -122,9 +116,7 @@ def create_retrieval_config(
     additional_metadata = {
         k: v
         for k, v in kwargs.items()
-        if k not in config
-        and k not in excluded_keys
-        and not k.startswith("text2cypher_")
+        if k not in config and k not in excluded_keys and not k.startswith("text2cypher_")
     }
     config["additional_metadata"] = additional_metadata
 
@@ -235,9 +227,7 @@ def validate_retrieval_reference(run_num: int, retrieval_reference: str) -> bool
     Returns:
         True if reference exists, False otherwise
     """
-    retrieval_path = (
-        settings.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
-    )
+    retrieval_path = settings.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
     return retrieval_path.exists() and (retrieval_path / "config.json").exists()
 
 

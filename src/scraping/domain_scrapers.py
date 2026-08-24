@@ -99,9 +99,7 @@ async def scrape_individual_stat_pages(stats: list[StatInfo]) -> PageUrls:
 
     if stats_to_scrape:
         urls = [s.url for s in stats_to_scrape if s.url is not None]
-        htmls = await scrape_multiple_links(
-            urls, max_concurrent=settings.max_concurrent_requests
-        )
+        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
 
         for stat, html in zip(stats_to_scrape, htmls, strict=False):
             if html is None:
@@ -166,9 +164,7 @@ async def scrape_individual_charm_pages(charms: list[CharmInfo]) -> PageUrls:
 
     if charms_to_scrape:
         urls = [c.url for c in charms_to_scrape if c.url is not None]
-        htmls = await scrape_multiple_links(
-            urls, max_concurrent=settings.max_concurrent_requests
-        )
+        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
 
         for charm, html in zip(charms_to_scrape, htmls, strict=False):
             if html is None:
@@ -247,9 +243,7 @@ async def scrape_bling(
     return drops, urls
 
 
-async def scrape_shop(
-    page_name: str, subdir: str
-) -> tuple[list[ShopListing], PageUrls]:
+async def scrape_shop(page_name: str, subdir: str) -> tuple[list[ShopListing], PageUrls]:
     """Parse a shop page for item/charm listings (from cache or web)."""
     html, urls = await _get_html(page_name, subdir)
     if not html:
@@ -313,9 +307,7 @@ async def scrape_individual_bell_pages(bells: list[BellInfo]) -> PageUrls:
 
     if bells_to_scrape:
         urls = [b.url for b in bells_to_scrape if b.url is not None]
-        htmls = await scrape_multiple_links(
-            urls, max_concurrent=settings.max_concurrent_requests
-        )
+        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
 
         for bell, html in zip(bells_to_scrape, htmls, strict=False):
             if html is None:

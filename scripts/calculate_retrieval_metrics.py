@@ -118,9 +118,7 @@ def calculate_metrics(  # noqa: C901
         }
 
         for k in k_values:
-            query_metrics["metrics"][f"hit@{k}"] = hit_at_k(
-                retrieved_ids, relevant_ids, k
-            )
+            query_metrics["metrics"][f"hit@{k}"] = hit_at_k(retrieved_ids, relevant_ids, k)
             query_metrics["metrics"][f"precision@{k}"] = calculate_precision_at_k(
                 retrieved_ids, relevant_ids, k
             )
@@ -165,9 +163,7 @@ def calculate_metrics(  # noqa: C901
 
 def main() -> None:
     """Calculate retrieval metrics from experiment annotations."""
-    parser = argparse.ArgumentParser(
-        description="Calculate retrieval metrics from annotations"
-    )
+    parser = argparse.ArgumentParser(description="Calculate retrieval metrics from annotations")
     parser.add_argument(
         "--experiment-path",
         type=str,
@@ -183,9 +179,7 @@ def main() -> None:
 
     args = parser.parse_args()
     experiment_path = Path(args.experiment_path)
-    k_values = (
-        [int(k.strip()) for k in args.k_values.split(",")] if args.k_values else None
-    )
+    k_values = [int(k.strip()) for k in args.k_values.split(",")] if args.k_values else None
 
     if not experiment_path.exists():
         logger.error(f"Experiment path does not exist: {experiment_path}")
@@ -209,9 +203,7 @@ def main() -> None:
     if agg:
         used_k = k_values or DEFAULT_K_VALUES
         for k in used_k:
-            print(
-                f"  Hit@{k}:{' ' * (8 - len(str(k)))}{agg.get(f'avg_hit@{k}', 0):.3f}"
-            )
+            print(f"  Hit@{k}:{' ' * (8 - len(str(k)))}{agg.get(f'avg_hit@{k}', 0):.3f}")
         print(f"  MRR:         {agg.get('avg_mrr', 0):.3f}")
         print(f"  Precision@1: {agg.get('avg_precision@1', 0):.3f}")
         max_k = max(used_k)

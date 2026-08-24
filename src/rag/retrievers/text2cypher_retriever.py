@@ -70,9 +70,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
                 nodes[node_type] = [
                     {
                         "name": prop["propertyName"],
-                        "type": prop["propertyTypes"][0]
-                        if prop["propertyTypes"]
-                        else "Unknown",
+                        "type": prop["propertyTypes"][0] if prop["propertyTypes"] else "Unknown",
                     }
                     for prop in properties
                 ]
@@ -96,9 +94,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             patterns = []
             for rel in relationships:
                 start_node, end_node = rel.nodes
-                start_label = (
-                    list(start_node.labels)[0] if start_node.labels else "Unknown"
-                )
+                start_label = list(start_node.labels)[0] if start_node.labels else "Unknown"
                 end_label = list(end_node.labels)[0] if end_node.labels else "Unknown"
                 pattern = f"({start_label})-[:{rel.type}]->({end_label})"
                 patterns.append(pattern)
@@ -119,9 +115,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
                 else:
                     nodes_str += f"    - {prop}\n"
 
-        patterns_str = "\n".join(
-            f"  {pattern}" for pattern in schema["relationship_patterns"]
-        )
+        patterns_str = "\n".join(f"  {pattern}" for pattern in schema["relationship_patterns"])
 
         return f"""Node labels and their properties:{nodes_str}
         Relationship patterns (with directions):
@@ -139,9 +133,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
 
         return response.strip().rstrip(";").strip()
 
-    async def _generate_cypher_query(
-        self, natural_query: str, schema: dict[str, Any]
-    ) -> str:
+    async def _generate_cypher_query(self, natural_query: str, schema: dict[str, Any]) -> str:
         """Generate a Cypher query from a natural language query using an LLM.
 
         Args:
@@ -153,9 +145,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         """
         schema_str = self._format_schema_for_prompt(schema)
 
-        prompt = format_prompt_tuple(
-            self.prompt_template, schema=schema_str, query=natural_query
-        )
+        prompt = format_prompt_tuple(self.prompt_template, schema=schema_str, query=natural_query)
 
         response = await call_openai_api(
             messages=[{"role": "user", "content": prompt}],
@@ -188,9 +178,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         result_dict = super()._record_to_dict(record)
 
         # Add Text2Cypher-specific fields
-        result_dict["score"] = result_dict.get(
-            "score", 1.0
-        )  # Default score if not in query
+        result_dict["score"] = result_dict.get("score", 1.0)  # Default score if not in query
         result_dict["generated_cypher"] = cypher_query
         result_dict["result_index"] = index
 

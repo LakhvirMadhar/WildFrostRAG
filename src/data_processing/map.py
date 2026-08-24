@@ -106,9 +106,7 @@ def _parse_map_events(soup: BeautifulSoup) -> list[MapEventInfo]:
 
         # Columns: Image | Event Name | Description | Notes
         name = cells[1].get_text(strip=True)
-        description = (
-            cells[2].get_text(separator=" ", strip=True) if len(cells) > 2 else ""
-        )
+        description = cells[2].get_text(separator=" ", strip=True) if len(cells) > 2 else ""
         notes = cells[3].get_text(separator=" ", strip=True) if len(cells) > 3 else None
         if not notes:
             notes = None
@@ -135,9 +133,7 @@ def _find_fights_table(soup: BeautifulSoup) -> Tag | None:
     return h2.find_next("table", class_="wikitable")
 
 
-def _extract_zone_from_row(
-    cells: ResultSet[Tag], cell_idx: int
-) -> tuple[str | None, int]:
+def _extract_zone_from_row(cells: ResultSet[Tag], cell_idx: int) -> tuple[str | None, int]:
     """Check if the first cell is a zone header (large rowspan, no images).
 
     Returns:
@@ -151,9 +147,7 @@ def _extract_zone_from_row(
     return None, cell_idx
 
 
-def _extract_fight_number(
-    cells: ResultSet[Tag], cell_idx: int
-) -> tuple[int | None, int]:
+def _extract_fight_number(cells: ResultSet[Tag], cell_idx: int) -> tuple[int | None, int]:
     """Check if the current cell is a fight number (has rowspan).
 
     Returns:

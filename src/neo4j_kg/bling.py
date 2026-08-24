@@ -7,9 +7,7 @@ from neo4j_kg.query_utils import single_value
 from utils.logger import logger
 
 
-def create_bling_and_shops(
-    tx: neo4j.ManagedTransaction, urls: dict[str, str] | None = None
-) -> int:
+def create_bling_and_shops(tx: neo4j.ManagedTransaction, urls: dict[str, str] | None = None) -> int:
     """Create the Bling node and Shop nodes.
 
     Args:
@@ -131,8 +129,7 @@ def create_shop_sells_relationships(
         Number of relationships created
     """
     listing_data = [
-        {"card_name": item.card_name, "base_price": item.base_price}
-        for item in listings
+        {"card_name": item.card_name, "base_price": item.base_price} for item in listings
     ]
 
     # Use dynamic label matching via property name
@@ -157,7 +154,5 @@ def create_shop_sells_relationships(
 
     result = tx.run(query, listings=listing_data, shop_name=shop_name)
     count = single_value(result, "created")
-    logger.info(
-        f"Created {count} SELLS relationships for {shop_name} -> {target_label}"
-    )
+    logger.info(f"Created {count} SELLS relationships for {shop_name} -> {target_label}")
     return count

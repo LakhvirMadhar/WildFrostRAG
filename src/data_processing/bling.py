@@ -79,9 +79,7 @@ def parse_bling_page(
         try:
             amount = int(gold_text)
         except ValueError:
-            logger.warning(
-                f"Could not parse bling amount for {card_name}: '{gold_text}'"
-            )
+            logger.warning(f"Could not parse bling amount for {card_name}: '{gold_text}'")
             continue
 
         drops.append(EnemyBlingDrop(card_name=card_name, amount=amount))
@@ -185,9 +183,7 @@ def parse_clunker_prices(html: str) -> list[ShopListing]:
         try:
             base_price = int(price_text)
         except ValueError:
-            logger.warning(
-                f"Could not parse clunker price for {card_name}: '{price_text}'"
-            )
+            logger.warning(f"Could not parse clunker price for {card_name}: '{price_text}'")
             continue
 
         listings.append(ShopListing(card_name=card_name, base_price=base_price))

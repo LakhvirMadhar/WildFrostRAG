@@ -226,10 +226,7 @@ class CardInfo:
     def __str__(self) -> str:
         """String representation of the card based on to_dict."""
         card_data = self.to_dict()
-        lines = [
-            f"{key.replace('_', ' ').title()}: {value}"
-            for key, value in card_data.items()
-        ]
+        lines = [f"{key.replace('_', ' ').title()}: {value}" for key, value in card_data.items()]
         return "\n".join(lines)
 
     def to_dict(self) -> dict[str, Any]:
@@ -344,9 +341,7 @@ class CardInfo:
                     if td:
                         other_stats_text = td.get_text(separator=" ", strip=True)
                         other_stats_text = re.sub(r"\s+", " ", other_stats_text).strip()
-                        stats["other_stats"] = (
-                            other_stats_text if other_stats_text else None
-                        )
+                        stats["other_stats"] = other_stats_text if other_stats_text else None
 
             elif header_text == "Card Description":
                 if i + 1 < len(rows):
@@ -355,8 +350,7 @@ class CardInfo:
                         # Check for flavor text: italic text in gray/grey span
                         gray_span = td.find(
                             "span",
-                            style=lambda s: s
-                            and ("color:gray" in s or "color:grey" in s),
+                            style=lambda s: s and ("color:gray" in s or "color:grey" in s),
                         )
                         italic = td.find("i")
 
@@ -369,9 +363,7 @@ class CardInfo:
                             # This is ability text
                             ability_text = td.get_text(separator=" ", strip=True)
                             ability_text = re.sub(r"\s+", " ", ability_text).strip()
-                            stats["abilities_specific"] = (
-                                ability_text if ability_text else None
-                            )
+                            stats["abilities_specific"] = ability_text if ability_text else None
 
         return stats
 
@@ -416,9 +408,7 @@ class CardInfo:
         return default_type
 
     @staticmethod
-    def _sort_phases(
-        group: list[dict[str, Any]], base_name: str
-    ) -> list[dict[str, Any]]:
+    def _sort_phases(group: list[dict[str, Any]], base_name: str) -> list[dict[str, Any]]:
         """Sort cards in a group by phase order."""
         if base_name in PHASE_ORDER_OVERRIDES:
             order_list = PHASE_ORDER_OVERRIDES[base_name]
@@ -429,9 +419,7 @@ class CardInfo:
                 else 999,
             )
         # Sort by phase number extracted from image (Phase 1 has no number)
-        return sorted(
-            group, key=lambda x: x["phase_from_image"] if x["phase_from_image"] else 1
-        )
+        return sorted(group, key=lambda x: x["phase_from_image"] if x["phase_from_image"] else 1)
 
     @classmethod
     def _parse_infoboxes(cls, soup: BeautifulSoup, url: str) -> list[dict[str, Any]]:
@@ -497,9 +485,7 @@ class CardInfo:
 
         # Single infobox - no phases
         if len(parsed_cards) == 1:
-            return [
-                cls._create_card(parsed_cards[0], card_type, url, html, description)
-            ]
+            return [cls._create_card(parsed_cards[0], card_type, url, html, description)]
 
         # Multiple infoboxes - group by base name
         base_name_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -511,21 +497,13 @@ class CardInfo:
         for base_name, group in base_name_groups.items():
             if len(group) == 1:
                 # Single card with this base name - no phases
-                result.append(
-                    cls._create_card(group[0], card_type, url, html, description)
-                )
+                result.append(cls._create_card(group[0], card_type, url, html, description))
 
             elif base_name in VARIANT_CARDS:
                 # Variant cards (e.g., Naked Gnome enemy/companion) - no phase linking
                 for card_data in group:
-                    variant_type = cls._detect_variant_card_type(
-                        card_data["card_name"], card_type
-                    )
-                    result.append(
-                        cls._create_card(
-                            card_data, variant_type, url, html, description
-                        )
-                    )
+                    variant_type = cls._detect_variant_card_type(card_data["card_name"], card_type)
+                    result.append(cls._create_card(card_data, variant_type, url, html, description))
 
             else:
                 # Multiple cards with same base name - these are PHASES

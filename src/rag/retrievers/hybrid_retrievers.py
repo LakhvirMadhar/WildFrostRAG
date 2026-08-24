@@ -57,9 +57,7 @@ class HybridRetriever:
             self.weights = weights
 
         if len(retrievers) != len(retriever_names):
-            raise ValueError(
-                "Number of retrievers must match number of retriever names"
-            )
+            raise ValueError("Number of retrievers must match number of retriever names")
 
     def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
         """Retrieve results using multiple retrievers and combine them with RRF.
@@ -78,9 +76,7 @@ class HybridRetriever:
         for i, (retriever, name) in enumerate(
             zip(self.retrievers, self.retriever_names, strict=False)
         ):
-            results = retriever.search(
-                query, k=k * 2
-            )  # Get more results to allow for fusion
+            results = retriever.search(query, k=k * 2)  # Get more results to allow for fusion
             # Add source information to help distinguish results during testing
             for result in results:
                 result["source_retriever"] = name
@@ -118,9 +114,7 @@ class HybridRetriever:
                 text_content = doc.get("text", "")
                 source_file = doc.get("source_file", "")
                 doc_identifier = (
-                    f"{text_content[:50]}_{source_file}"
-                    if text_content
-                    else str(hash(str(doc)))
+                    f"{text_content[:50]}_{source_file}" if text_content else str(hash(str(doc)))
                 )
 
                 # Calculate RRF score: weight * 1 / (k1 + rank)
@@ -147,9 +141,7 @@ class HybridRetriever:
                     doc_scores[doc_identifier]["metadata"] = doc
 
         # Sort by RRF score in descending order
-        sorted_docs = sorted(
-            doc_scores.items(), key=lambda x: x[1]["rrf_score"], reverse=True
-        )
+        sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1]["rrf_score"], reverse=True)
 
         # Return top k results with updated scores
         top_results = []
@@ -301,9 +293,7 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
             index_name: Vector index name (default: from settings)
         """
         # Create component retrievers
-        self.text2cypher = Text2CypherRetriever(
-            driver, text2cypher_prompt, neo4j_database
-        )
+        self.text2cypher = Text2CypherRetriever(driver, text2cypher_prompt, neo4j_database)
         self.vector = Neo4jVectorSearch(
             driver,
             embed_fn,
@@ -350,16 +340,10 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
                 all_results.append((text2cypher_results, self.weights[0]))
                 individual_results["text2cypher"] = text2cypher_results
             else:
-                logger.warning(
-                    "Text2Cypher returned error, falling back to vector-only"
-                )
-                individual_results["text2cypher"] = (
-                    text2cypher_results  # Keep error for tracking
-                )
+                logger.warning("Text2Cypher returned error, falling back to vector-only")
+                individual_results["text2cypher"] = text2cypher_results  # Keep error for tracking
         except Exception as e:
-            logger.warning(
-                f"Text2Cypher failed with exception, falling back to vector-only: {e}"
-            )
+            logger.warning(f"Text2Cypher failed with exception, falling back to vector-only: {e}")
             individual_results["text2cypher"] = [{"error": str(e)}]
 
         # Vector search (sync) - always run

@@ -25,9 +25,7 @@ from utils.logger import logger
 async def main() -> None:  # noqa: C901
     """Run batch retrieval experiments from a YAML config."""
     parser = argparse.ArgumentParser(description="Run batch retrieval experiments")
-    parser.add_argument(
-        "--config", required=True, help="Path to experiments config YAML"
-    )
+    parser.add_argument("--config", required=True, help="Path to experiments config YAML")
     args = parser.parse_args()
 
     # Load config
@@ -56,9 +54,7 @@ async def main() -> None:  # noqa: C901
             embedder = retriever_config["embedder"]
             if embedder not in settings.embedding_configs:
                 logger.error(f"Unknown embedder: {embedder}")
-                logger.error(
-                    f"Available embedders: {list(settings.embedding_configs.keys())}"
-                )
+                logger.error(f"Available embedders: {list(settings.embedding_configs.keys())}")
                 logger.error("Please add to config.py or run add_embeddings.py")
                 exit(1)
 
@@ -89,9 +85,7 @@ async def main() -> None:  # noqa: C901
             results.append({"retriever": retriever_config, "status": "success"})
         except Exception as e:
             print(f"  [FAILED] {e}")
-            results.append(
-                {"retriever": retriever_config, "status": "failed", "error": str(e)}
-            )
+            results.append({"retriever": retriever_config, "status": "failed", "error": str(e)})
 
             # Stop if non-LLM retriever fails
             if retriever_config["type"] != "text2cypher":
@@ -114,9 +108,7 @@ async def main() -> None:  # noqa: C901
     print("\nNext steps:")
     print("  1. Open annotation_gui.ipynb")
     print("  2. Evaluate retrieval results")
-    print(
-        f"  3. Run: poetry run python -m scripts.calculate_retrieval_metrics --run-num {run_num}"
-    )
+    print(f"  3. Run: poetry run python -m scripts.calculate_retrieval_metrics --run-num {run_num}")
 
 
 def experiment_exists(run_num: int, retriever_config: dict[str, str]) -> bool:

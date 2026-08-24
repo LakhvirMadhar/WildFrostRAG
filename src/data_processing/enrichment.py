@@ -51,8 +51,7 @@ def scrape_tribe_exclusivity_table(url: str, table_index: int = 1) -> dict[str, 
 
         if table_index >= len(tables):
             raise ValueError(
-                f"Table index {table_index} out of range. "
-                f"Found {len(tables)} tables at {url}"
+                f"Table index {table_index} out of range. Found {len(tables)} tables at {url}"
             )
 
         target_table = tables[table_index]
@@ -83,9 +82,7 @@ def scrape_tribe_exclusivity_table(url: str, table_index: int = 1) -> dict[str, 
 
                 tribe_lookup[card_name] = tribe_name
 
-        logger.info(
-            f"Successfully scraped {len(tribe_lookup)} card-tribe mappings from {url}"
-        )
+        logger.info(f"Successfully scraped {len(tribe_lookup)} card-tribe mappings from {url}")
         return tribe_lookup
 
     except requests.exceptions.RequestException as e:
@@ -147,9 +144,7 @@ def enrich_cards_with_tribes(
     # Scrape tribe data from both pages
     try:
         # Companions page uses the second table (index 1)
-        companions_tribe_lookup = scrape_tribe_exclusivity_table(
-            companions_url, table_index=1
-        )
+        companions_tribe_lookup = scrape_tribe_exclusivity_table(companions_url, table_index=1)
 
         # Items page uses the first (and only) table (index 0)
         items_tribe_lookup = scrape_tribe_exclusivity_table(items_url, table_index=0)

@@ -55,9 +55,7 @@ def scrape_sitemap(sitemap_url: str) -> list[dict[str, Any]]:
 
             sitemap_links_to_scrape.append(dict_item)
 
-        logger.info(
-            f"Successfully parsed {len(sitemap_links_to_scrape)} URLs from sitemap"
-        )
+        logger.info(f"Successfully parsed {len(sitemap_links_to_scrape)} URLs from sitemap")
         return sitemap_links_to_scrape
 
     except requests.exceptions.RequestException as e:
@@ -129,9 +127,7 @@ async def scrape_multiple_links(urls: list[str], max_concurrent: int = 5) -> lis
         List[str]: List of HTML content from scraped pages. Failed requests
                    return None in their respective positions.
     """
-    logger.info(
-        f"Starting batch scrape of {len(urls)} URLs with max_concurrent={max_concurrent}"
-    )
+    logger.info(f"Starting batch scrape of {len(urls)} URLs with max_concurrent={max_concurrent}")
 
     if not urls:
         logger.warning("No URLs provided for scraping")
@@ -144,16 +140,12 @@ async def scrape_multiple_links(urls: list[str], max_concurrent: int = 5) -> lis
         results = await asyncio.gather(*tasks)
 
         successful_scrapes = sum(1 for result in results if result is not None)
-        logger.info(
-            f"Batch scrape completed: {successful_scrapes}/{len(urls)} URLs successful"
-        )
+        logger.info(f"Batch scrape completed: {successful_scrapes}/{len(urls)} URLs successful")
 
         return [r for r in results if r is not None]
 
 
-def process_raw_html_output(
-    html_output: str, sub_directory: str = "raw_htmls"
-) -> str | None:
+def process_raw_html_output(html_output: str, sub_directory: str = "raw_htmls") -> str | None:
     """Processes HTML content by cleaning it and saving it to a file.
 
     Args:
@@ -180,10 +172,7 @@ def process_raw_html_output(
 
     # Sanitize sub_directory to prevent path traversal
     safe_sub_directory = (
-        os.path.normpath(sub_directory)
-        .replace("..", "")
-        .replace("/", "_")
-        .replace("\\", "_")
+        os.path.normpath(sub_directory).replace("..", "").replace("/", "_").replace("\\", "_")
     )
     filename = f"data/{safe_sub_directory}/{sanitized_title}.html"
 

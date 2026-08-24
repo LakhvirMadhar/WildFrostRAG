@@ -238,9 +238,7 @@ def link_documents_to_cards(session: Session) -> int:
     record = result.single()
     url_count = record["relationships_created"] if record else 0
     if url_count > 0:
-        logger.info(
-            f"Created {url_count} Card-Document relationships (by URL fallback)"
-        )
+        logger.info(f"Created {url_count} Card-Document relationships (by URL fallback)")
 
     total = count + url_count
     logger.info(f"Total: {total} Card-Document relationships")

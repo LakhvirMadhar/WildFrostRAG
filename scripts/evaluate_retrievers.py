@@ -108,11 +108,7 @@ def get_retriever(
     index_name = _get_vector_index_name(retriever_type, embedder)
 
     # Build embed_fn only for vector-based retrievers
-    embed_fn = (
-        get_query_embed_fn(embedder)
-        if retriever_type in VECTOR_BASED_RETRIEVERS
-        else None
-    )
+    embed_fn = get_query_embed_fn(embedder) if retriever_type in VECTOR_BASED_RETRIEVERS else None
 
     # Non-vector retrievers (embed_fn not needed)
     non_vector_factory: dict[str, Callable[[], Any]] = {
@@ -131,15 +127,11 @@ def get_retriever(
 
     # Vector-based retrievers (embed_fn is guaranteed non-None here)
     if embed_fn is None:
-        raise ValueError(
-            f"embed_fn is required for vector-based retriever: {retriever_type}"
-        )
+        raise ValueError(f"embed_fn is required for vector-based retriever: {retriever_type}")
 
     vector_factory: dict[str, Callable[[], Any]] = {
         "vector": lambda: Neo4jVectorSearch(driver, embed_fn, index_name=index_name),
-        "bm25_vector": lambda: BM25VectorHybridRetriever(
-            driver, embed_fn, index_name=index_name
-        ),
+        "bm25_vector": lambda: BM25VectorHybridRetriever(driver, embed_fn, index_name=index_name),
         "fulltext_vector": lambda: FulltextVectorHybridRetriever(
             driver, embed_fn, index_name=index_name, remove_stopwords=sw_query
         ),
@@ -179,11 +171,7 @@ def _get_vector_index_name(retriever_type: str, embedder: str) -> str | None:
 def _clean_chunks(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Remove embedding arrays from chunks (they bloat files and aren't needed for evaluation)."""
     return [
-        {
-            k: v
-            for k, v in chunk.items()
-            if not k.endswith("_embedding") and k != "embedding"
-        }
+        {k: v for k, v in chunk.items() if not k.endswith("_embedding") and k != "embedding"}
         for chunk in chunks
     ]
 
@@ -252,9 +240,7 @@ async def _process_single_query(
 
     # Capture hybrid retriever individual results
     individual_entry = None
-    if isinstance(retriever, HybridRetriever) and hasattr(
-        retriever, "last_individual_results"
-    ):
+    if isinstance(retriever, HybridRetriever) and hasattr(retriever, "last_individual_results"):
         individual_entry = {
             "query_id": query_id,
             "query": query,
@@ -300,12 +286,8 @@ async def _process_all_queries(
     else:
         logger.info(f"Running {len(query_rows)} queries sequentially")
         all_results = []
-        for query_id, query in tqdm(
-            query_rows, desc=f"{retriever_type} queries", unit="query"
-        ):
-            result = await _process_single_query(
-                retriever, retriever_type, query, query_id, k
-            )
+        for query_id, query in tqdm(query_rows, desc=f"{retriever_type} queries", unit="query"):
+            result = await _process_single_query(retriever, retriever_type, query, query_id, k)
             all_results.append(result)
 
     results: list[QueryResult] = []
@@ -403,9 +385,7 @@ async def run_retriever(
     if retriever_type in VECTOR_BASED_RETRIEVERS:
         retriever_dir_name = f"{retriever_type}_{embedder}"
 
-    base_path = (
-        settings.outputs_dir / f"run_{run_num}" / "retrievals" / retriever_dir_name
-    )
+    base_path = settings.outputs_dir / f"run_{run_num}" / "retrievals" / retriever_dir_name
     experiment_id = get_next_experiment_id(base_path)
     experiment_dir = base_path / experiment_id
     experiment_dir.mkdir(parents=True, exist_ok=True)
@@ -414,9 +394,7 @@ async def run_retriever(
     logger.info(f"Experiment ID: {retriever_type}/{experiment_id}")
 
     # Process queries
-    results, individual_results_list = await _process_all_queries(
-        df, retriever, retriever_type, k
-    )
+    results, individual_results_list = await _process_all_queries(df, retriever, retriever_type, k)
 
     # Build and save config
     total_queries = len(
@@ -455,9 +433,7 @@ async def run_retriever(
 
     # Auto-annotate relevance based on URL matching with ground truth
     annotation_summary = run_auto_annotation(experiment_dir, queries_json_path)
-    logger.info(
-        f"Auto-annotation: {annotation_summary['auto_annotated']} chunks annotated"
-    )
+    logger.info(f"Auto-annotation: {annotation_summary['auto_annotated']} chunks annotated")
 
     logger.info("Experiment completed successfully!")
     logger.info(f"Retrieval ID: {retriever_type}/{experiment_id}")
@@ -468,12 +444,8 @@ async def run_retriever(
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Run different retrievers and save raw results"
-    )
-    parser.add_argument(
-        "--run-num", type=int, required=True, help="Experiment run number"
-    )
+    parser = argparse.ArgumentParser(description="Run different retrievers and save raw results")
+    parser.add_argument("--run-num", type=int, required=True, help="Experiment run number")
     parser.add_argument(
         "--retriever",
         type=str,
@@ -632,9 +604,7 @@ async def run(args: argparse.Namespace) -> None:
             config_kwargs["sw_query"] = sw_query
         if args.retriever in SW_DOCS_RETRIEVERS:
             config_kwargs["sw_docs"] = sw_docs
-        logger.info(
-            f"Using {args.retriever} retriever (sw_query={sw_query}, sw_docs={sw_docs})"
-        )
+        logger.info(f"Using {args.retriever} retriever (sw_query={sw_query}, sw_docs={sw_docs})")
 
         queries_json = Path(args.queries_json) if args.queries_json else None
 

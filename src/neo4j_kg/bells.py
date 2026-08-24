@@ -69,9 +69,7 @@ _GLOOM_BELL_MAP_EVENTS = [
 ]
 
 
-def create_bells_from_parsed(
-    tx: neo4j.ManagedTransaction, bells: list[BellInfo]
-) -> int:
+def create_bells_from_parsed(tx: neo4j.ManagedTransaction, bells: list[BellInfo]) -> int:
     """Create Bell nodes, BellType nodes, and HAS_BELL_TYPE relationships.
 
     Bells with individual wiki pages get their own URL; others get None
@@ -135,9 +133,7 @@ def _create_bell_charm_text_matches(tx: neo4j.ManagedTransaction) -> int:
         text_lower = text.lower()
         for charm_name in all_charm_names:
             if charm_name.lower() in text_lower:
-                charm_pairs.append(
-                    {"bell_name": bell["name"], "charm_name": charm_name}
-                )
+                charm_pairs.append({"bell_name": bell["name"], "charm_name": charm_name})
 
     if charm_pairs:
         tx.run(
@@ -149,9 +145,7 @@ def _create_bell_charm_text_matches(tx: neo4j.ManagedTransaction) -> int:
         """,
             pairs=charm_pairs,
         )
-    logger.info(
-        f"Created {len(charm_pairs)} APPLIES_CHARM relationships (text-matched)"
-    )
+    logger.info(f"Created {len(charm_pairs)} APPLIES_CHARM relationships (text-matched)")
     return len(charm_pairs)
 
 
@@ -168,9 +162,7 @@ def _create_gloom_bell_cursed_charms(tx: neo4j.ManagedTransaction) -> int:
         RETURN count(*) AS created
     """)
     count = single_value(result, "created")
-    logger.info(
-        f"Created {count} APPLIES_CHARM relationships (Gloom Bell -> cursed charms)"
-    )
+    logger.info(f"Created {count} APPLIES_CHARM relationships (Gloom Bell -> cursed charms)")
     return count
 
 
@@ -190,9 +182,7 @@ def _create_tyrant_bell_crown(tx: neo4j.ManagedTransaction) -> int:
         RETURN count(*) AS created
     """)
     count = single_value(result, "created")
-    logger.info(
-        f"Created {count} INTRODUCES relationships (Tyrant Bell -> Cursed Crown)"
-    )
+    logger.info(f"Created {count} INTRODUCES relationships (Tyrant Bell -> Cursed Crown)")
     return count
 
 
@@ -209,8 +199,7 @@ def _create_bell_keyword_relationships(tx: neo4j.ManagedTransaction) -> int:
 
     # GRANTS_KEYWORD
     grants_pairs = [
-        {"bell_name": bell, "keyword_name": kw}
-        for bell, kw in _BELL_GRANTS_KEYWORD_MAP.items()
+        {"bell_name": bell, "keyword_name": kw} for bell, kw in _BELL_GRANTS_KEYWORD_MAP.items()
     ]
     if grants_pairs:
         result = tx.run(
@@ -229,8 +218,7 @@ def _create_bell_keyword_relationships(tx: neo4j.ManagedTransaction) -> int:
 
     # AFFECTS_KEYWORD
     affects_pairs = [
-        {"bell_name": bell, "keyword_name": kw}
-        for bell, kw in _BELL_AFFECTS_KEYWORD_MAP.items()
+        {"bell_name": bell, "keyword_name": kw} for bell, kw in _BELL_AFFECTS_KEYWORD_MAP.items()
     ]
     if affects_pairs:
         result = tx.run(
@@ -256,9 +244,7 @@ def _create_bell_stat_relationships(tx: neo4j.ManagedTransaction) -> int:
     Returns:
         Number of relationships created
     """
-    pairs = [
-        {"bell_name": bell, "stat_name": stat} for bell, stat in _BELL_STAT_MAP.items()
-    ]
+    pairs = [{"bell_name": bell, "stat_name": stat} for bell, stat in _BELL_STAT_MAP.items()]
     if not pairs:
         return 0
 
@@ -307,9 +293,7 @@ def _create_bell_card_relationships(tx: neo4j.ManagedTransaction) -> int:
     Returns:
         Number of relationships created
     """
-    pairs = [
-        {"bell_name": bell, "card_name": card} for bell, card in _BELL_CARD_MAP.items()
-    ]
+    pairs = [{"bell_name": bell, "card_name": card} for bell, card in _BELL_CARD_MAP.items()]
     if not pairs:
         return 0
 

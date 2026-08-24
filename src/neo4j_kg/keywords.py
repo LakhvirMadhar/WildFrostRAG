@@ -102,9 +102,7 @@ def create_card_keyword_relationships(
     """
     # Get keyword names from DB, sorted by length (match longer names first)
     keyword_result = tx.run("MATCH (k:Keyword) RETURN k.name AS name")
-    all_keyword_names = sorted(
-        [r["name"] for r in keyword_result], key=len, reverse=True
-    )
+    all_keyword_names = sorted([r["name"] for r in keyword_result], key=len, reverse=True)
 
     card_keywords = []
     for card in cards_data:
@@ -116,9 +114,7 @@ def create_card_keyword_relationships(
         ability_lower = ability.lower()
         for keyword_name in all_keyword_names:
             if _keyword_matches_text(keyword_name.lower(), ability_lower):
-                card_keywords.append(
-                    {"card_name": card_name, "keyword_name": keyword_name}
-                )
+                card_keywords.append({"card_name": card_name, "keyword_name": keyword_name})
 
     if card_keywords:
         tx.run(
@@ -148,13 +144,9 @@ def create_charm_keyword_relationships(tx: neo4j.ManagedTransaction) -> int:
         Number of HAS_KEYWORD relationships created
     """
     keyword_result = tx.run("MATCH (k:Keyword) RETURN k.name AS name")
-    all_keyword_names = sorted(
-        [r["name"] for r in keyword_result], key=len, reverse=True
-    )
+    all_keyword_names = sorted([r["name"] for r in keyword_result], key=len, reverse=True)
 
-    charm_result = tx.run(
-        "MATCH (ch:Charm) RETURN ch.name AS name, ch.description AS description"
-    )
+    charm_result = tx.run("MATCH (ch:Charm) RETURN ch.name AS name, ch.description AS description")
     charm_keywords = []
     for charm in charm_result:
         description = charm["description"] or ""
@@ -165,9 +157,7 @@ def create_charm_keyword_relationships(tx: neo4j.ManagedTransaction) -> int:
         desc_lower = description.lower()
         for keyword_name in all_keyword_names:
             if _keyword_matches_text(keyword_name.lower(), desc_lower):
-                charm_keywords.append(
-                    {"charm_name": charm_name, "keyword_name": keyword_name}
-                )
+                charm_keywords.append({"charm_name": charm_name, "keyword_name": keyword_name})
 
     if charm_keywords:
         tx.run(

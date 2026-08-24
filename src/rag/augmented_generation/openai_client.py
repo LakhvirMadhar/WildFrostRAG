@@ -70,9 +70,7 @@ async def call_openai_api(
             response = await client.chat.completions.create(
                 model=model or settings.openai_model_name,
                 messages=messages,
-                temperature=temperature
-                if temperature is not None
-                else settings.openai_temperature,
+                temperature=temperature if temperature is not None else settings.openai_temperature,
                 seed=seed if seed is not None else settings.openai_seed,
             )
             content = response.choices[0].message.content
@@ -110,9 +108,7 @@ async def call_openai_api_structured[T: BaseModel](
                 model=model or settings.openai_model_name,
                 messages=messages,
                 response_format=response_model,
-                temperature=temperature
-                if temperature is not None
-                else settings.openai_temperature,
+                temperature=temperature if temperature is not None else settings.openai_temperature,
                 seed=seed if seed is not None else settings.openai_seed,
             )
             parsed = response.choices[0].message.parsed
@@ -190,9 +186,7 @@ async def generate_rag(
     Returns:
         The generated response text
     """
-    user_message = format_prompt_tuple(
-        rag_prompt.prompt_tuple, query=query, context=context
-    )
+    user_message = format_prompt_tuple(rag_prompt.prompt_tuple, query=query, context=context)
     return await call_openai_api(
         messages=[
             {"role": "system", "content": system_prompt.prompt_tuple[0]},

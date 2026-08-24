@@ -5,9 +5,7 @@ from data_processing.tribes import TribeExclusivity
 from neo4j_kg.query_utils import single_value
 
 
-def create_charms_from_parsed(
-    tx: neo4j.ManagedTransaction, charms: list[CharmInfo]
-) -> int:
+def create_charms_from_parsed(tx: neo4j.ManagedTransaction, charms: list[CharmInfo]) -> int:
     """Create Charm nodes from parsed CharmInfo objects."""
     charm_data = [charm.to_dict() for charm in charms]
 
@@ -26,9 +24,7 @@ def create_charms_from_parsed(
     return single_value(result, "charmsCreated")
 
 
-def create_charm_tribe_relationships(
-    tx: neo4j.ManagedTransaction, charms: list[CharmInfo]
-) -> int:
+def create_charm_tribe_relationships(tx: neo4j.ManagedTransaction, charms: list[CharmInfo]) -> int:
     """Create EXCLUSIVE_TO relationships between Charms and Tribes.
 
     "All" expands to all 3 tribes (same pattern as cards).

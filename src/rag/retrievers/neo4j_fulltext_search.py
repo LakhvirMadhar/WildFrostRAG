@@ -57,9 +57,7 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
         """Remove stop words from query before sending to Lucene."""
         tokens = word_tokenize(query.lower())
         stop_words = set(stopwords.words("english"))
-        filtered = [
-            token for token in tokens if token.isalpha() and token not in stop_words
-        ]
+        filtered = [token for token in tokens if token.isalpha() and token not in stop_words]
         return " ".join(filtered)
 
     def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
@@ -81,9 +79,7 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
         search_query_text = query
         if self.remove_stopwords:
             search_query_text = self._preprocess_query(query)
-            logger.debug(
-                f"Fulltext query after stop word removal: '{search_query_text}'"
-            )
+            logger.debug(f"Fulltext query after stop word removal: '{search_query_text}'")
 
         # Perform full-text search (index must already exist)
         search_query = """

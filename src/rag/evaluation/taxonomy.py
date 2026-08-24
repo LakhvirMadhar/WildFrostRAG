@@ -35,9 +35,7 @@ async def generate_taxonomy(open_codes: list[str]) -> str:
     codes_text = "\n".join([f"{i + 1}. {code}" for i, code in enumerate(sorted_codes)])
 
     # Format user message using the versioned prompt
-    user_message = format_prompt_tuple(
-        TAXONOMY_USER_PROMPT_V1.prompt_tuple, codes_text=codes_text
-    )
+    user_message = format_prompt_tuple(TAXONOMY_USER_PROMPT_V1.prompt_tuple, codes_text=codes_text)
 
     try:
         return await call_openai_api(
@@ -89,9 +87,7 @@ async def generate_taxonomy_from_annotations(experiment_path: Path) -> None:
     if output_path.exists():
         logger.warning(f"File already exists at {output_path}")
         logger.info("Skipping taxonomy generation to avoid overwriting existing file.")
-        logger.info(
-            "Delete or rename the existing file if you want to generate a new taxonomy."
-        )
+        logger.info("Delete or rename the existing file if you want to generate a new taxonomy.")
         return
 
     logger.info("Generating axial codes from open codes...")

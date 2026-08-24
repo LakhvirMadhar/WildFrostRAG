@@ -72,16 +72,13 @@ class TestRetrievedChunk:
 
         assert chunk.score == 12.345
         assert chunk.search_type == "bm25"
-        assert (
-            chunk.retrieved_text == "Title: Bombom\nText: Bombom is a Companion card..."
-        )
+        assert chunk.retrieved_text == "Title: Bombom\nText: Bombom is a Companion card..."
         assert chunk.source_url == "https://wildfrostwiki.com/Bombom"
         # cypher_result should contain the raw Cypher row data
         assert chunk.cypher_result["text"] == "Bombom is a Companion card..."
         assert chunk.cypher_result["title"] == "Bombom"
         assert (
-            chunk.cypher_result["source_file"]
-            == "data/structured_outputs/companions/Bombom.html"
+            chunk.cypher_result["source_file"] == "data/structured_outputs/companions/Bombom.html"
         )
         # Consumed keys must NOT be in cypher_result
         assert "score" not in chunk.cypher_result
@@ -139,9 +136,7 @@ class TestRetrievedChunk:
         # Known fields at top level
         assert d["score"] == 12.345
         assert d["search_type"] == "bm25"
-        assert (
-            d["retrieved_text"] == "Title: Bombom\nText: Bombom is a Companion card..."
-        )
+        assert d["retrieved_text"] == "Title: Bombom\nText: Bombom is a Companion card..."
         assert d["source_url"] == "https://wildfrostwiki.com/Bombom"
         # cypher_result is nested (not flat)
         assert d["cypher_result"]["text"] == "Bombom is a Companion card..."
@@ -169,9 +164,7 @@ class TestRetrievedChunk:
 
     def test_empty_chunk(self) -> None:
         """Minimal chunk with defaults."""
-        chunk = RetrievedChunk(
-            score=0.0, search_type="", retrieved_text="", source_url=None
-        )
+        chunk = RetrievedChunk(score=0.0, search_type="", retrieved_text="", source_url=None)
         d = chunk.to_dict()
         restored = RetrievedChunk.from_dict(d)
         assert restored.score == 0.0
@@ -253,9 +246,7 @@ class TestCypherExecution:
 class TestQueryResult:
     """Tests for the QueryResult dataclass."""
 
-    def test_to_dict_includes_cypher_execution(
-        self, raw_bm25_chunk: dict[str, Any]
-    ) -> None:
+    def test_to_dict_includes_cypher_execution(self, raw_bm25_chunk: dict[str, Any]) -> None:
         """Verify QueryResult to_dict includes cypher_execution field."""
         chunk = RetrievedChunk.from_raw_retriever_dict(raw_bm25_chunk)
         qr = QueryResult(
@@ -275,9 +266,7 @@ class TestQueryResult:
         assert d["retrieved_chunks"][0]["retrieved_text"] == chunk.retrieved_text
         assert d["relevance_annotations"] == [{"chunk_index": 0, "is_relevant": True}]
 
-    def test_bm25_cypher_execution_null_query(
-        self, raw_bm25_chunk: dict[str, Any]
-    ) -> None:
+    def test_bm25_cypher_execution_null_query(self, raw_bm25_chunk: dict[str, Any]) -> None:
         """BM25 results have cypher_execution with null cypher_query."""
         chunk = RetrievedChunk.from_raw_retriever_dict(raw_bm25_chunk)
         ce = CypherExecution(
@@ -364,10 +353,7 @@ class TestQueryResult:
         assert restored.query == original.query
         assert restored.cypher_execution.cypher_query == "RETURN 1"
         assert len(restored.retrieved_chunks) == 2
-        assert (
-            restored.retrieved_chunks[0].source_url
-            == "https://wildfrostwiki.com/Bombom"
-        )
+        assert restored.retrieved_chunks[0].source_url == "https://wildfrostwiki.com/Bombom"
         assert restored.retrieved_chunks[1].cypher_result["card_name"] == "Foxee"
 
     def test_empty_chunks(self) -> None:

@@ -87,15 +87,11 @@ def _extract_other_stats(card: dict[str, Any]) -> list[dict[str, Any]]:
     card_name = card["card_name"]
     if "other_stats" in card and card["other_stats"]:
         for stat_name, value in parse_other_stats(card["other_stats"]):
-            stats.append(
-                {"card_name": card_name, "stat_name": stat_name, "value": value}
-            )
+            stats.append({"card_name": card_name, "stat_name": stat_name, "value": value})
     return stats
 
 
-def _extract_ability_stats(
-    card: dict[str, Any], all_stat_names: list[str]
-) -> list[dict[str, str]]:
+def _extract_ability_stats(card: dict[str, Any], all_stat_names: list[str]) -> list[dict[str, str]]:
     """Extract stats mentioned in abilities (simple string match, no value)."""
     stats: list[dict[str, str]] = []
     ability = card.get("abilities_specific", "")
@@ -190,9 +186,7 @@ def add_keyword_label_to_stats(tx: neo4j.ManagedTransaction) -> int:
     return count
 
 
-def create_stats_from_parsed(
-    tx: neo4j.ManagedTransaction, stats: list[StatInfo]
-) -> int:
+def create_stats_from_parsed(tx: neo4j.ManagedTransaction, stats: list[StatInfo]) -> int:
     """Create Stat nodes from parsed StatInfo objects.
 
     Args:

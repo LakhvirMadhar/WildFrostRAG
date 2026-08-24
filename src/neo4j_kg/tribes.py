@@ -37,9 +37,7 @@ def _build_card_tribe_pairs(cards_data: list[dict[str, Any]]) -> list[dict[str, 
             continue
 
         for tribe_name in exclusivity.get_tribes():
-            card_tribes.append(
-                {"card_name": card_dict["card_name"], "tribe_name": tribe_name}
-            )
+            card_tribes.append({"card_name": card_dict["card_name"], "tribe_name": tribe_name})
 
     return card_tribes
 

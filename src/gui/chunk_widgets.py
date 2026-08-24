@@ -21,9 +21,7 @@ def _build_metadata_html(chunk: dict[str, Any], show_detailed: bool) -> str:
     if source_file:
         filename = Path(source_file).name
         if source_url:
-            parts.append(
-                f'<b>Source:</b> <a href="{source_url}" target="_blank">{filename}</a>'
-            )
+            parts.append(f'<b>Source:</b> <a href="{source_url}" target="_blank">{filename}</a>')
         else:
             parts.append(f"<b>Source:</b> {filename}")
 
@@ -46,9 +44,7 @@ def _build_metadata_html(chunk: dict[str, Any], show_detailed: bool) -> str:
 
         retriever_scores = chunk.get("retriever_scores", {})
         if retriever_scores:
-            scores_str = ", ".join(
-                [f"{k}: {v:.4f}" for k, v in retriever_scores.items()]
-            )
+            scores_str = ", ".join([f"{k}: {v:.4f}" for k, v in retriever_scores.items()])
             parts.append(f"<b>Scores:</b> {scores_str}")
 
     return " | ".join(parts)
@@ -56,9 +52,7 @@ def _build_metadata_html(chunk: dict[str, Any], show_detailed: bool) -> str:
 
 def _build_rank_badge(chunk_idx: int) -> str:
     """Build HTML for the rank badge with color based on position."""
-    rank_color = (
-        "#4caf50" if chunk_idx < 3 else "#2196f3" if chunk_idx < 5 else "#9e9e9e"
-    )
+    rank_color = "#4caf50" if chunk_idx < 3 else "#2196f3" if chunk_idx < 5 else "#9e9e9e"
     return f"""
     <div style="display: flex; align-items: center; gap: 10px;">
         <span style="background-color: {rank_color}; color: white; padding: 2px 8px; border-radius: 10px; font-weight: bold;">
@@ -136,9 +130,7 @@ def create_chunk_widget(
 
     header = widgets.HBox(
         [widgets.HTML(value=_build_rank_badge(chunk_idx)), toggle_button, checkbox],
-        layout=widgets.Layout(
-            justify_content="flex-start", align_items="center", gap="10px"
-        ),
+        layout=widgets.Layout(justify_content="flex-start", align_items="center", gap="10px"),
     )
 
     metadata_widget = widgets.HTML(
@@ -222,9 +214,7 @@ def create_chunks_summary(
     """
     precision = relevant_count / total_chunks if total_chunks > 0 else 0
     total_relevant_expected = len(doc_references) if doc_references else 0
-    recall = (
-        relevant_count / total_relevant_expected if total_relevant_expected > 0 else 0
-    )
+    recall = relevant_count / total_relevant_expected if total_relevant_expected > 0 else 0
     recall_display = f"{recall:.2%}" if total_relevant_expected > 0 else "N/A"
 
     hits = _calculate_hit_metrics(relevance_annotations, total_chunks)

@@ -46,9 +46,7 @@ def create_neo4j_data(
     logger.info(f"Created {hierarchy_count} hierarchy relationships")
 
     # Create tribe relationships
-    tribe_relationships = session.execute_write(
-        create_card_tribe_relationships, cards_data
-    )
+    tribe_relationships = session.execute_write(create_card_tribe_relationships, cards_data)
     logger.info(f"Created tribe relationships for {tribe_relationships} cards")
 
     # Create card-stat relationships (Stat nodes created separately in ingest_data.py)
@@ -102,7 +100,5 @@ def create_url_nodes(tx: neo4j.ManagedTransaction) -> int:
     """)
     link_count = single_value(result, "linked")
 
-    logger.info(
-        f"Created {url_count} URL nodes and {link_count} HAS_LINK relationships"
-    )
+    logger.info(f"Created {url_count} URL nodes and {link_count} HAS_LINK relationships")
     return link_count

@@ -92,9 +92,7 @@ def cmd_generation(args: argparse.Namespace) -> None:
         exclude_query_ids=getattr(args, "exclude_query_ids", None),
     )
 
-    logger.info(
-        f"Running generation: {args.prompt} with {retrieval_ref} (run {run_num})"
-    )
+    logger.info(f"Running generation: {args.prompt} with {retrieval_ref} (run {run_num})")
     asyncio.run(run_generation(generation_args))
 
 
@@ -117,9 +115,7 @@ def cmd_list(args: argparse.Namespace) -> None:
                 print(
                     f"    Retriever: {ret.get('retriever_type')}, Chunking: {ret.get('chunking')}"
                 )
-                print(
-                    f"    Queries: {ret.get('successful_queries')}/{ret.get('total_queries')}"
-                )
+                print(f"    Queries: {ret.get('successful_queries')}/{ret.get('total_queries')}")
                 print(f"    Time: {ret.get('timestamp')}")
                 print()
         else:
@@ -134,9 +130,7 @@ def cmd_list(args: argparse.Namespace) -> None:
                 print(f"  {gen['reference']:<20} {gen.get('description', '')}")
                 print(f"    Retrieval: {gen.get('retrieval_reference')}")
                 print(f"    Prompt: {gen.get('system_prompt_version')}")
-                print(
-                    f"    Queries: {gen.get('successful_queries')}/{gen.get('total_queries')}"
-                )
+                print(f"    Queries: {gen.get('successful_queries')}/{gen.get('total_queries')}")
                 print(f"    Time: {gen.get('timestamp')}")
                 print()
         else:
@@ -205,12 +199,8 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     # Retrieval command
-    retrieval_parser = subparsers.add_parser(
-        "retrieval", help="Run retrieval experiment"
-    )
-    retrieval_parser.add_argument(
-        "--run", default="current", help="Run number (default: current)"
-    )
+    retrieval_parser = subparsers.add_parser("retrieval", help="Run retrieval experiment")
+    retrieval_parser.add_argument("--run", default="current", help="Run number (default: current)")
     retrieval_parser.add_argument(
         "--retriever",
         required=True,
@@ -228,9 +218,7 @@ def main() -> None:
     retrieval_parser.add_argument(
         "--chunking", choices=["yes", "no"], default="no", help="Chunking enabled"
     )
-    retrieval_parser.add_argument(
-        "--description", default="", help="Experiment description"
-    )
+    retrieval_parser.add_argument("--description", default="", help="Experiment description")
     retrieval_parser.add_argument(
         "--text2cypher-prompt",
         default="TEXT2CYPHER_PROMPT_V1",
@@ -250,49 +238,31 @@ def main() -> None:
     )
 
     # Generation command
-    generation_parser = subparsers.add_parser(
-        "generation", help="Run generation experiment"
-    )
-    generation_parser.add_argument(
-        "--run", default="current", help="Run number (default: current)"
-    )
+    generation_parser = subparsers.add_parser("generation", help="Run generation experiment")
+    generation_parser.add_argument("--run", default="current", help="Run number (default: current)")
     generation_parser.add_argument(
         "--retrieval",
         required=True,
         help="Retrieval reference (e.g., 'bm25/001' or 'latest/bm25')",
     )
     generation_parser.add_argument("--prompt", required=True, help="System prompt name")
-    generation_parser.add_argument(
-        "--description", default="", help="Experiment description"
-    )
-    generation_parser.add_argument(
-        "--batch-size", type=int, help="Batch size for processing"
-    )
-    generation_parser.add_argument(
-        "--query-ids", help="Comma-separated query IDs to include"
-    )
+    generation_parser.add_argument("--description", default="", help="Experiment description")
+    generation_parser.add_argument("--batch-size", type=int, help="Batch size for processing")
+    generation_parser.add_argument("--query-ids", help="Comma-separated query IDs to include")
     generation_parser.add_argument(
         "--exclude-query-ids", help="Comma-separated query IDs to exclude"
     )
 
     # List command
     list_parser = subparsers.add_parser("list", help="List experiments")
-    list_parser.add_argument(
-        "--run", default="current", help="Run number (default: current)"
-    )
-    list_parser.add_argument(
-        "--type", choices=["retrieval", "generation"], help="Filter by type"
-    )
+    list_parser.add_argument("--run", default="current", help="Run number (default: current)")
+    list_parser.add_argument("--type", choices=["retrieval", "generation"], help="Filter by type")
 
     # Search command
     search_parser = subparsers.add_parser("search", help="Search experiments")
-    search_parser.add_argument(
-        "--type", choices=["retrieval", "generation"], help="Filter by type"
-    )
+    search_parser.add_argument("--type", choices=["retrieval", "generation"], help="Filter by type")
     search_parser.add_argument("--retriever-type", help="Filter by retriever type")
-    search_parser.add_argument(
-        "--chunking", choices=["yes", "no"], help="Filter by chunking"
-    )
+    search_parser.add_argument("--chunking", choices=["yes", "no"], help="Filter by chunking")
 
     # New run command
     subparsers.add_parser("new-run", help="Increment to next run number")

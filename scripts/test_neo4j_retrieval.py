@@ -90,9 +90,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    logger.info(
-        f"Searching for: '{args.query}' using {args.retriever} retriever (k={args.k})"
-    )
+    logger.info(f"Searching for: '{args.query}' using {args.retriever} retriever (k={args.k})")
 
     # Create driver once at the start (efficient pattern)
     uri = settings.neo4j_uri.get_secret_value()

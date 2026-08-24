@@ -5,9 +5,7 @@ from neo4j_kg.query_utils import single_value
 from utils.logger import logger
 
 
-def create_summon_relationships(
-    tx: neo4j.ManagedTransaction, summons: list[SummonInfo]
-) -> int:
+def create_summon_relationships(tx: neo4j.ManagedTransaction, summons: list[SummonInfo]) -> int:
     """Create SUMMONS relationships between cards.
 
     Links summoner cards (items, companions, or shades) to the shades they summon.
@@ -23,9 +21,7 @@ def create_summon_relationships(
     if not summons:
         return 0
 
-    pairs = [
-        {"summoner_name": s.summoner_name, "shade_name": s.shade_name} for s in summons
-    ]
+    pairs = [{"summoner_name": s.summoner_name, "shade_name": s.shade_name} for s in summons]
 
     query = """
     UNWIND $pairs AS pair

@@ -44,9 +44,7 @@ def create_cards(tx: neo4j.ManagedTransaction, cards_data: list[dict[str, Any]])
 
     # Strip None values so Neo4j doesn't create properties with null
     # (e.g., Clunkers have scrap instead of health — health shouldn't exist on the node)
-    cards_data = [
-        {k: v for k, v in card.items() if v is not None} for card in cards_data
-    ]
+    cards_data = [{k: v for k, v in card.items() if v is not None} for card in cards_data]
 
     # Separate phased and non-phased cards
     phased_cards = [c for c in cards_data if c.get("phase") is not None]

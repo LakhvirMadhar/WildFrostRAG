@@ -45,9 +45,7 @@ def create_vector_index(
             # Check if index already exists
             index_exists_query = "SHOW INDEXES YIELD name WHERE name = $name"
             if session.run(index_exists_query, name=index_name).single():
-                logger.info(
-                    f"Vector index '{index_name}' already exists. Skipping creation."
-                )
+                logger.info(f"Vector index '{index_name}' already exists. Skipping creation.")
                 return
 
             # Create the vector index
@@ -92,16 +90,12 @@ def create_fulltext_index(
         If the index already exists, this function will skip creation
         and log a message.
     """
-    logger.info(
-        f"Creating full-text index '{index_name}' (analyzer={analyzer}) in Neo4j"
-    )
+    logger.info(f"Creating full-text index '{index_name}' (analyzer={analyzer}) in Neo4j")
 
     # Check if index already exists
     index_exists_query = "SHOW INDEXES YIELD name WHERE name = $name"
     if session.run(index_exists_query, name=index_name).single():
-        logger.info(
-            f"Full-text index '{index_name}' already exists. Skipping creation."
-        )
+        logger.info(f"Full-text index '{index_name}' already exists. Skipping creation.")
         return
 
     # Create the full-text index using Neo4j 5.x syntax

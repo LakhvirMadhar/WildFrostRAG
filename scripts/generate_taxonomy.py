@@ -23,9 +23,7 @@ from utils.logger import logger
 
 async def main() -> None:
     """Generate taxonomy from qualitative codes in experiment annotations."""
-    parser = argparse.ArgumentParser(
-        description="Generate taxonomy from qualitative codes"
-    )
+    parser = argparse.ArgumentParser(description="Generate taxonomy from qualitative codes")
     parser.add_argument(
         "--experiment",
         type=str,

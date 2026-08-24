@@ -102,8 +102,7 @@ class ExperimentDataAdapter(ABC):
 
         return ExperimentMetadata(
             experiment_type=config.get("experiment_type", "unknown"),
-            experiment_id=config.get("retrieval_id")
-            or config.get("generation_id", "unknown"),
+            experiment_id=config.get("retrieval_id") or config.get("generation_id", "unknown"),
             run_number=config.get("run_number", 0),
             timestamp=config.get("timestamp", ""),
             retriever_type=config.get("retriever_type"),
@@ -112,9 +111,7 @@ class ExperimentDataAdapter(ABC):
             total_queries=config.get("total_queries", 0),
             successful_queries=config.get("successful_queries", 0),
             retrieval_reference=config.get("retrieval_reference"),
-            system_prompt_version=config.get("prompts", {}).get(
-                "system_prompt_version"
-            ),
+            system_prompt_version=config.get("prompts", {}).get("system_prompt_version"),
             llm_model=config.get("llm_model"),
             text2cypher_prompt_version=config.get("text2cypher_prompt_version"),
             embedder=config.get("embedder"),
@@ -410,22 +407,13 @@ class ExperimentRegistry:
             if experiment_type is None or experiment_type == "retrieval":
                 for exp_id, exp_info in run_data.get("retrievals", {}).items():
                     # Filter by retriever type
-                    if (
-                        retriever_type
-                        and exp_info.get("retriever_type") != retriever_type
-                    ):
+                    if retriever_type and exp_info.get("retriever_type") != retriever_type:
                         continue
 
                     # Build path
                     retriever_name = exp_id.split("/")[0]
                     exp_num = exp_id.split("/")[1]
-                    path = (
-                        self.outputs_dir
-                        / f"run_{rn}"
-                        / "retrievals"
-                        / retriever_name
-                        / exp_num
-                    )
+                    path = self.outputs_dir / f"run_{rn}" / "retrievals" / retriever_name / exp_num
 
                     results.append(
                         {

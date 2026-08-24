@@ -80,9 +80,7 @@ class UnifiedAnnotationGUI:
                         "ground_truth": query.get("ground_truth", ""),
                         "doc_references": query.get("doc_references", []),
                     }
-                logger.info(
-                    f"Loaded ground truth for {len(self._ground_truth_cache)} queries"
-                )
+                logger.info(f"Loaded ground truth for {len(self._ground_truth_cache)} queries")
             except Exception as e:
                 logger.error(f"Failed to load ground truth: {e}")
 
@@ -141,9 +139,7 @@ class UnifiedAnnotationGUI:
             button_style="danger",
             layout=widgets.Layout(width="80px"),
         )
-        self.clear_button = widgets.Button(
-            description="Clear", layout=widgets.Layout(width="80px")
-        )
+        self.clear_button = widgets.Button(description="Clear", layout=widgets.Layout(width="80px"))
         self.validation_status = widgets.HTML()
         self.save_status = widgets.HTML()
 
@@ -224,9 +220,7 @@ class UnifiedAnnotationGUI:
                 self.query_dropdown.value = i
                 # Note: dropdown observer already calls _update_display()
                 return
-        self.save_status.value = (
-            '<span style="color: green;">All queries validated!</span>'
-        )
+        self.save_status.value = '<span style="color: green;">All queries validated!</span>'
 
     def _on_pass(self, btn: widgets.Button) -> None:
         self._save_annotation("validation", "pass")
@@ -287,9 +281,7 @@ class UnifiedAnnotationGUI:
         self._show_save_status()
 
     def _show_save_status(self) -> None:
-        self.save_status.value = (
-            '<span style="color: green; font-size: 12px;">Saved</span>'
-        )
+        self.save_status.value = '<span style="color: green; font-size: 12px;">Saved</span>'
 
     def _update_display(self) -> None:
         """Update all display elements for current query."""
@@ -385,9 +377,13 @@ class UnifiedAnnotationGUI:
         validation = ann.get("validation")
 
         if validation == "pass":
-            self.validation_status.value = '<span style="color: green; font-weight: bold; font-size: 16px;">PASS</span>'
+            self.validation_status.value = (
+                '<span style="color: green; font-weight: bold; font-size: 16px;">PASS</span>'
+            )
         elif validation == "fail":
-            self.validation_status.value = '<span style="color: red; font-weight: bold; font-size: 16px;">FAIL</span>'
+            self.validation_status.value = (
+                '<span style="color: red; font-weight: bold; font-size: 16px;">FAIL</span>'
+            )
         else:
             self.validation_status.value = (
                 '<span style="color: gray; font-size: 14px;">Not validated</span>'
@@ -420,9 +416,7 @@ class UnifiedAnnotationGUI:
 
         # Create summary
         total_chunks = len(query.retrieved_chunks)
-        relevant_count = sum(
-            1 for ra in relevance_annotations if ra.get("is_relevant", False)
-        )
+        relevant_count = sum(1 for ra in relevance_annotations if ra.get("is_relevant", False))
 
         # Store reference to chunk widgets for collapse/expand all
         self._current_chunk_widgets = []
@@ -470,9 +464,7 @@ class UnifiedAnnotationGUI:
             True if chunk was auto-marked as relevant.
         """
         source_url = chunk.get("source_url", "")
-        if not source_url or not any(
-            source_url in ref or ref in source_url for ref in doc_refs
-        ):
+        if not source_url or not any(source_url in ref or ref in source_url for ref in doc_refs):
             return False
 
         self.adapter.save_chunk_relevance(query_id, chunk_idx, True)
@@ -485,9 +477,7 @@ class UnifiedAnnotationGUI:
         )
         return True
 
-    def _update_relevance_cache(
-        self, query_id: int, chunk_idx: int, new_value: bool
-    ) -> None:
+    def _update_relevance_cache(self, query_id: int, chunk_idx: int, new_value: bool) -> None:
         """Update the relevance annotation cache for a chunk."""
         if query_id not in self._annotations_cache:
             self._annotations_cache[query_id] = {}
@@ -499,9 +489,7 @@ class UnifiedAnnotationGUI:
             if relevance_annotation.get("chunk_index") == chunk_idx:
                 relevance_annotation["is_relevant"] = new_value
                 return
-        ann["relevance_annotations"].append(
-            {"chunk_index": chunk_idx, "is_relevant": new_value}
-        )
+        ann["relevance_annotations"].append({"chunk_index": chunk_idx, "is_relevant": new_value})
 
     def _create_chunk_widget(
         self, query_id: int, chunk_idx: int, chunk: dict[str, Any], doc_refs: list[str]
@@ -522,13 +510,9 @@ class UnifiedAnnotationGUI:
             if new_value and self.queries_json_path:
                 source_url = chunk.get("source_url", "")
                 if source_url:
-                    added = add_doc_reference(
-                        self.queries_json_path, query_id, source_url
-                    )
+                    added = add_doc_reference(self.queries_json_path, query_id, source_url)
                     if added and query_id in self._ground_truth_cache:
-                        self._ground_truth_cache[query_id]["doc_references"].append(
-                            source_url
-                        )
+                        self._ground_truth_cache[query_id]["doc_references"].append(source_url)
                         self.save_status.value = f'<span style="color: green; font-size: 12px;">Added {source_url} to doc_references</span>'
 
             self._show_save_status()
@@ -619,9 +603,7 @@ class UnifiedAnnotationGUI:
         # Coding section - ensure no scrollbar with proper layout
         coding_section = widgets.VBox(
             [
-                widgets.HTML(
-                    value='<h4 style="margin: 15px 0 10px 0;">Qualitative Coding</h4>'
-                ),
+                widgets.HTML(value='<h4 style="margin: 15px 0 10px 0;">Qualitative Coding</h4>'),
                 self.open_coding_input,
                 widgets.HTML(value='<div style="height: 10px;"></div>'),
                 self.axial_coding_input,

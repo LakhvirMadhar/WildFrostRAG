@@ -81,9 +81,7 @@ class CodeAnalyzer(ast.NodeVisitor):
             return result
         return 0
 
-    def _has_docstring(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
-    ) -> bool:
+    def _has_docstring(self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> bool:
         """Check if function/class has a docstring."""
         if node.body and isinstance(node.body[0], ast.Expr):
             if isinstance(node.body[0].value, ast.Constant):
@@ -162,9 +160,7 @@ class CodeAnalyzer(ast.NodeVisitor):
     def _analyze_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         # Skip methods (they'll be counted in class analysis)
         # We still want to analyze them, just mark them differently
-        num_args = (
-            len(node.args.args) + len(node.args.posonlyargs) + len(node.args.kwonlyargs)
-        )
+        num_args = len(node.args.args) + len(node.args.posonlyargs) + len(node.args.kwonlyargs)
         if node.args.vararg:
             num_args += 1
         if node.args.kwarg:
@@ -187,9 +183,7 @@ class CodeAnalyzer(ast.NodeVisitor):
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         """Analyze a class definition."""
         num_methods = sum(
-            1
-            for child in node.body
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+            1 for child in node.body if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
         )
 
         # Count class-level attributes
@@ -241,8 +235,7 @@ def find_python_files(directory: Path) -> Generator[Path, None, None]:
     for path in directory.rglob("*.py"):
         parts = path.parts
         if any(
-            part.startswith(".")
-            or part in ("venv", ".venv", "__pycache__", "node_modules")
+            part.startswith(".") or part in ("venv", ".venv", "__pycache__", "node_modules")
             for part in parts
         ):
             continue
@@ -277,12 +270,8 @@ def print_report(all_metrics: list[FileMetrics]) -> None:  # noqa: C901
     class_doc_pct = (classes_with_docs / total_classes * 100) if total_classes else 0
 
     print("\nDOCSTRING COVERAGE")
-    print(
-        f"  Functions with docstrings: {funcs_with_docs}/{total_functions} ({func_doc_pct:.1f}%)"
-    )
-    print(
-        f"  Classes with docstrings: {classes_with_docs}/{total_classes} ({class_doc_pct:.1f}%)"
-    )
+    print(f"  Functions with docstrings: {funcs_with_docs}/{total_functions} ({func_doc_pct:.1f}%)")
+    print(f"  Classes with docstrings: {classes_with_docs}/{total_classes} ({class_doc_pct:.1f}%)")
 
     # Problem areas
     print(f"\n{'=' * 70}")
@@ -332,9 +321,7 @@ def print_report(all_metrics: list[FileMetrics]) -> None:  # noqa: C901
             print(f"  {c.file}:{c.line} - {c.name} - {c.num_methods} methods")
 
     # No issues found
-    if not any(
-        [long_funcs, many_args, deep_nest, branchy, large_classes, method_heavy]
-    ):
+    if not any([long_funcs, many_args, deep_nest, branchy, large_classes, method_heavy]):
         print("\n[OK] No major issues found!")
 
     # Top 10 largest functions
@@ -343,9 +330,7 @@ def print_report(all_metrics: list[FileMetrics]) -> None:  # noqa: C901
     print("=" * 70)
     for f in sorted(all_functions, key=lambda x: x.lines_of_code, reverse=True)[:10]:
         doc_marker = "[D]" if f.has_docstring else "  "
-        print(
-            f"  {doc_marker} {f.lines_of_code:3d} lines | {f.name}() @ {f.file}:{f.line}"
-        )
+        print(f"  {doc_marker} {f.lines_of_code:3d} lines | {f.name}() @ {f.file}:{f.line}")
 
     print()
 
@@ -354,12 +339,8 @@ def main() -> None:
     """Run code quality analysis on the specified path."""
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Analyze Python code quality using AST"
-    )
-    parser.add_argument(
-        "path", nargs="?", default=".", help="Directory or file to analyze"
-    )
+    parser = argparse.ArgumentParser(description="Analyze Python code quality using AST")
+    parser.add_argument("path", nargs="?", default=".", help="Directory or file to analyze")
     args = parser.parse_args()
 
     target = Path(args.path)

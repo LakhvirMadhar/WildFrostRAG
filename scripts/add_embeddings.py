@@ -252,15 +252,11 @@ async def main() -> None:
                     f"{batch_time:.2f}s ({len(batch_texts) / batch_time:.1f} docs/sec)"
                 )
 
-                updated = update_documents(
-                    driver, batch_ids, embeddings, config.property_name
-                )
+                updated = update_documents(driver, batch_ids, embeddings, config.property_name)
                 total_updated += updated
                 pbar.update(len(batch))
 
-        logger.info(
-            f"Successfully added {config.property_name} to {total_updated} documents"
-        )
+        logger.info(f"Successfully added {config.property_name} to {total_updated} documents")
 
         # Create vector index
         logger.info(f"Creating vector index: {config.index_name}...")

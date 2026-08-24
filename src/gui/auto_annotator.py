@@ -127,9 +127,7 @@ def run_auto_annotation(
 
             source_url = chunk.get("source_url", "")
             if _url_matches(source_url, doc_refs):
-                adapter.save_chunk_relevance(
-                    query_id, chunk_idx, True, auto_populated=True
-                )
+                adapter.save_chunk_relevance(query_id, chunk_idx, True, auto_populated=True)
                 auto_annotated += 1
 
     summary = {

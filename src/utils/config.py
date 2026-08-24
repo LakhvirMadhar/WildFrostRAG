@@ -131,13 +131,7 @@ class Settings(BaseSettings):
             Path to retrieval experiment directory
             (e.g., outputs/run_1/retrievals/bm25/001)
         """
-        return (
-            self.outputs_dir
-            / f"run_{run_num}"
-            / "retrievals"
-            / retriever_type
-            / experiment_id
-        )
+        return self.outputs_dir / f"run_{run_num}" / "retrievals" / retriever_type / experiment_id
 
     def get_generation_output_dir(self, run_num: int, experiment_id: str) -> Path:
         """Get path for generation experiment output directory.

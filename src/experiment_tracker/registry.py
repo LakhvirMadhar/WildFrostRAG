@@ -30,9 +30,7 @@ class ExperimentRegistry:
         Args:
             registry_path: Path to registry file (default: outputs/experiments.yaml)
         """
-        self.registry_path = registry_path or (
-            settings.outputs_dir / "experiments.yaml"
-        )
+        self.registry_path = registry_path or (settings.outputs_dir / "experiments.yaml")
         self._ensure_registry_exists()
 
     def _ensure_registry_exists(self) -> None:
@@ -112,9 +110,7 @@ class ExperimentRegistry:
         self._save_registry(registry)
         logger.info(f"Registered retrieval: run_{run_num}/{retrieval_ref}")
 
-    def register_generation(
-        self, run_num: int, generation_id: str, config: dict[str, Any]
-    ) -> None:
+    def register_generation(self, run_num: int, generation_id: str, config: dict[str, Any]) -> None:
         """Register a generation experiment in the registry.
 
         Args:
@@ -135,9 +131,7 @@ class ExperimentRegistry:
         registry["runs"][run_num]["generations"][gen_ref] = {
             "timestamp": config.get("timestamp"),
             "retrieval_reference": config.get("retrieval_reference"),
-            "system_prompt_version": config.get("prompts", {}).get(
-                "system_prompt_version"
-            ),
+            "system_prompt_version": config.get("prompts", {}).get("system_prompt_version"),
             "description": config.get("description", ""),
             "total_queries": config.get("total_queries"),
             "successful_queries": config.get("successful_queries"),
@@ -183,9 +177,7 @@ class ExperimentRegistry:
 
         # Filter by retriever type and sort by timestamp
         matching = [
-            (ref, data)
-            for ref, data in retrievals.items()
-            if ref.startswith(f"{retriever_type}/")
+            (ref, data) for ref, data in retrievals.items() if ref.startswith(f"{retriever_type}/")
         ]
 
         if not matching:

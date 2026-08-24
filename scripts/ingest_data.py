@@ -238,9 +238,7 @@ async def _load_card_pages(
         all_cards.extend(new_cards)
         successful_pages += new_successes
     elif cards_to_scrape:
-        logger.warning(
-            f"{len(cards_to_scrape)} card HTML files not found in cache (--skip-scrape)"
-        )
+        logger.warning(f"{len(cards_to_scrape)} card HTML files not found in cache (--skip-scrape)")
 
     logger.info(
         f"Total: {successful_pages}/{len(card_infos)} card pages, {len(all_cards)} CardInfo objects"
@@ -284,9 +282,7 @@ async def _scrape_domain_pages(card_type_schema: dict[str, list[str]]) -> Pipeli
 
     woolly_snail_listings, woolly_urls = await scrape_shop("The_Woolly_Snail", "shops")
     page_urls.update(woolly_urls)
-    charm_merchant_listings, charm_merchant_urls = await scrape_shop(
-        "Charm_Merchant", "shops"
-    )
+    charm_merchant_listings, charm_merchant_urls = await scrape_shop("Charm_Merchant", "shops")
     page_urls.update(charm_merchant_urls)
 
     clunker_prices, clunker_urls = await scrape_clunker_prices()
@@ -435,23 +431,17 @@ def _populate_keyword_relationships(
 ) -> None:
     """Create Card-Keyword and Charm-Keyword relationships."""
     if data.keywords:
-        kw_rel_count = session.execute_write(
-            create_card_keyword_relationships, cards_dict_data
-        )
+        kw_rel_count = session.execute_write(create_card_keyword_relationships, cards_dict_data)
         logger.info(f"Created {kw_rel_count} Card-Keyword relationships")
         charm_kw_count = session.execute_write(create_charm_keyword_relationships)
         logger.info(f"Created {charm_kw_count} Charm-Keyword relationships")
 
     if data.charms:
-        tribe_count = session.execute_write(
-            create_charm_tribe_relationships, data.charms
-        )
+        tribe_count = session.execute_write(create_charm_tribe_relationships, data.charms)
         logger.info(f"Created {tribe_count} Charm-Tribe relationships")
 
 
-def _populate_map_and_fights(
-    session: Session, data: PipelineData, urls: dict[str, str]
-) -> None:
+def _populate_map_and_fights(session: Session, data: PipelineData, urls: dict[str, str]) -> None:
     """Populate Map, Zone, Fight nodes and relationships."""
     if data.zones or data.map_events or data.fight_slots:
         counts = session.execute_write(
@@ -487,9 +477,7 @@ def _populate_bells(session: Session, data: PipelineData) -> None:
         logger.info(f"Created {bell_rel_count} bell linking relationships")
 
 
-def _populate_bling_economy(
-    session: Session, data: PipelineData, urls: dict[str, str]
-) -> None:
+def _populate_bling_economy(session: Session, data: PipelineData, urls: dict[str, str]) -> None:
     """Populate Bling, Shop nodes, and economy relationships."""
     bling_shop_urls: dict[str, str] = {
         k: v
@@ -503,9 +491,7 @@ def _populate_bling_economy(
     session.execute_write(create_bling_and_shops, bling_shop_urls)
 
     if data.bling_drops:
-        drop_count = session.execute_write(
-            create_drops_bling_relationships, data.bling_drops
-        )
+        drop_count = session.execute_write(create_drops_bling_relationships, data.bling_drops)
         logger.info(f"Created {drop_count} DROPS_BLING relationships")
     if data.woolly_snail_listings:
         snail_count = session.execute_write(
@@ -522,9 +508,7 @@ def _populate_bling_economy(
             data.charm_merchant_listings,
             "Charm",
         )
-        logger.info(
-            f"Created {charm_shop_count} Charm Merchant SELLS Charm relationships"
-        )
+        logger.info(f"Created {charm_shop_count} Charm Merchant SELLS Charm relationships")
 
     if data.woolly_snail_listings:
         cm_item_count = session.execute_write(
@@ -541,9 +525,7 @@ def _populate_bling_economy(
             data.clunker_prices,
             "Card",
         )
-        logger.info(
-            f"Created {cm_clunker_count} Charm Merchant SELLS Clunker relationships"
-        )
+        logger.info(f"Created {cm_clunker_count} Charm Merchant SELLS Clunker relationships")
 
 
 def stage_3_populate_graph(data: PipelineData) -> None:
@@ -575,18 +557,14 @@ def stage_3_populate_graph(data: PipelineData) -> None:
             _populate_bling_economy(session, data, urls)
 
             url_link_count = session.execute_write(create_url_nodes)
-            logger.info(
-                f"Created URL nodes with {url_link_count} HAS_LINK relationships"
-            )
+            logger.info(f"Created URL nodes with {url_link_count} HAS_LINK relationships")
     finally:
         driver.close()
 
     logger.info("Graph population complete")
 
 
-def stage_4_document_ingestion(
-    pipeline_data: PipelineData, split_text: bool = True
-) -> None:
+def stage_4_document_ingestion(pipeline_data: PipelineData, split_text: bool = True) -> None:
     """Stage 4: Document Ingestion.
 
     Chunks HTML documents and ingests into Neo4j as Document nodes.
@@ -672,9 +650,7 @@ def stage_4_document_ingestion(
             # Link shade Card nodes to Shades.html overview Document
             logger.info("Linking shade cards to Shades overview document...")
             shade_link_count = link_documents_to_shades(session)
-            logger.info(
-                f"Linked {shade_link_count} shade cards to Shades overview document"
-            )
+            logger.info(f"Linked {shade_link_count} shade cards to Shades overview document")
 
             # Link Document nodes to Map nodes (Map, Zone, MapEvent)
             logger.info("Linking documents to map nodes in knowledge graph...")

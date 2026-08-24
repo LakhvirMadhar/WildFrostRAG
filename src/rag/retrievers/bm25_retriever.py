@@ -57,14 +57,10 @@ class BM25Retriever(BaseNeo4jRetriever):
         self.index_name = settings.bm25_index_name
         # If specific overrides provided, use them; otherwise fall back to master flag
         self.remove_stopwords_query = (
-            remove_stopwords_query
-            if remove_stopwords_query is not None
-            else remove_stopwords
+            remove_stopwords_query if remove_stopwords_query is not None else remove_stopwords
         )
         self.remove_stopwords_docs = (
-            remove_stopwords_docs
-            if remove_stopwords_docs is not None
-            else remove_stopwords
+            remove_stopwords_docs if remove_stopwords_docs is not None else remove_stopwords
         )
         self.bm25_model: BM25Okapi | None = None
         self.documents: list[list[str]] = []
@@ -96,9 +92,7 @@ class BM25Retriever(BaseNeo4jRetriever):
         tokens: list[str] = word_tokenize(text.lower())
         if remove_sw:
             stop_words = set(stopwords.words("english"))
-            tokens = [
-                token for token in tokens if token.isalpha() and token not in stop_words
-            ]
+            tokens = [token for token in tokens if token.isalpha() and token not in stop_words]
         else:
             tokens = [token for token in tokens if token.isalpha()]
         return tokens
@@ -174,14 +168,10 @@ class BM25Retriever(BaseNeo4jRetriever):
         query_tokens = self._tokenize(query, self.remove_stopwords_query)
 
         if self.bm25_model is None:
-            raise RuntimeError(
-                "BM25 model not initialized — call _load_documents_from_neo4j first"
-            )
+            raise RuntimeError("BM25 model not initialized — call _load_documents_from_neo4j first")
         scores = self.bm25_model.get_scores(query_tokens)
 
-        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[
-            :k
-        ]
+        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
 
         results = []
         for idx in top_indices:
