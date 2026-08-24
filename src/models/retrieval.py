@@ -9,7 +9,7 @@ objects happens in evaluate_retrievers.py before saving.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Self
 
 
 @dataclass
@@ -36,7 +36,7 @@ class RetrievedChunk:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RetrievedChunk":
+    def from_dict(cls, data: dict[str, Any]) -> Self:
         """Deserialize from a dict (as saved by to_dict)."""
         return cls(
             score=data.get("score", 0.0),
@@ -47,7 +47,7 @@ class RetrievedChunk:
         )
 
     @classmethod
-    def from_raw_retriever_dict(cls, raw: dict[str, Any]) -> "RetrievedChunk":
+    def from_raw_retriever_dict(cls, raw: dict[str, Any]) -> Self:
         """Convert a raw retriever output dict to a typed RetrievedChunk.
 
         This handles the rename: rag_context -> retrieved_text,
@@ -92,7 +92,7 @@ class CypherExecution:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "CypherExecution":
+    def from_dict(cls, data: dict[str, Any]) -> Self:
         """Deserialize from a dict (as saved by to_dict)."""
         return cls(
             cypher_query=data.get("cypher_query"),
@@ -128,7 +128,7 @@ class QueryResult:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "QueryResult":
+    def from_dict(cls, data: dict[str, Any]) -> Self:
         """Deserialize from a dict (as saved by to_dict)."""
         return cls(
             query_id=data["query_id"],
