@@ -65,6 +65,7 @@ packages = [
 mypy = "1.20.0"
 pytest = "^9.0.2"
 pre-commit = "^4.0.0"
+graphviz = "^0.21"
 
 [virtualenvs]
 in-project = true
