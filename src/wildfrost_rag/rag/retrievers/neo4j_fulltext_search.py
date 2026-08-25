@@ -9,6 +9,7 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from neo4j import Driver
 from wildfrost_rag.models.retrieval import RetrievedChunk, to_retrieved_chunks
+from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
 from .base_neo4j_retriever import BaseNeo4jRetriever
@@ -24,6 +25,7 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
     def __init__(
         self,
         driver: Driver,
+        document_repository: DocumentRepository,
         neo4j_database: str | None = None,
         index_name: str | None = None,
         remove_stopwords: bool = False,
@@ -32,11 +34,13 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
+            document_repository: Repository owning the fulltext-search Cypher query
             neo4j_database: Optional database name (default: None uses default database)
             index_name: Optional fulltext index name override (default: from settings.embedding)
             remove_stopwords: Whether to remove stop words from queries before sending to Lucene
         """
         super().__init__(driver, neo4j_database)
+        self._document_repository = document_repository
         self.index_name = index_name or get_settings().embedding.fulltext_index_name
         self.remove_stopwords = remove_stopwords
         if self.remove_stopwords:
@@ -82,18 +86,11 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
             logger.debug(f"Fulltext query after stop word removal: '{search_query_text}'")
 
         # Perform full-text search (index must already exist)
-        search_query = """
-        CALL db.index.fulltext.queryNodes($index_name, $query)
-        YIELD node, score
-        RETURN node, score
-        ORDER BY score DESC
-        LIMIT $k
-        """
-
-        params = {"index_name": self.index_name, "query": search_query_text, "k": k}
-
         try:
-            results = self._execute_query(search_query, params)
+            results = self._document_repository.fulltext_search(
+                self.index_name, search_query_text, k
+            )
+            self.last_cypher_query = self._document_repository.last_cypher_query
             return to_retrieved_chunks(self._add_metadata(results, "fulltext"))
         except Exception as e:
             logger.error(

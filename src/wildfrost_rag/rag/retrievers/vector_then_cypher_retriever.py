@@ -13,9 +13,9 @@ from collections.abc import Callable
 from neo4j import Driver
 
 from wildfrost_rag.models.retrieval import RetrievedChunk, to_retrieved_chunks
+from wildfrost_rag.neo4j_kg.card_repository import CardRepository
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
-from wildfrost_rag.rag.retrievers.traversal_patterns import GRAPH_TRAVERSAL_QUERY
 
 
 class VectorThenCypherRetriever(BaseNeo4jRetriever):
@@ -36,6 +36,7 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         self,
         driver: Driver,
         embed_fn: Callable[[str], list[float]],
+        card_repository: CardRepository,
         neo4j_database: str | None = None,
         index_name: str | None = None,
     ) -> None:
@@ -44,11 +45,13 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         Args:
             driver: Neo4j driver instance
             embed_fn: Function that encodes a query string into a list of floats
+            card_repository: Repository owning the enriched vector-search Cypher query
             neo4j_database: Optional database name
             index_name: Vector index name (default: from settings.embedding)
         """
         super().__init__(driver, neo4j_database)
         self._embed_fn = embed_fn
+        self._card_repository = card_repository
         self.index_name = index_name or get_settings().embedding.vector_index_name
 
     def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
@@ -63,17 +66,8 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         """
         query_embedding = self._embed_fn(query)
 
-        combined_query = f"""
-        CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
-        YIELD node as doc, score
-        {GRAPH_TRAVERSAL_QUERY}
-        """
-
-        params = {
-            "index_name": self.index_name,
-            "query_embedding": query_embedding,
-            "k": k,
-        }
-
-        results = self._execute_query(combined_query, params)
+        results = self._card_repository.vector_search_with_enrichment(
+            self.index_name, query_embedding, k
+        )
+        self.last_cypher_query = self._card_repository.last_cypher_query
         return to_retrieved_chunks(self._add_metadata(results, "vector_then_cypher"))

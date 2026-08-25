@@ -6,12 +6,13 @@ This module provides a common base for different retrieval strategies using Neo4
 from typing import Any
 from urllib.parse import urlparse
 from neo4j import Driver, Record
-from neo4j.graph import Node, Relationship, Path
+from wildfrost_rag.neo4j_kg.record_utils import (
+    Neo4jValue,
+    SerializedValue,
+    record_to_dict,
+    serialize_value,
+)
 from wildfrost_rag.utils.config import get_settings
-
-# Types for Neo4j values before and after serialization
-Neo4jValue = Node | Relationship | Path | list[Any] | str | int | float | bool | None
-SerializedValue = dict[str, Any] | list[Any] | str | int | float | bool | None
 
 
 class BaseNeo4jRetriever:
@@ -45,73 +46,20 @@ class BaseNeo4jRetriever:
     def _serialize_value(value: Neo4jValue) -> SerializedValue:
         """Convert a Neo4j graph object to a JSON-serializable Python type.
 
-        Handles Node, Relationship, and Path objects that the LLM-generated
-        Cypher may return (e.g., `RETURN c` instead of `RETURN c.card_name`).
+        Delegates to neo4j_kg.record_utils.serialize_value - kept as a thin
+        wrapper so existing subclasses (e.g. Text2CypherRetriever, which
+        isn't repository-backed - its Cypher is LLM-generated at runtime,
+        not a fixed query a repository method could own) keep working.
         """
-        if isinstance(value, Node):
-            props = {
-                k: v for k, v in value.items() if k != "embedding" and not k.endswith("_embedding")
-            }
-            props["_labels"] = list(value.labels)
-            return props
-        if isinstance(value, Relationship):
-            return {"_type": value.type, **dict(value.items())}
-        if isinstance(value, Path):
-            return str(value)
-        if isinstance(value, list):
-            return [BaseNeo4jRetriever._serialize_value(v) for v in value]
-        return value
+        return serialize_value(value)
 
     def _record_to_dict(self, record: Record) -> dict[str, Any]:
         """Convert any Neo4j record to a flat dictionary.
 
-        Handles any Cypher query result structure:
-        - Single nodes: RETURN node, score
-        - Multiple nodes: RETURN d, c, t, score
-        - Scalars: RETURN count(*), name
-        - Mixed: Any combination
-        - Raw Node/Relationship/Path objects from LLM-generated Cypher
-
-        For backward compatibility:
-        - Variable named 'node' has properties extracted WITHOUT prefix (text, source_file)
-        - Other node variables are prefixed (d_text, c_card_name) to avoid collisions
-
-        Args:
-            record: Neo4j record from query result
-
-        Returns:
-            Flattened dictionary with all properties
+        Delegates to neo4j_kg.record_utils.record_to_dict - see
+        _serialize_value's docstring for why this wrapper still exists.
         """
-        result = {}
-
-        for key in record.keys():
-            value = record[key]
-            if value is None:
-                continue
-
-            # Handle Neo4j Node/Relationship objects - extract their properties
-            if isinstance(value, (Node, Relationship)):
-                for prop_key, prop_value in value.items():
-                    if prop_key == "embedding" or prop_key.endswith("_embedding"):
-                        continue  # Skip embedding vectors
-
-                    serialized = self._serialize_value(prop_value)
-
-                    # Backward compat: 'node' variable doesn't get prefixed
-                    # Other variables (d, c, t, etc.) get prefixed to avoid collisions
-                    if key == "node":
-                        result[prop_key] = serialized
-                    else:
-                        result[f"{key}_{prop_key}"] = serialized
-            elif isinstance(value, Path):
-                result[key] = str(value)
-            elif isinstance(value, list):
-                result[key] = self._serialize_value(value)
-            else:
-                # Scalar values (score, strings, ints, etc.)
-                result[key] = value
-
-        return result
+        return record_to_dict(record)
 
     def _execute_query(self, query: str, params: dict[str, Any]) -> list[dict[str, Any]]:
         """Execute a Neo4j query and return results using the shared driver.
@@ -129,7 +77,7 @@ class BaseNeo4jRetriever:
         self.last_cypher_query = query
         with self.driver.session(database=self.neo4j_database) as session:
             results = session.run(query, params)
-            return [self._record_to_dict(record) for record in results]
+            return [record_to_dict(record) for record in results]
 
     def _format_result_as_text(self, result: dict[str, Any]) -> str:
         """Format a result dictionary as human-readable text for RAG context.

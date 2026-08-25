@@ -14,10 +14,10 @@ from nltk.tokenize import word_tokenize
 from neo4j import Driver
 
 from wildfrost_rag.models.retrieval import RetrievedChunk, to_retrieved_chunks
+from wildfrost_rag.neo4j_kg.card_repository import CardRepository
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
 from wildfrost_rag.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
-from wildfrost_rag.rag.retrievers.traversal_patterns import GRAPH_TRAVERSAL_QUERY
 
 
 class FulltextThenCypherRetriever(BaseNeo4jRetriever):
@@ -32,6 +32,7 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
     def __init__(
         self,
         driver: Driver,
+        card_repository: CardRepository,
         neo4j_database: str | None = None,
         index_name: str | None = None,
         remove_stopwords: bool = False,
@@ -40,11 +41,13 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
 
         Args:
             driver: Neo4j driver instance
+            card_repository: Repository owning the enriched fulltext-search Cypher query
             neo4j_database: Optional database name
             index_name: Fulltext index name (default: from settings.embedding)
             remove_stopwords: Whether to remove stop words from queries before searching
         """
         super().__init__(driver, neo4j_database)
+        self._card_repository = card_repository
         self.index_name = index_name or get_settings().embedding.fulltext_index_name
         self.remove_stopwords = remove_stopwords
         if self.remove_stopwords:
@@ -83,18 +86,8 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
             search_query_text = self._preprocess_query(query)
             logger.debug(f"Fulltext query after stop word removal: '{search_query_text}'")
 
-        combined_query = f"""
-        CALL db.index.fulltext.queryNodes($index_name, $query)
-        YIELD node as doc, score
-        {GRAPH_TRAVERSAL_QUERY}
-        LIMIT $k
-        """
-
-        params = {
-            "index_name": self.index_name,
-            "query": search_query_text,
-            "k": k,
-        }
-
-        results = self._execute_query(combined_query, params)
+        results = self._card_repository.fulltext_search_with_enrichment(
+            self.index_name, search_query_text, k
+        )
+        self.last_cypher_query = self._card_repository.last_cypher_query
         return to_retrieved_chunks(self._add_metadata(results, "fulltext_then_cypher"))

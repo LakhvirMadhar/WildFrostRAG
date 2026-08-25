@@ -48,6 +48,8 @@ from wildfrost_rag.rag.retrievers import (
 )
 from wildfrost_rag.rag.retrievers.hybrid_retrievers import HybridRetriever
 from wildfrost_rag.core.exceptions import CypherExecutionError
+from wildfrost_rag.neo4j_kg.card_repository import CardRepository
+from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
 from wildfrost_rag.embeddings.query_embedders import get_query_embed_fn
 from wildfrost_rag.models.experiment_config import RetrievalConfig
 from wildfrost_rag.models.retrieval import QueryResult, CypherExecution
@@ -109,19 +111,26 @@ def get_retriever(
         An instance of the specified retriever
     """
     index_name = _get_vector_index_name(retriever_type, embedder)
+    document_repository = DocumentRepository(driver)
+    card_repository = CardRepository(driver)
 
     # Build embed_fn only for vector-based retrievers
     embed_fn = get_query_embed_fn(embedder) if retriever_type in VECTOR_BASED_RETRIEVERS else None
 
     # Non-vector retrievers (embed_fn not needed)
     non_vector_factory: dict[str, Callable[[], Any]] = {
-        "fulltext": lambda: Neo4jFullTextSearch(driver, remove_stopwords=sw_query),
+        "fulltext": lambda: Neo4jFullTextSearch(
+            driver, document_repository, remove_stopwords=sw_query
+        ),
         "bm25": lambda: BM25Retriever(
-            driver, remove_stopwords_query=sw_query, remove_stopwords_docs=sw_docs
+            driver,
+            document_repository,
+            remove_stopwords_query=sw_query,
+            remove_stopwords_docs=sw_docs,
         ),
         "text2cypher": lambda: Text2CypherRetriever(driver, **kwargs),
         "fulltext_then_cypher": lambda: FulltextThenCypherRetriever(
-            driver, remove_stopwords=sw_query
+            driver, card_repository, remove_stopwords=sw_query
         ),
     }
 
@@ -133,7 +142,9 @@ def get_retriever(
         raise ValueError(f"embed_fn is required for vector-based retriever: {retriever_type}")
 
     vector_factory: dict[str, Callable[[], Any]] = {
-        "vector": lambda: Neo4jVectorSearch(driver, embed_fn, index_name=index_name),
+        "vector": lambda: Neo4jVectorSearch(
+            driver, embed_fn, document_repository, index_name=index_name
+        ),
         "bm25_vector": lambda: BM25VectorHybridRetriever(driver, embed_fn, index_name=index_name),
         "fulltext_vector": lambda: FulltextVectorHybridRetriever(
             driver, embed_fn, index_name=index_name, remove_stopwords=sw_query
@@ -145,7 +156,7 @@ def get_retriever(
             driver, embed_fn, index_name=index_name, **kwargs
         ),
         "vector_then_cypher": lambda: VectorThenCypherRetriever(
-            driver, embed_fn, index_name=index_name, **kwargs
+            driver, embed_fn, card_repository, index_name=index_name, **kwargs
         ),
     }
 
