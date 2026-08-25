@@ -10,6 +10,7 @@ import yaml
 from pathlib import Path
 from typing import Any
 
+from models.experiment import GenerationRecord, RetrievalRecord
 from utils.config import get_settings
 from utils.logger import logger
 
@@ -195,7 +196,7 @@ class ExperimentRegistry:
 
     def list_retrievals(
         self, run_num: int, retriever_type: str | None = None
-    ) -> list[dict[str, Any]]:
+    ) -> list[RetrievalRecord]:
         """List all retrieval experiments for a run.
 
         Args:
@@ -203,7 +204,7 @@ class ExperimentRegistry:
             retriever_type: Optional filter by retriever type
 
         Returns:
-            List of retrieval experiment metadata
+            List of typed retrieval experiment records
         """
         registry = self._load_registry()
 
@@ -220,25 +221,20 @@ class ExperimentRegistry:
                 if ref.startswith(f"{retriever_type}/")
             }
 
-        # Convert to list with reference included
-        result = []
-        for ref, data in retrievals.items():
-            entry = {"reference": ref}
-            entry.update(data)
-            result.append(entry)
+        result = [RetrievalRecord.from_registry_data(ref, data) for ref, data in retrievals.items()]
 
         # Sort by timestamp (most recent first)
-        result.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        result.sort(key=lambda r: r.timestamp or "", reverse=True)
         return result
 
-    def list_generations(self, run_num: int) -> list[dict[str, Any]]:
+    def list_generations(self, run_num: int) -> list[GenerationRecord]:
         """List all generation experiments for a run.
 
         Args:
             run_num: Run number
 
         Returns:
-            List of generation experiment metadata
+            List of typed generation experiment records
         """
         registry = self._load_registry()
 
@@ -247,15 +243,12 @@ class ExperimentRegistry:
 
         generations = registry["runs"][run_num].get("generations", {})
 
-        # Convert to list with reference included
-        result = []
-        for ref, data in generations.items():
-            entry = {"reference": ref}
-            entry.update(data)
-            result.append(entry)
+        result = [
+            GenerationRecord.from_registry_data(ref, data) for ref, data in generations.items()
+        ]
 
         # Sort by timestamp (most recent first)
-        result.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        result.sort(key=lambda r: r.timestamp or "", reverse=True)
         return result
 
     def search_experiments(
@@ -263,7 +256,7 @@ class ExperimentRegistry:
         run_num: int | None = None,
         experiment_type: str | None = None,
         **filters: str | int | float | bool | None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[RetrievalRecord | GenerationRecord]:
         """Search for experiments matching criteria.
 
         Args:
@@ -272,10 +265,10 @@ class ExperimentRegistry:
             **filters: Additional filters (e.g., retriever_type="bm25", chunking=False)
 
         Returns:
-            List of matching experiments
+            List of matching typed experiment records
         """
         registry = self._load_registry()
-        results = []
+        results: list[RetrievalRecord | GenerationRecord] = []
 
         runs_to_search = [run_num] if run_num else registry.get("runs", {}).keys()
 
@@ -289,21 +282,13 @@ class ExperimentRegistry:
             if experiment_type in [None, "retrieval"]:
                 for ref, data in run_data.get("retrievals", {}).items():
                     if self._matches_filters(data, filters):
-                        entry = {"run_num": rnum, "type": "retrieval", "reference": ref}
-                        entry.update(data)
-                        results.append(entry)
+                        results.append(RetrievalRecord.from_registry_data(ref, data, rnum))
 
             # Search generations
             if experiment_type in [None, "generation"]:
                 for ref, data in run_data.get("generations", {}).items():
                     if self._matches_filters(data, filters):
-                        entry = {
-                            "run_num": rnum,
-                            "type": "generation",
-                            "reference": ref,
-                        }
-                        entry.update(data)
-                        results.append(entry)
+                        results.append(GenerationRecord.from_registry_data(ref, data, rnum))
 
         return results
 

@@ -37,6 +37,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from experiment_tracker import ExperimentRegistry
+from models.experiment import GenerationRecord, RetrievalRecord
 from scripts.evaluate_retrievers import run as run_retrieval
 from scripts.run_llm_generation import run as run_generation
 from utils.logger import logger
@@ -78,7 +79,7 @@ def cmd_generation(args: argparse.Namespace) -> None:
         logger.error(f"Could not resolve retrieval reference: {args.retrieval}")
         logger.info(f"Available retrievals for run {run_num}:")
         for ret in registry.list_retrievals(run_num):
-            logger.info(f"  - {ret['reference']}: {ret.get('description', '')}")
+            logger.info(f"  - {ret.reference}: {ret.description}")
         sys.exit(1)
 
     generation_args = argparse.Namespace(
@@ -111,12 +112,10 @@ def cmd_list(args: argparse.Namespace) -> None:
         retrievals = registry.list_retrievals(run_num)
         if retrievals:
             for ret in retrievals:
-                print(f"  {ret['reference']:<20} {ret.get('description', '')}")
-                print(
-                    f"    Retriever: {ret.get('retriever_type')}, Chunking: {ret.get('chunking')}"
-                )
-                print(f"    Queries: {ret.get('successful_queries')}/{ret.get('total_queries')}")
-                print(f"    Time: {ret.get('timestamp')}")
+                print(f"  {ret.reference:<20} {ret.description}")
+                print(f"    Retriever: {ret.retriever_type}, Chunking: {ret.chunking}")
+                print(f"    Queries: {ret.successful_queries}/{ret.total_queries}")
+                print(f"    Time: {ret.timestamp}")
                 print()
         else:
             print("  No retrieval experiments found.\n")
@@ -127,11 +126,11 @@ def cmd_list(args: argparse.Namespace) -> None:
         generations = registry.list_generations(run_num)
         if generations:
             for gen in generations:
-                print(f"  {gen['reference']:<20} {gen.get('description', '')}")
-                print(f"    Retrieval: {gen.get('retrieval_reference')}")
-                print(f"    Prompt: {gen.get('system_prompt_version')}")
-                print(f"    Queries: {gen.get('successful_queries')}/{gen.get('total_queries')}")
-                print(f"    Time: {gen.get('timestamp')}")
+                print(f"  {gen.reference:<20} {gen.description}")
+                print(f"    Retrieval: {gen.retrieval_reference}")
+                print(f"    Prompt: {gen.system_prompt_version}")
+                print(f"    Queries: {gen.successful_queries}/{gen.total_queries}")
+                print(f"    Time: {gen.timestamp}")
                 print()
         else:
             print("  No generation experiments found.\n")
@@ -160,16 +159,14 @@ def cmd_search(args: argparse.Namespace) -> None:
 
     if results:
         for exp in results:
-            print(f"  Run {exp['run_num']} - {exp['reference']}")
-            print(f"    Type: {exp['type']}")
-            print(f"    Description: {exp.get('description', '')}")
-            if exp["type"] == "retrieval":
-                print(
-                    f"    Retriever: {exp.get('retriever_type')}, Chunking: {exp.get('chunking')}"
-                )
-            elif exp["type"] == "generation":
-                print(f"    Retrieval: {exp.get('retrieval_reference')}")
-                print(f"    Prompt: {exp.get('system_prompt_version')}")
+            print(f"  Run {exp.run_num} - {exp.reference}")
+            print(f"    Type: {exp.type}")
+            print(f"    Description: {exp.description}")
+            if isinstance(exp, RetrievalRecord):
+                print(f"    Retriever: {exp.retriever_type}, Chunking: {exp.chunking}")
+            elif isinstance(exp, GenerationRecord):
+                print(f"    Retrieval: {exp.retrieval_reference}")
+                print(f"    Prompt: {exp.system_prompt_version}")
             print()
     else:
         print("  No matching experiments found.\n")
