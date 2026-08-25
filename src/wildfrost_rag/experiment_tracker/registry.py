@@ -6,10 +6,10 @@ This provides MLflow-like functionality:
 - Resolve shortcuts like "latest/bm25" or "current" run
 """
 
-import yaml
 from pathlib import Path
 from typing import Any
 
+from wildfrost_rag.experiment_tracker.experiment_repository import ExperimentRepository
 from wildfrost_rag.models.experiment import GenerationRecord, RetrievalRecord
 from wildfrost_rag.models.experiment_config import GenerationConfig, RetrievalConfig
 from wildfrost_rag.utils.config import get_settings
@@ -32,31 +32,12 @@ class ExperimentRegistry:
         Args:
             registry_path: Path to registry file (default: outputs/experiments.yaml)
         """
-        self.registry_path = registry_path or (
-            get_settings().paths.outputs_dir / "experiments.yaml"
-        )
-        self._ensure_registry_exists()
-
-    def _ensure_registry_exists(self) -> None:
-        """Create registry file if it doesn't exist."""
-        if not self.registry_path.exists():
-            initial_data = {"current_run": 1, "runs": {}}
-            self._save_registry(initial_data)
-            logger.info(f"Created experiment registry at {self.registry_path}")
-
-    def _load_registry(self) -> dict[str, Any]:
-        """Load registry from YAML file."""
-        with open(self.registry_path, encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
-
-    def _save_registry(self, data: dict[str, Any]) -> None:
-        """Save registry to YAML file."""
-        with open(self.registry_path, "w", encoding="utf-8") as f:
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+        resolved_path = registry_path or (get_settings().paths.outputs_dir / "experiments.yaml")
+        self.repository = ExperimentRepository(resolved_path)
 
     def get_current_run(self) -> int:
         """Get the current run number."""
-        registry = self._load_registry()
+        registry = self.repository.load()
         current_run = registry.get("current_run", 1)
         if not isinstance(current_run, int):
             logger.error(f"Expected int for current_run, got {type(current_run)}")
@@ -69,11 +50,11 @@ class ExperimentRegistry:
         Returns:
             New run number
         """
-        registry = self._load_registry()
+        registry = self.repository.load()
         current: int = registry.get("current_run", 1)
         new_run = current + 1
         registry["current_run"] = new_run
-        self._save_registry(registry)
+        self.repository.save(registry)
         logger.info(f"Incremented run number: {current} -> {new_run}")
         return new_run
 
@@ -92,7 +73,7 @@ class ExperimentRegistry:
             experiment_id: Experiment ID (e.g., "001")
             config: Full experiment config
         """
-        registry = self._load_registry()
+        registry = self.repository.load()
 
         # Ensure run exists
         if "runs" not in registry:
@@ -111,7 +92,7 @@ class ExperimentRegistry:
             "successful_queries": config.query_stats.successful,
         }
 
-        self._save_registry(registry)
+        self.repository.save(registry)
         logger.info(f"Registered retrieval: run_{run_num}/{retrieval_ref}")
 
     def register_generation(
@@ -124,7 +105,7 @@ class ExperimentRegistry:
             generation_id: Generation experiment ID (e.g., "001")
             config: Full experiment config
         """
-        registry = self._load_registry()
+        registry = self.repository.load()
 
         # Ensure run exists
         if "runs" not in registry:
@@ -143,7 +124,7 @@ class ExperimentRegistry:
             "successful_queries": config.query_stats.successful,
         }
 
-        self._save_registry(registry)
+        self.repository.save(registry)
         logger.info(f"Registered generation: run_{run_num}/{gen_ref}")
 
     def resolve_retrieval_reference(self, run_num: int, reference: str) -> str | None:
@@ -174,7 +155,7 @@ class ExperimentRegistry:
         Returns:
             Latest retrieval reference (e.g., "bm25/003") or None
         """
-        registry = self._load_registry()
+        registry = self.repository.load()
 
         if "runs" not in registry or run_num not in registry["runs"]:
             return None
@@ -209,7 +190,7 @@ class ExperimentRegistry:
         Returns:
             List of typed retrieval experiment records
         """
-        registry = self._load_registry()
+        registry = self.repository.load()
 
         if "runs" not in registry or run_num not in registry["runs"]:
             return []
@@ -239,7 +220,7 @@ class ExperimentRegistry:
         Returns:
             List of typed generation experiment records
         """
-        registry = self._load_registry()
+        registry = self.repository.load()
 
         if "runs" not in registry or run_num not in registry["runs"]:
             return []
@@ -270,7 +251,7 @@ class ExperimentRegistry:
         Returns:
             List of matching typed experiment records
         """
-        registry = self._load_registry()
+        registry = self.repository.load()
         results: list[RetrievalRecord | GenerationRecord] = []
 
         runs_to_search = [run_num] if run_num else registry.get("runs", {}).keys()
