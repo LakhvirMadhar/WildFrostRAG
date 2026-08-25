@@ -13,7 +13,7 @@ import ollama
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 
 
@@ -37,6 +37,7 @@ def get_query_embed_fn(embedder: str) -> Callable[[str], list[float]]:
     Returns:
         A function: (query: str) -> list[float]
     """
+    settings = get_settings()
     if embedder not in settings.embedding_configs:
         raise ValueError(
             f"Unknown embedder: {embedder}. Available: {list(settings.embedding_configs.keys())}"
@@ -87,6 +88,7 @@ def _make_openai_embed_fn(model_name: str) -> Callable[[str], list[float]]:
     def embed(query: str) -> list[float]:
         if _cache.openai_client is None:
             logger.info(f"Initializing OpenAI client for model: {model_name}")
+            settings = get_settings()
             if settings.openai_api_key is None:
                 raise ValueError("OPENAI_API_KEY not configured")
             _cache.openai_client = OpenAI(api_key=settings.openai_api_key.get_secret_value())

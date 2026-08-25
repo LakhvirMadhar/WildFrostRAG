@@ -13,7 +13,7 @@ from neo4j import GraphDatabase, Session
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
 from neo4j_kg.query_utils import single_value
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 
 
@@ -101,6 +101,7 @@ def create_embedding_index(property_name: str, index_name: str, dimension: int) 
         f"Creating vector index '{index_name}' for property '{property_name}' (dim={dimension})"
     )
 
+    settings = get_settings()
     driver = GraphDatabase.driver(
         settings.neo4j_uri.get_secret_value(),
         auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
@@ -153,6 +154,7 @@ def get_retrieved_chunks(
     # Generate query embedding
     query_embedding = embedding_model.encode(query).tolist()
 
+    settings = get_settings()
     driver = GraphDatabase.driver(
         settings.neo4j_uri.get_secret_value(),
         auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),

@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from utils.logger import logger
-from utils.config import settings
+from utils.config import get_settings
 
 
 @dataclass
@@ -345,7 +345,7 @@ class ExperimentRegistry:
             outputs_dir: Path to outputs directory. Defaults to settings.outputs_dir.
         """
         if outputs_dir is None:
-            outputs_dir = settings.outputs_dir
+            outputs_dir = get_settings().outputs_dir
 
         self.outputs_dir = Path(outputs_dir)
         self._registry: dict[str, Any] | None = None

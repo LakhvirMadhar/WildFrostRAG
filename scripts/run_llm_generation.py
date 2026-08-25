@@ -29,7 +29,7 @@ from models.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
 from prompts import get_prompt
 from prompts.prompt_utils import VersionedPrompt
 from utils.logger import logger
-from utils.config import settings
+from utils.config import get_settings
 from rag.augmented_generation.openai_client import generate_zero_shot, generate_rag
 from utils.experiment_utils import (
     get_next_experiment_id,
@@ -113,7 +113,9 @@ def load_retrieval_data(
             logger.info(f"  No retrievals found for run {run_num}")
         sys.exit(1)
 
-    retrieval_path = settings.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
+    retrieval_path = (
+        get_settings().outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
+    )
     config = load_config(retrieval_path / "config.json")
     raw_results = load_results(retrieval_path / "results.json")
     results = [RetrievalQueryResult.from_dict(r) for r in raw_results]
@@ -129,7 +131,7 @@ def load_queries_for_zero_shot() -> list[RetrievalQueryResult]:
     """Load queries from the base query CSV for zero-shot mode."""
     import pandas as pd
 
-    queries_path = settings.project_root / "queries" / "simple_reference_based_queries.csv"
+    queries_path = get_settings().project_root / "queries" / "simple_reference_based_queries.csv"
     if not queries_path.exists():
         logger.error(f"Queries file not found: {queries_path}")
         sys.exit(1)
@@ -276,6 +278,7 @@ def save_experiment(
 async def run(args: argparse.Namespace) -> None:
     """Run LLM generation experiment from a parsed Namespace."""
     validate_args(args)
+    settings = get_settings()
     settings.create_directories()
 
     is_zero_shot = args.zero_shot

@@ -8,7 +8,7 @@ from typing import Any
 
 from neo4j import Driver, ManagedTransaction, Record, Session
 
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 from prompts.prompt_utils import format_prompt_tuple, VersionedPrompt
 from rag.augmented_generation.openai_client import call_openai_api
@@ -147,6 +147,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
 
         prompt = format_prompt_tuple(self.prompt_template, schema=schema_str, query=natural_query)
 
+        settings = get_settings()
         response = await call_openai_api(
             messages=[{"role": "user", "content": prompt}],
             model=settings.text2cypher_model,

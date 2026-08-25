@@ -4,6 +4,7 @@ This module uses Pydantic Settings to manage all configuration values,
 eliminating magic strings and providing type safety.
 """
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from pydantic import SecretStr
@@ -147,6 +148,15 @@ class Settings(BaseSettings):
         return self.outputs_dir / f"run_{run_num}" / "generation" / experiment_id
 
 
-# Global settings instance
-# Import this in other modules: from utils.config import settings
-settings = Settings()  # type: ignore[call-arg]
+@lru_cache
+def get_settings() -> Settings:
+    """Return the process-wide Settings instance, building it on first call.
+
+    Lazy rather than an eager module-level singleton, so importing this
+    module never requires real credentials to be present - only calling
+    this function does.
+
+    Returns:
+        The cached Settings instance (built once, reused via lru_cache).
+    """
+    return Settings()  # type: ignore[call-arg]

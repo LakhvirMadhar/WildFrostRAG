@@ -35,7 +35,7 @@ from rag.retrievers import (
     BM25FulltextVectorHybridRetriever,
     Text2CypherRetriever,
 )
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 
 
@@ -93,6 +93,7 @@ def main() -> None:
     logger.info(f"Searching for: '{args.query}' using {args.retriever} retriever (k={args.k})")
 
     # Create driver once at the start (efficient pattern)
+    settings = get_settings()
     uri = settings.neo4j_uri.get_secret_value()
     username = settings.neo4j_username
     password = settings.neo4j_password.get_secret_value()

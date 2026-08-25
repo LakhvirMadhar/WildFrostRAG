@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from scripts.evaluate_retrievers import run as run_retrieval
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 
 
@@ -49,6 +49,7 @@ async def main() -> None:  # noqa: C901
     print("=" * 60)
 
     # Validate embeddings exist in config
+    settings = get_settings()
     for retriever_config in retrievers:
         if "embedder" in retriever_config:
             embedder = retriever_config["embedder"]
@@ -119,7 +120,7 @@ def experiment_exists(run_num: int, retriever_config: dict[str, str]) -> bool:
     if "embedder" in retriever_config:
         retriever_type = f"{retriever_type}_{retriever_config['embedder']}"
 
-    path = settings.outputs_dir / f"run_{run_num}" / "retrievals" / retriever_type
+    path = get_settings().outputs_dir / f"run_{run_num}" / "retrievals" / retriever_type
     return path.exists() and any(path.iterdir())  # Check if any experiments exist
 
 

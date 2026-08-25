@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 
 
@@ -74,6 +74,7 @@ def create_retrieval_config(
     retrieval_id = f"{retriever_type}/{experiment_id}"
 
     # Use provided embedding_model or default to settings
+    settings = get_settings()
     embedding_model = kwargs.get("embedding_model", settings.embedding_model_name)
 
     config = {
@@ -158,7 +159,7 @@ def create_generation_config(
         "run_number": run_num,
         "timestamp": datetime.now().isoformat(),
         "retrieval_reference": retrieval_reference,
-        "llm_model": kwargs.get("llm_model", settings.openai_model_name),
+        "llm_model": kwargs.get("llm_model", get_settings().openai_model_name),
         "temperature": kwargs.get("temperature", 0.0),
         "seed": kwargs.get("seed", 42),
         "prompts": {
@@ -227,7 +228,9 @@ def validate_retrieval_reference(run_num: int, retrieval_reference: str) -> bool
     Returns:
         True if reference exists, False otherwise
     """
-    retrieval_path = settings.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
+    retrieval_path = (
+        get_settings().outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
+    )
     return retrieval_path.exists() and (retrieval_path / "config.json").exists()
 
 
@@ -240,7 +243,7 @@ def list_available_retrievals(run_num: int) -> list[str]:
     Returns:
         List of retrieval references (e.g., ["bm25/001", "vector/001"])
     """
-    retrievals_dir = settings.outputs_dir / f"run_{run_num}" / "retrievals"
+    retrievals_dir = get_settings().outputs_dir / f"run_{run_num}" / "retrievals"
 
     if not retrievals_dir.exists():
         return []

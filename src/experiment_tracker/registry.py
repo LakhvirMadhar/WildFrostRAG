@@ -10,7 +10,7 @@ import yaml
 from pathlib import Path
 from typing import Any
 
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 
 
@@ -30,7 +30,7 @@ class ExperimentRegistry:
         Args:
             registry_path: Path to registry file (default: outputs/experiments.yaml)
         """
-        self.registry_path = registry_path or (settings.outputs_dir / "experiments.yaml")
+        self.registry_path = registry_path or (get_settings().outputs_dir / "experiments.yaml")
         self._ensure_registry_exists()
 
     def _ensure_registry_exists(self) -> None:

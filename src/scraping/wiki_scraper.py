@@ -1,7 +1,7 @@
 import re
 
 from web_scraper.sitemap_scraper import scrape_multiple_links
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 
 
@@ -21,6 +21,7 @@ async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
         HTML content if successful, None otherwise
     """
     logger.info(f"Scraping {page_name} page...")
+    settings = get_settings()
     url = f"{settings.wildfrost_wiki_base_url}/{page_name}"
     html_list = await scrape_multiple_links([url], max_concurrent=1)
     html = html_list[0] if html_list else None
@@ -48,7 +49,7 @@ def load_cached_html(page_name: str, output_subdir: str) -> str | None:
     Returns:
         HTML content if file exists, None otherwise
     """
-    path = settings.structured_outputs_dir / output_subdir / f"{page_name}.html"
+    path = get_settings().structured_outputs_dir / output_subdir / f"{page_name}.html"
     if not path.exists():
         logger.warning(f"Cached HTML not found: {path}")
         return None

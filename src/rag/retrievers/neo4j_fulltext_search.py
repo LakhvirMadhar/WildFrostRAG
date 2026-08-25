@@ -9,7 +9,7 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from neo4j import Driver
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 from .base_neo4j_retriever import BaseNeo4jRetriever
 
@@ -37,7 +37,7 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
             remove_stopwords: Whether to remove stop words from queries before sending to Lucene
         """
         super().__init__(driver, neo4j_database)
-        self.index_name = index_name or settings.fulltext_index_name
+        self.index_name = index_name or get_settings().fulltext_index_name
         self.remove_stopwords = remove_stopwords
         if self.remove_stopwords:
             self._initialize_nltk()

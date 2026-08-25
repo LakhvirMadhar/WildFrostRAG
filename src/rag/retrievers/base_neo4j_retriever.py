@@ -7,7 +7,7 @@ from typing import Any
 from urllib.parse import urlparse
 from neo4j import Driver, Record
 from neo4j.graph import Node, Relationship, Path
-from utils.config import settings
+from utils.config import get_settings
 
 # Types for Neo4j values before and after serialization
 Neo4jValue = Node | Relationship | Path | list[Any] | str | int | float | bool | None
@@ -37,7 +37,7 @@ class BaseNeo4jRetriever:
 
         # Extract port for logging (security: don't log full URI/host)
         # Note: We can't get URI directly from driver, so we'll get it from settings for logging
-        uri = settings.neo4j_uri.get_secret_value()
+        uri = get_settings().neo4j_uri.get_secret_value()
         parsed_uri = urlparse(uri)
         self.port = parsed_uri.port or 7687  # Default Neo4j port
 

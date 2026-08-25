@@ -9,7 +9,7 @@ of failure modes and patterns.
 import json
 from pathlib import Path
 
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 from prompts.prompt_utils import format_prompt_tuple
 from rag.augmented_generation.openai_client import call_openai_api
@@ -38,6 +38,7 @@ async def generate_taxonomy(open_codes: list[str]) -> str:
     user_message = format_prompt_tuple(TAXONOMY_USER_PROMPT_V1.prompt_tuple, codes_text=codes_text)
 
     try:
+        settings = get_settings()
         return await call_openai_api(
             messages=[
                 {

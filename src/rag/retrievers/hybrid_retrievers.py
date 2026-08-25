@@ -17,7 +17,7 @@ from rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
 from rag.retrievers.bm25_retriever import BM25Retriever
 from rag.retrievers.neo4j_fulltext_search import Neo4jFullTextSearch
 from rag.retrievers.text2cypher_retriever import Text2CypherRetriever
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 from prompts.prompt_utils import VersionedPrompt
 
@@ -176,6 +176,7 @@ class BM25VectorHybridRetriever(HybridRetriever):
             neo4j_database: Optional database name (default: None uses default database)
             index_name: Optional vector index name (default: uses settings.vector_index_name)
         """
+        settings = get_settings()
         bm25_retriever = BM25Retriever(driver, neo4j_database)
         vector_retriever = Neo4jVectorSearch(
             driver,
@@ -212,6 +213,7 @@ class FulltextVectorHybridRetriever(HybridRetriever):
             index_name: Optional vector index name (default: uses settings.vector_index_name)
             remove_stopwords: Whether to remove stop words from fulltext queries
         """
+        settings = get_settings()
         fulltext_retriever = Neo4jFullTextSearch(
             driver, neo4j_database, remove_stopwords=remove_stopwords
         )
@@ -248,6 +250,7 @@ class BM25FulltextVectorHybridRetriever(HybridRetriever):
             neo4j_database: Optional database name (default: None uses default database)
             index_name: Optional vector index name (default: uses settings.vector_index_name)
         """
+        settings = get_settings()
         bm25_retriever = BM25Retriever(driver, neo4j_database)
         fulltext_retriever = Neo4jFullTextSearch(driver, neo4j_database)
         vector_retriever = Neo4jVectorSearch(
@@ -292,6 +295,8 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
             neo4j_database: Optional database name
             index_name: Vector index name (default: from settings)
         """
+        settings = get_settings()
+
         # Create component retrievers
         self.text2cypher = Text2CypherRetriever(driver, text2cypher_prompt, neo4j_database)
         self.vector = Neo4jVectorSearch(

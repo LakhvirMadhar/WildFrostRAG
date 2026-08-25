@@ -11,7 +11,7 @@ import asyncio
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 from prompts.prompt_utils import VersionedPrompt, format_prompt_tuple
 
@@ -28,6 +28,7 @@ def _get_client() -> AsyncOpenAI:
     """Get or create the singleton AsyncOpenAI client."""
     global _client
     if _client is None:
+        settings = get_settings()
         if settings.openai_api_key is None:
             raise ValueError("OPENAI_API_KEY not configured")
         _client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
@@ -38,7 +39,7 @@ def _get_semaphore() -> asyncio.Semaphore:
     """Get or create the singleton semaphore for rate limiting."""
     global _semaphore
     if _semaphore is None:
-        _semaphore = asyncio.Semaphore(settings.llm_semaphore_limit)
+        _semaphore = asyncio.Semaphore(get_settings().llm_semaphore_limit)
     return _semaphore
 
 
@@ -66,6 +67,7 @@ async def call_openai_api(
     """
     async with _get_semaphore():
         client = _get_client()
+        settings = get_settings()
         try:
             response = await client.chat.completions.create(
                 model=model or settings.openai_model_name,
@@ -103,6 +105,7 @@ async def call_openai_api_structured[T: BaseModel](
     """
     async with _get_semaphore():
         client = _get_client()
+        settings = get_settings()
         try:
             response = await client.beta.chat.completions.parse(
                 model=model or settings.openai_model_name,
@@ -138,7 +141,7 @@ async def call_openai_embeddings(
         try:
             response = await client.embeddings.create(
                 input=texts,
-                model=model or settings.embedding_configs["openai"]["model"],
+                model=model or get_settings().embedding_configs["openai"]["model"],
             )
             return [item.embedding for item in response.data]
         except Exception as e:

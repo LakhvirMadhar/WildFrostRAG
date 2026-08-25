@@ -24,7 +24,7 @@ from data_processing.shades import parse_shades_page, SummonInfo
 from data_processing.cards import CardInfo
 from scraping.wiki_scraper import scrape_wiki_page, load_cached_html
 from web_scraper.sitemap_scraper import scrape_multiple_links
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 
 # Type alias: maps HTML filename -> wiki URL
@@ -38,7 +38,7 @@ async def _get_html(page_name: str, output_subdir: str) -> tuple[str | None, Pag
         Tuple of (html_content, page_urls). HTML is None if scraping failed.
         page_urls maps the output filename to the wiki URL (e.g. {"Leaders.html": "https://..."}).
     """
-    url = f"{settings.wildfrost_wiki_base_url}/{page_name}"
+    url = f"{get_settings().wildfrost_wiki_base_url}/{page_name}"
     urls = {f"{page_name}.html": url}
     html = load_cached_html(page_name, output_subdir)
     if html:
@@ -63,7 +63,7 @@ async def scrape_stats() -> tuple[list[StatInfo], PageUrls]:
     if not html:
         return [], urls
 
-    stats = parse_stats_page(html, base_url=settings.wildfrost_wiki_base_url)
+    stats = parse_stats_page(html, base_url=get_settings().wildfrost_wiki_base_url)
     logger.info(f"Parsed {len(stats)} stats")
     return stats, urls
 
@@ -99,7 +99,9 @@ async def scrape_individual_stat_pages(stats: list[StatInfo]) -> PageUrls:
 
     if stats_to_scrape:
         urls = [s.url for s in stats_to_scrape if s.url is not None]
-        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
+        htmls = await scrape_multiple_links(
+            urls, max_concurrent=get_settings().max_concurrent_requests
+        )
 
         for stat, html in zip(stats_to_scrape, htmls, strict=False):
             if html is None:
@@ -128,7 +130,7 @@ async def scrape_charms() -> tuple[list[CharmInfo], PageUrls]:
     if not html:
         return [], urls
 
-    charms = parse_charms_page(html, base_url=settings.wildfrost_wiki_base_url)
+    charms = parse_charms_page(html, base_url=get_settings().wildfrost_wiki_base_url)
     logger.info(f"Parsed {len(charms)} charms")
     return charms, urls
 
@@ -164,7 +166,9 @@ async def scrape_individual_charm_pages(charms: list[CharmInfo]) -> PageUrls:
 
     if charms_to_scrape:
         urls = [c.url for c in charms_to_scrape if c.url is not None]
-        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
+        htmls = await scrape_multiple_links(
+            urls, max_concurrent=get_settings().max_concurrent_requests
+        )
 
         for charm, html in zip(charms_to_scrape, htmls, strict=False):
             if html is None:
@@ -271,7 +275,7 @@ async def scrape_bells() -> tuple[list[BellInfo], PageUrls]:
     if not html:
         return [], urls
 
-    bells = parse_bells_page(html, base_url=settings.wildfrost_wiki_base_url)
+    bells = parse_bells_page(html, base_url=get_settings().wildfrost_wiki_base_url)
     logger.info(f"Parsed {len(bells)} bells")
     return bells, urls
 
@@ -307,7 +311,9 @@ async def scrape_individual_bell_pages(bells: list[BellInfo]) -> PageUrls:
 
     if bells_to_scrape:
         urls = [b.url for b in bells_to_scrape if b.url is not None]
-        htmls = await scrape_multiple_links(urls, max_concurrent=settings.max_concurrent_requests)
+        htmls = await scrape_multiple_links(
+            urls, max_concurrent=get_settings().max_concurrent_requests
+        )
 
         for bell, html in zip(bells_to_scrape, htmls, strict=False):
             if html is None:

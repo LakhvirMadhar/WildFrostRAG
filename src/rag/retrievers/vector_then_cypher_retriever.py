@@ -13,7 +13,7 @@ from collections.abc import Callable
 
 from neo4j import Driver
 
-from utils.config import settings
+from utils.config import get_settings
 from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 from rag.retrievers.traversal_patterns import GRAPH_TRAVERSAL_QUERY
 
@@ -49,7 +49,7 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         """
         super().__init__(driver, neo4j_database)
         self._embed_fn = embed_fn
-        self.index_name = index_name or settings.vector_index_name
+        self.index_name = index_name or get_settings().vector_index_name
 
     def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
         """Search using vector similarity + graph traversal.

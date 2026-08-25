@@ -9,7 +9,7 @@ import time
 
 import neo4j
 from neo4j import GraphDatabase
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 
 
@@ -35,6 +35,7 @@ def create_vector_index(
     """
     logger.info(f"Creating vector index '{index_name}' in Neo4j")
 
+    settings = get_settings()
     driver = GraphDatabase.driver(
         settings.neo4j_uri.get_secret_value(),
         auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),

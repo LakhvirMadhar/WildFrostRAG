@@ -25,7 +25,7 @@ from neo4j import GraphDatabase, Driver
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 import ollama
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 from neo4j_kg.vector_store import create_embedding_index
 
@@ -57,6 +57,7 @@ def parse_args() -> argparse.Namespace:
 
 def get_embedder_config(embedder_name: str) -> EmbedderConfig:
     """Validate embedder name and return its configuration."""
+    settings = get_settings()
     if embedder_name not in settings.embedding_configs:
         logger.error(f"Unknown embedder: {embedder_name}")
         logger.error(f"Available embedders: {list(settings.embedding_configs.keys())}")
@@ -109,6 +110,7 @@ def load_embedding_model(
         return model
 
     if embedder_name == "openai":
+        settings = get_settings()
         if not settings.openai_api_key:
             logger.error("OpenAI API key not found in settings")
             sys.exit(1)
@@ -201,6 +203,7 @@ async def main() -> None:
     logger.info(f"Index name: {config.index_name}")
     logger.info(f"Dimension: {config.dimension}")
 
+    settings = get_settings()
     driver = GraphDatabase.driver(
         settings.neo4j_uri.get_secret_value(),
         auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),

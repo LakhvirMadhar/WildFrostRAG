@@ -12,7 +12,7 @@ import pandas as pd
 import re
 from data_processing.cards import CardType, CardInfo
 from data_processing.generate_schemas import generate_card_type_html_schema
-from utils.config import settings
+from utils.config import get_settings
 
 
 def clean_name_for_url(name: str) -> str:
@@ -59,6 +59,7 @@ def sample_queries(
     card_type_schema = generate_card_type_html_schema()
 
     # Save schema to file (using settings for path)
+    settings = get_settings()
     schema_filename = settings.schemas_dir / "card_type_schema.json"
     os.makedirs(settings.schemas_dir, exist_ok=True)
 

@@ -91,7 +91,7 @@ from neo4j_kg.vector_store import (
     link_documents_to_bells,
 )
 from neo4j_kg.neo4j_indexes import create_fulltext_index, wait_for_index_population
-from utils.config import settings
+from utils.config import get_settings
 from utils.logger import logger
 
 
@@ -126,6 +126,7 @@ def _generate_schema() -> dict[str, list[str]]:
     logger.info("Generating card type schema...")
     card_type_schema = generate_card_type_html_schema()
 
+    settings = get_settings()
     schema_path = settings.schemas_dir / "card_type_schema.json"
     settings.schemas_dir.mkdir(parents=True, exist_ok=True)
     with open(schema_path, "w", encoding="utf-8") as f:
@@ -147,7 +148,7 @@ def _create_card_infos(card_type_schema: dict[str, list[str]]) -> list[CardInfo]
                 CardInfo(
                     card_name=card_name,
                     card_type=CardType.from_schema_key(card_type),
-                    url=f"{settings.wildfrost_wiki_base_url}/{cleaned_name}",
+                    url=f"{get_settings().wildfrost_wiki_base_url}/{cleaned_name}",
                 )
             )
 
@@ -196,7 +197,7 @@ async def _scrape_missing_cards(
     logger.info(f"Scraping {len(cards_to_scrape)} missing card pages...")
     urls = [card.url for card in cards_to_scrape]
     html_outputs = await scrape_multiple_links(
-        urls, max_concurrent=settings.max_concurrent_requests
+        urls, max_concurrent=get_settings().max_concurrent_requests
     )
 
     new_cards: list[CardInfo] = []
@@ -384,8 +385,8 @@ def stage_2_enrich_data(card_infos: list[CardInfo]) -> None:
 
     enrich_cards_with_tribes(
         card_infos=card_infos,
-        companions_url=settings.companions_page_url,
-        items_url=settings.items_page_url,
+        companions_url=get_settings().companions_page_url,
+        items_url=get_settings().items_page_url,
     )
 
 
@@ -451,7 +452,7 @@ def _populate_map_and_fights(session: Session, data: PipelineData, urls: dict[st
             data.fight_slots,
             data.fight_page_mapping,
             url=urls.get("Map.html"),
-            base_url=settings.wildfrost_wiki_base_url,
+            base_url=get_settings().wildfrost_wiki_base_url,
         )
         logger.info(f"Map graph created: {counts}")
 
@@ -540,6 +541,7 @@ def stage_3_populate_graph(data: PipelineData) -> None:
     logger.info("STAGE 3: NEO4J GRAPH POPULATION")
     logger.info("=" * 60)
 
+    settings = get_settings()
     driver = GraphDatabase.driver(
         settings.neo4j_uri.get_secret_value(),
         auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
@@ -583,6 +585,7 @@ def stage_4_document_ingestion(pipeline_data: PipelineData, split_text: bool = T
 
     # Collect all HTML file paths
     logger.info("Collecting HTML files...")
+    settings = get_settings()
     all_html_filepaths = []
     for root, _dirs, files in os.walk(settings.structured_outputs_dir):
         for file in files:
@@ -709,6 +712,7 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
+    settings = get_settings()
     logger.info("Starting WildFrostRAG data ingestion pipeline")
     logger.info(f"Configuration: {settings.model_dump()}")
 

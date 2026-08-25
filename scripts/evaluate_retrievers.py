@@ -50,7 +50,7 @@ from rag.retrievers.hybrid_retrievers import HybridRetriever
 from embeddings.query_embedders import get_query_embed_fn
 from models.retrieval import RetrievedChunk, QueryResult, CypherExecution
 from utils.logger import logger
-from utils.config import settings
+from utils.config import get_settings
 from utils.experiment_utils import (
     get_next_experiment_id,
     create_retrieval_config,
@@ -157,6 +157,7 @@ def _get_vector_index_name(retriever_type: str, embedder: str) -> str | None:
     if retriever_type not in VECTOR_BASED_RETRIEVERS:
         return None
 
+    settings = get_settings()
     if embedder not in settings.embedding_configs:
         raise ValueError(
             f"Unknown embedder: {embedder}. Available: {list(settings.embedding_configs.keys())}"
@@ -306,7 +307,7 @@ def _get_embedder_config_kwargs(retriever_type: str, embedder: str) -> dict[str,
     if retriever_type not in VECTOR_BASED_RETRIEVERS:
         return {}
 
-    embedder_cfg = settings.embedding_configs[embedder]
+    embedder_cfg = get_settings().embedding_configs[embedder]
     return {
         "embedding_provider": embedder,
         "embedding_model": embedder_cfg["model"],
@@ -385,7 +386,7 @@ async def run_retriever(
     if retriever_type in VECTOR_BASED_RETRIEVERS:
         retriever_dir_name = f"{retriever_type}_{embedder}"
 
-    base_path = settings.outputs_dir / f"run_{run_num}" / "retrievals" / retriever_dir_name
+    base_path = get_settings().outputs_dir / f"run_{run_num}" / "retrievals" / retriever_dir_name
     experiment_id = get_next_experiment_id(base_path)
     experiment_dir = base_path / experiment_id
     experiment_dir.mkdir(parents=True, exist_ok=True)
@@ -570,6 +571,7 @@ def load_text2cypher_prompt(prompt_name: str) -> VersionedPrompt:
 
 async def run(args: argparse.Namespace) -> None:
     """Run a retrieval experiment from a parsed Namespace."""
+    settings = get_settings()
     settings.create_directories()
 
     df = load_and_filter_queries(args.file, args.query_ids, args.exclude_query_ids)

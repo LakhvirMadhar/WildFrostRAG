@@ -8,7 +8,7 @@ This module provides various retrieval strategies using Neo4j:
 from typing import Any
 from collections.abc import Callable
 from neo4j import Driver
-from utils.config import settings
+from utils.config import get_settings
 from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
@@ -36,7 +36,7 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
         """
         super().__init__(driver, neo4j_database)
         self._embed_fn = embed_fn
-        self.index_name = index_name or settings.vector_index_name
+        self.index_name = index_name or get_settings().vector_index_name
 
     def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
         """Retrieve the top-k most relevant document chunks from Neo4j based on semantic similarity.
