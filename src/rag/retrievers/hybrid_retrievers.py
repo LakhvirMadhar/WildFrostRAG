@@ -13,6 +13,7 @@ Available hybrid retrievers:
 from typing import Any
 from collections.abc import Callable
 from neo4j import Driver
+from pydantic import BaseModel, Field
 from core.exceptions import WildFrostRAGError
 from models.retrieval import RetrievedChunk
 from rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
@@ -22,6 +23,19 @@ from rag.retrievers.text2cypher_retriever import Text2CypherRetriever
 from utils.config import get_settings
 from utils.logger import logger
 from prompts.prompt_utils import VersionedPrompt
+
+
+class RRFScore(BaseModel):
+    """RRF bookkeeping for one document as it's fused across retrievers.
+
+    Transient - built and consumed entirely within _apply_rrf(), never
+    serialized to disk (unlike models/retrieval.py's RetrievedChunk).
+    """
+
+    rrf_score: float
+    chunk: RetrievedChunk
+    source_retriever: str
+    retriever_scores: dict[str, float] = Field(default_factory=dict)
 
 
 class HybridRetriever:
@@ -103,62 +117,58 @@ class HybridRetriever:
         Returns:
             List of fused RetrievedChunk objects sorted by RRF score
         """
-        # Create a mapping from document identifier to RRF score and metadata
-        doc_scores: dict[str, dict[str, Any]] = {}
+        # Map document identifier -> RRF bookkeeping for that document
+        doc_scores: dict[str, RRFScore] = {}
 
         for retriever_idx, (results, weight) in enumerate(all_results):
             for rank, chunk in enumerate(results, 1):  # RRF uses 1-based ranking
-                # Use a combination of text and other identifiers to uniquely identify documents
-                # Create a more robust identifier that includes source to avoid false duplicates
-                text_content = chunk.cypher_result.get("text", "") or chunk.retrieved_text
-                source_file = chunk.cypher_result.get("source_file", "")
-                doc_identifier = (
-                    f"{text_content[:50]}_{source_file}" if text_content else str(hash(str(chunk)))
-                )
+                doc_identifier = self._identify_doc(chunk)
 
                 # Calculate RRF score: weight * 1 / (k1 + rank)
                 rrf_score = weight * 1.0 / (self.k1 + rank)
                 retriever_name = self.retriever_names[retriever_idx]
 
                 if doc_identifier not in doc_scores:
-                    # Store the RRF score and the original chunk
-                    doc_scores[doc_identifier] = {
-                        "rrf_score": rrf_score,
-                        "chunk": chunk,
-                        "source_retriever": retriever_name,
-                        "retriever_scores": {retriever_name: chunk.score},
-                    }
+                    doc_scores[doc_identifier] = RRFScore(
+                        rrf_score=rrf_score,
+                        chunk=chunk,
+                        source_retriever=retriever_name,
+                        retriever_scores={retriever_name: chunk.score},
+                    )
                 else:
-                    # Add to existing RRF score (this handles duplicates)
-                    doc_scores[doc_identifier]["rrf_score"] += rrf_score
-                    # Add the score from this retriever
-                    doc_scores[doc_identifier]["retriever_scores"][retriever_name] = chunk.score
-                    # Keep the chunk from the last-seen occurrence across methods
-                    doc_scores[doc_identifier]["chunk"] = chunk
-                    doc_scores[doc_identifier]["source_retriever"] = retriever_name
+                    # Handle duplicates: accumulate RRF score, keep the
+                    # chunk/source from the last-seen occurrence across methods
+                    existing = doc_scores[doc_identifier]
+                    existing.rrf_score += rrf_score
+                    existing.retriever_scores[retriever_name] = chunk.score
+                    existing.chunk = chunk
+                    existing.source_retriever = retriever_name
 
-        # Sort by RRF score in descending order
-        sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1]["rrf_score"], reverse=True)
+        # Sort by RRF score in descending order, return the top k as RetrievedChunks
+        sorted_docs = sorted(doc_scores.values(), key=lambda s: s.rrf_score, reverse=True)
+        return [self._to_fused_chunk(score) for score in sorted_docs[:k]]
 
-        # Return top k results with updated scores
-        top_results = []
-        for _doc_identifier, data in sorted_docs[:k]:
-            chunk = data["chunk"]
-            cypher_result = dict(chunk.cypher_result)
-            cypher_result["rrf_score"] = data["rrf_score"]
-            cypher_result["source_retriever"] = data["source_retriever"]
-            cypher_result["retriever_scores"] = data["retriever_scores"]
-            top_results.append(
-                RetrievedChunk(
-                    score=data["rrf_score"],
-                    search_type="hybrid_rrf",
-                    retrieved_text=chunk.retrieved_text,
-                    source_url=chunk.source_url,
-                    cypher_result=cypher_result,
-                )
-            )
+    def _identify_doc(self, chunk: RetrievedChunk) -> str:
+        """Build a document identifier for RRF deduplication across retrievers."""
+        text_content = chunk.cypher_result.get("text", "") or chunk.retrieved_text
+        source_file = chunk.cypher_result.get("source_file", "")
+        if not text_content:
+            return str(hash(str(chunk)))
+        return f"{text_content[:50]}_{source_file}"
 
-        return top_results
+    def _to_fused_chunk(self, score: RRFScore) -> RetrievedChunk:
+        """Build the final fused RetrievedChunk for one document's RRFScore."""
+        cypher_result = dict(score.chunk.cypher_result)
+        cypher_result["rrf_score"] = score.rrf_score
+        cypher_result["source_retriever"] = score.source_retriever
+        cypher_result["retriever_scores"] = score.retriever_scores
+        return RetrievedChunk(
+            score=score.rrf_score,
+            search_type="hybrid_rrf",
+            retrieved_text=score.chunk.retrieved_text,
+            source_url=score.chunk.source_url,
+            cypher_result=cypher_result,
+        )
 
 
 class BM25VectorHybridRetriever(HybridRetriever):
