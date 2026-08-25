@@ -16,6 +16,7 @@ from neo4j import Driver
 from pydantic import BaseModel, Field
 from wildfrost_rag.core.exceptions import WildFrostRAGError
 from wildfrost_rag.models.retrieval import RetrievedChunk
+from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
 from wildfrost_rag.rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
 from wildfrost_rag.rag.retrievers.bm25_retriever import BM25Retriever
 from wildfrost_rag.rag.retrievers.neo4j_fulltext_search import Neo4jFullTextSearch
@@ -190,10 +191,12 @@ class BM25VectorHybridRetriever(HybridRetriever):
             index_name: Optional vector index name (default: uses settings.embedding.vector_index_name)
         """
         settings = get_settings()
-        bm25_retriever = BM25Retriever(driver, neo4j_database)
+        document_repository = DocumentRepository(driver, neo4j_database)
+        bm25_retriever = BM25Retriever(driver, document_repository, neo4j_database)
         vector_retriever = Neo4jVectorSearch(
             driver,
             embed_fn,
+            document_repository,
             neo4j_database,
             index_name=index_name or settings.embedding.vector_index_name,
         )
@@ -227,12 +230,14 @@ class FulltextVectorHybridRetriever(HybridRetriever):
             remove_stopwords: Whether to remove stop words from fulltext queries
         """
         settings = get_settings()
+        document_repository = DocumentRepository(driver, neo4j_database)
         fulltext_retriever = Neo4jFullTextSearch(
-            driver, neo4j_database, remove_stopwords=remove_stopwords
+            driver, document_repository, neo4j_database, remove_stopwords=remove_stopwords
         )
         vector_retriever = Neo4jVectorSearch(
             driver,
             embed_fn,
+            document_repository,
             neo4j_database,
             index_name=index_name or settings.embedding.vector_index_name,
         )
@@ -264,11 +269,13 @@ class BM25FulltextVectorHybridRetriever(HybridRetriever):
             index_name: Optional vector index name (default: uses settings.embedding.vector_index_name)
         """
         settings = get_settings()
-        bm25_retriever = BM25Retriever(driver, neo4j_database)
-        fulltext_retriever = Neo4jFullTextSearch(driver, neo4j_database)
+        document_repository = DocumentRepository(driver, neo4j_database)
+        bm25_retriever = BM25Retriever(driver, document_repository, neo4j_database)
+        fulltext_retriever = Neo4jFullTextSearch(driver, document_repository, neo4j_database)
         vector_retriever = Neo4jVectorSearch(
             driver,
             embed_fn,
+            document_repository,
             neo4j_database,
             index_name=index_name or settings.embedding.vector_index_name,
         )
@@ -309,12 +316,14 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
             index_name: Vector index name (default: from settings)
         """
         settings = get_settings()
+        document_repository = DocumentRepository(driver, neo4j_database)
 
         # Create component retrievers
         self.text2cypher = Text2CypherRetriever(driver, text2cypher_prompt, neo4j_database)
         self.vector = Neo4jVectorSearch(
             driver,
             embed_fn,
+            document_repository,
             neo4j_database,
             index_name=index_name or settings.embedding.vector_index_name,
         )

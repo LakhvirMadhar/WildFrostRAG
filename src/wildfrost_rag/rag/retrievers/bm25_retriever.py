@@ -12,6 +12,7 @@ from nltk.tokenize import word_tokenize
 from neo4j import Driver
 from rank_bm25 import BM25Okapi
 from wildfrost_rag.models.retrieval import RetrievedChunk, to_retrieved_chunks
+from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
 from wildfrost_rag.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
@@ -33,6 +34,7 @@ class BM25Retriever(BaseNeo4jRetriever):
     def __init__(
         self,
         driver: Driver,
+        document_repository: DocumentRepository,
         neo4j_database: str | None = None,
         remove_stopwords: bool = True,
         remove_stopwords_query: bool | None = None,
@@ -42,12 +44,14 @@ class BM25Retriever(BaseNeo4jRetriever):
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
+            document_repository: Repository owning the document-loading Cypher query
             neo4j_database: Optional database name (default: None uses default database)
             remove_stopwords: Master flag — sets both query and docs (default: True)
             remove_stopwords_query: Override for query preprocessing only
             remove_stopwords_docs: Override for document preprocessing only
         """
         super().__init__(driver, neo4j_database)
+        self._document_repository = document_repository
         warnings.warn(
             "BM25Retriever loads all documents into memory. "
             "For production use with large datasets, prefer Neo4jFullTextSearch "
@@ -117,41 +121,26 @@ class BM25Retriever(BaseNeo4jRetriever):
 
         logger.info("Loading all documents from Neo4j for BM25 indexing...")
 
-        with self.driver.session(database=self.neo4j_database) as session:
-            query = f"""
-            MATCH (d:{self.index_name})
-            WHERE d.text IS NOT NULL
-            RETURN d.text AS text, d
-            """
+        raw_documents = self._document_repository.load_all_documents(self.index_name)
 
-            results = session.run(query)
+        self.documents = []
+        self.node_data = []
 
-            self.documents = []
-            self.node_data = []
+        for text, node_properties in raw_documents:
+            tokens = self._tokenize(text, self.remove_stopwords_docs)
+            self.documents.append(tokens)
+            self.node_data.append(node_properties)
 
-            for record in results:
-                text = record["text"]
-                node = record["d"]
+        self.bm25_model = BM25Okapi(self.documents)
 
-                tokens = self._tokenize(text, self.remove_stopwords_docs)
-                self.documents.append(tokens)
+        BM25Retriever._shared_cache = {
+            "documents": self.documents,
+            "node_data": self.node_data,
+            "bm25_model": self.bm25_model,
+            "cache_key": cache_key,
+        }
 
-                node_dict = {}
-                for key, value in node.items():
-                    if key != "embedding":
-                        node_dict[key] = value
-                self.node_data.append(node_dict)
-
-            self.bm25_model = BM25Okapi(self.documents)
-
-            BM25Retriever._shared_cache = {
-                "documents": self.documents,
-                "node_data": self.node_data,
-                "bm25_model": self.bm25_model,
-                "cache_key": cache_key,
-            }
-
-            logger.info(f"BM25 index built with {len(self.documents)} documents")
+        logger.info(f"BM25 index built with {len(self.documents)} documents")
 
     def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Retrieve the top-k most relevant document chunks using BM25 scoring.
