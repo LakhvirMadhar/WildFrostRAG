@@ -38,7 +38,7 @@ target-version = "py312"
 exclude = ["*.ipynb", ".claude/"]
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "N", "D", "UP", "S", "B", "C4", "C90", "ANN"]
+select = ["E", "W", "F", "I", "N", "D", "UP", "S", "B", "C4", "C90", "ANN", "INP"]
 ignore = ["D100", "D104", "D212", "N805", "E902", "I001", "E501", "S101"]
 
 [tool.ruff.lint.pydocstyle]
