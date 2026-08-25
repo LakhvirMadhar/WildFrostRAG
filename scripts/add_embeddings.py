@@ -23,8 +23,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from neo4j import GraphDatabase, Driver
 from sentence_transformers import SentenceTransformer
-from openai import OpenAI
 import ollama
+from rag.augmented_generation.openai_client import call_openai_embeddings
 from utils.config import get_settings
 from utils.logger import logger
 from neo4j_kg.vector_store import create_embedding_index
@@ -98,9 +98,7 @@ def get_documents(driver: Driver) -> list[tuple[str, str]]:
         return [(record["text"], record["element_id"]) for record in results]
 
 
-def load_embedding_model(
-    embedder_name: str, model_name: str
-) -> SentenceTransformer | OpenAI | None:
+def load_embedding_model(embedder_name: str, model_name: str) -> SentenceTransformer | None:
     """Load the appropriate embedding model based on provider."""
     logger.info(f"Loading embedding model: {model_name}...")
 
@@ -114,9 +112,7 @@ def load_embedding_model(
         if not settings.openai.api_key:
             logger.error("OpenAI API key not found in settings")
             sys.exit(1)
-        client = OpenAI(api_key=settings.openai.api_key.get_secret_value())
-        logger.info("OpenAI client initialized")
-        return client
+        return None
 
     if embedder_name == "gemma":
         logger.info("Using Ollama for Gemma embeddings")
@@ -128,7 +124,7 @@ def load_embedding_model(
 
 async def generate_batch_embeddings(
     embedder_name: str,
-    model: SentenceTransformer | OpenAI | None,
+    model: SentenceTransformer | None,
     model_name: str,
     texts: list[str],
     async_client: ollama.AsyncClient | None = None,
@@ -141,10 +137,7 @@ async def generate_batch_embeddings(
         return [emb.tolist() for emb in embeddings]
 
     if embedder_name == "openai":
-        if not isinstance(model, OpenAI):
-            raise TypeError("OpenAI embedder requires OpenAI client")
-        response = model.embeddings.create(input=texts, model=model_name)
-        return [data.embedding for data in response.data]
+        return await call_openai_embeddings(texts, model=model_name)
 
     if embedder_name == "gemma":
         if async_client is None:

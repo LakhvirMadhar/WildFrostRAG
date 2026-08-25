@@ -10,9 +10,10 @@ Models are cached at module level so they're loaded once per process.
 from collections.abc import Callable
 
 import ollama
-from openai import OpenAI
+from openai import APIError, OpenAI
 from sentence_transformers import SentenceTransformer
 
+from core.exceptions import EmbeddingError
 from utils.config import get_settings
 from utils.logger import logger
 
@@ -84,7 +85,12 @@ def _make_ollama_embed_fn(model_name: str) -> Callable[[str], list[float]]:
 
 
 def _make_openai_embed_fn(model_name: str) -> Callable[[str], list[float]]:
-    """Build embed function for OpenAI embedding models."""
+    """Build embed function for OpenAI embedding models.
+
+    Stays synchronous: embed_fn is a shared sync Callable[[str], list[float]]
+    contract used by every retriever, and some call it from inside an
+    already-running event loop, where an async client call isn't safe.
+    """
 
     def embed(query: str) -> list[float]:
         if _cache.openai_client is None:
@@ -93,7 +99,10 @@ def _make_openai_embed_fn(model_name: str) -> Callable[[str], list[float]]:
             if settings.openai.api_key is None:
                 raise ValueError("OPENAI_API_KEY not configured")
             _cache.openai_client = OpenAI(api_key=settings.openai.api_key.get_secret_value())
-        response = _cache.openai_client.embeddings.create(input=[query], model=model_name)
+        try:
+            response = _cache.openai_client.embeddings.create(input=[query], model=model_name)
+        except APIError as e:
+            raise EmbeddingError(provider="openai", reason=str(e)) from e
         return response.data[0].embedding
 
     return embed
