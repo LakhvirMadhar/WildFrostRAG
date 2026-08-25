@@ -1,26 +1,26 @@
 """
 Typed schemas for retriever outputs.
 
-These dataclasses define the save/load boundary — what gets written to results.json
+These models define the save/load boundary — what gets written to results.json
 and what downstream consumers (generation, auto-annotation, metrics) read back.
 
 Retrievers keep returning raw List[Dict[str, Any]] internally. Conversion to typed
 objects happens in evaluate_retrievers.py before saving.
 """
 
-from dataclasses import dataclass, field
 from typing import Any, Self
 
+from pydantic import BaseModel, Field
 
-@dataclass
-class RetrievedChunk:
+
+class RetrievedChunk(BaseModel):
     """A single retrieval result from any retriever."""
 
     score: float
     search_type: str
     retrieved_text: str
     source_url: str | None
-    cypher_result: dict[str, Any] = field(default_factory=dict)
+    cypher_result: dict[str, Any] = Field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict for JSON storage.
@@ -75,8 +75,7 @@ class RetrievedChunk:
         )
 
 
-@dataclass
-class CypherExecution:
+class CypherExecution(BaseModel):
     """Tracks the Cypher query that was executed and whether it succeeded."""
 
     cypher_query: str | None
@@ -101,21 +100,20 @@ class CypherExecution:
         )
 
 
-@dataclass
-class QueryResult:
+class QueryResult(BaseModel):
     """Result for a single query across any retriever."""
 
     query_id: int
     query: str
-    cypher_execution: CypherExecution = field(
+    cypher_execution: CypherExecution = Field(
         default_factory=lambda: CypherExecution(
             cypher_query=None,
             cypher_execution_status="success",
             cypher_error_message=None,
         )
     )
-    retrieved_chunks: list[RetrievedChunk] = field(default_factory=list)
-    relevance_annotations: list[dict[str, Any]] = field(default_factory=list)
+    retrieved_chunks: list[RetrievedChunk] = Field(default_factory=list)
+    relevance_annotations: list[dict[str, Any]] = Field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict for JSON storage."""
