@@ -54,7 +54,7 @@ class BM25Retriever(BaseNeo4jRetriever):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.index_name = get_settings().bm25_index_name
+        self.index_name = get_settings().embedding.bm25_index_name
         # If specific overrides provided, use them; otherwise fall back to master flag
         self.remove_stopwords_query = (
             remove_stopwords_query if remove_stopwords_query is not None else remove_stopwords

@@ -47,8 +47,8 @@ async def generate_taxonomy(open_codes: list[str]) -> str:
                 },
                 {"role": "user", "content": user_message},
             ],
-            model=settings.taxonomy_model,
-            temperature=settings.taxonomy_temperature,
+            model=settings.openai.taxonomy_model,
+            temperature=settings.openai.taxonomy_temperature,
         )
     except Exception as e:
         logger.error(f"Error generating taxonomy: {str(e)}")

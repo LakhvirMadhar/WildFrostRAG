@@ -342,10 +342,10 @@ class ExperimentRegistry:
         """Initialize registry.
 
         Args:
-            outputs_dir: Path to outputs directory. Defaults to settings.outputs_dir.
+            outputs_dir: Path to outputs directory. Defaults to settings.paths.outputs_dir.
         """
         if outputs_dir is None:
-            outputs_dir = get_settings().outputs_dir
+            outputs_dir = get_settings().paths.outputs_dir
 
         self.outputs_dir = Path(outputs_dir)
         self._registry: dict[str, Any] | None = None

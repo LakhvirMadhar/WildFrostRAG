@@ -158,12 +158,12 @@ def _get_vector_index_name(retriever_type: str, embedder: str) -> str | None:
         return None
 
     settings = get_settings()
-    if embedder not in settings.embedding_configs:
+    if embedder not in settings.embedding.embedding_configs:
         raise ValueError(
-            f"Unknown embedder: {embedder}. Available: {list(settings.embedding_configs.keys())}"
+            f"Unknown embedder: {embedder}. Available: {list(settings.embedding.embedding_configs.keys())}"
         )
 
-    embedder_config = settings.embedding_configs[embedder]
+    embedder_config = settings.embedding.embedding_configs[embedder]
     index_name: str = embedder_config["index_name"]
     logger.info(f"Using embedder '{embedder}' with index '{index_name}'")
     return index_name
@@ -307,7 +307,7 @@ def _get_embedder_config_kwargs(retriever_type: str, embedder: str) -> dict[str,
     if retriever_type not in VECTOR_BASED_RETRIEVERS:
         return {}
 
-    embedder_cfg = get_settings().embedding_configs[embedder]
+    embedder_cfg = get_settings().embedding.embedding_configs[embedder]
     return {
         "embedding_provider": embedder,
         "embedding_model": embedder_cfg["model"],
@@ -386,7 +386,9 @@ async def run_retriever(
     if retriever_type in VECTOR_BASED_RETRIEVERS:
         retriever_dir_name = f"{retriever_type}_{embedder}"
 
-    base_path = get_settings().outputs_dir / f"run_{run_num}" / "retrievals" / retriever_dir_name
+    base_path = (
+        get_settings().paths.outputs_dir / f"run_{run_num}" / "retrievals" / retriever_dir_name
+    )
     experiment_id = get_next_experiment_id(base_path)
     experiment_dir = base_path / experiment_id
     experiment_dir.mkdir(parents=True, exist_ok=True)
@@ -578,8 +580,8 @@ async def run(args: argparse.Namespace) -> None:
     chunking = args.chunking == "yes"
 
     driver = GraphDatabase.driver(
-        settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
+        settings.neo4j.uri.get_secret_value(),
+        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
     )
 
     try:

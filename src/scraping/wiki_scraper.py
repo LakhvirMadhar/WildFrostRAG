@@ -22,7 +22,7 @@ async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
     """
     logger.info(f"Scraping {page_name} page...")
     settings = get_settings()
-    url = f"{settings.wildfrost_wiki_base_url}/{page_name}"
+    url = f"{settings.scraping.wildfrost_wiki_base_url}/{page_name}"
     html_list = await scrape_multiple_links([url], max_concurrent=1)
     html = html_list[0] if html_list else None
 
@@ -30,7 +30,7 @@ async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
         logger.warning(f"Failed to scrape {page_name} page")
         return None
 
-    output_path = settings.structured_outputs_dir / output_subdir / f"{page_name}.html"
+    output_path = settings.paths.structured_outputs_dir / output_subdir / f"{page_name}.html"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
@@ -49,7 +49,7 @@ def load_cached_html(page_name: str, output_subdir: str) -> str | None:
     Returns:
         HTML content if file exists, None otherwise
     """
-    path = get_settings().structured_outputs_dir / output_subdir / f"{page_name}.html"
+    path = get_settings().paths.structured_outputs_dir / output_subdir / f"{page_name}.html"
     if not path.exists():
         logger.warning(f"Cached HTML not found: {path}")
         return None

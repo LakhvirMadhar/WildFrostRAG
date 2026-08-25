@@ -37,8 +37,8 @@ def create_vector_index(
 
     settings = get_settings()
     driver = GraphDatabase.driver(
-        settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
+        settings.neo4j.uri.get_secret_value(),
+        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
     )
 
     try:

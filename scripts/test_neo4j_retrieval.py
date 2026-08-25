@@ -94,9 +94,9 @@ def main() -> None:
 
     # Create driver once at the start (efficient pattern)
     settings = get_settings()
-    uri = settings.neo4j_uri.get_secret_value()
-    username = settings.neo4j_username
-    password = settings.neo4j_password.get_secret_value()
+    uri = settings.neo4j.uri.get_secret_value()
+    username = settings.neo4j.username
+    password = settings.neo4j.password.get_secret_value()
     driver = GraphDatabase.driver(uri, auth=(username, password))
 
     try:

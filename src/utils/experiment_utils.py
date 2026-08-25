@@ -75,7 +75,7 @@ def create_retrieval_config(
 
     # Use provided embedding_model or default to settings
     settings = get_settings()
-    embedding_model = kwargs.get("embedding_model", settings.embedding_model_name)
+    embedding_model = kwargs.get("embedding_model", settings.embedding.model_name)
 
     config = {
         "experiment_type": "retrieval",
@@ -103,12 +103,12 @@ def create_retrieval_config(
     if retriever_type == "text2cypher":
         config["text2cypher_prompt_version"] = kwargs.get("text2cypher_prompt_version", "V1")
         config["text2cypher_llm_model"] = kwargs.get(
-            "text2cypher_llm_model", settings.text2cypher_model
+            "text2cypher_llm_model", settings.openai.text2cypher_model
         )
         config["text2cypher_temperature"] = kwargs.get(
-            "text2cypher_temperature", settings.text2cypher_temperature
+            "text2cypher_temperature", settings.openai.text2cypher_temperature
         )
-        config["text2cypher_seed"] = kwargs.get("text2cypher_seed", settings.openai_seed)
+        config["text2cypher_seed"] = kwargs.get("text2cypher_seed", settings.openai.seed)
         if "notes" in kwargs:
             config["notes"] = kwargs["notes"]
 
@@ -159,7 +159,7 @@ def create_generation_config(
         "run_number": run_num,
         "timestamp": datetime.now().isoformat(),
         "retrieval_reference": retrieval_reference,
-        "llm_model": kwargs.get("llm_model", get_settings().openai_model_name),
+        "llm_model": kwargs.get("llm_model", get_settings().openai.model_name),
         "temperature": kwargs.get("temperature", 0.0),
         "seed": kwargs.get("seed", 42),
         "prompts": {
@@ -229,7 +229,7 @@ def validate_retrieval_reference(run_num: int, retrieval_reference: str) -> bool
         True if reference exists, False otherwise
     """
     retrieval_path = (
-        get_settings().outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
+        get_settings().paths.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
     )
     return retrieval_path.exists() and (retrieval_path / "config.json").exists()
 
@@ -243,7 +243,7 @@ def list_available_retrievals(run_num: int) -> list[str]:
     Returns:
         List of retrieval references (e.g., ["bm25/001", "vector/001"])
     """
-    retrievals_dir = get_settings().outputs_dir / f"run_{run_num}" / "retrievals"
+    retrievals_dir = get_settings().paths.outputs_dir / f"run_{run_num}" / "retrievals"
 
     if not retrievals_dir.exists():
         return []

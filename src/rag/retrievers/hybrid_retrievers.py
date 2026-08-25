@@ -174,7 +174,7 @@ class BM25VectorHybridRetriever(HybridRetriever):
             driver: Neo4j driver instance (created externally, managed by application)
             embed_fn: Query embedding function for vector search
             neo4j_database: Optional database name (default: None uses default database)
-            index_name: Optional vector index name (default: uses settings.vector_index_name)
+            index_name: Optional vector index name (default: uses settings.embedding.vector_index_name)
         """
         settings = get_settings()
         bm25_retriever = BM25Retriever(driver, neo4j_database)
@@ -182,14 +182,14 @@ class BM25VectorHybridRetriever(HybridRetriever):
             driver,
             embed_fn,
             neo4j_database,
-            index_name=index_name or settings.vector_index_name,
+            index_name=index_name or settings.embedding.vector_index_name,
         )
 
         super().__init__(
             retrievers=[bm25_retriever, vector_retriever],
             retriever_names=["bm25", "vector"],
             weights=[1.0, 1.0],  # Equal weights for both methods
-            k1=settings.rrf_k1,
+            k1=settings.embedding.rrf_k1,
         )
 
 
@@ -210,7 +210,7 @@ class FulltextVectorHybridRetriever(HybridRetriever):
             driver: Neo4j driver instance (created externally, managed by application)
             embed_fn: Query embedding function for vector search
             neo4j_database: Optional database name (default: None uses default database)
-            index_name: Optional vector index name (default: uses settings.vector_index_name)
+            index_name: Optional vector index name (default: uses settings.embedding.vector_index_name)
             remove_stopwords: Whether to remove stop words from fulltext queries
         """
         settings = get_settings()
@@ -221,14 +221,14 @@ class FulltextVectorHybridRetriever(HybridRetriever):
             driver,
             embed_fn,
             neo4j_database,
-            index_name=index_name or settings.vector_index_name,
+            index_name=index_name or settings.embedding.vector_index_name,
         )
 
         super().__init__(
             retrievers=[fulltext_retriever, vector_retriever],
             retriever_names=["fulltext", "vector"],
             weights=[1.0, 1.0],  # Equal weights for both methods
-            k1=settings.rrf_k1,
+            k1=settings.embedding.rrf_k1,
         )
 
 
@@ -248,7 +248,7 @@ class BM25FulltextVectorHybridRetriever(HybridRetriever):
             driver: Neo4j driver instance (created externally, managed by application)
             embed_fn: Query embedding function for vector search
             neo4j_database: Optional database name (default: None uses default database)
-            index_name: Optional vector index name (default: uses settings.vector_index_name)
+            index_name: Optional vector index name (default: uses settings.embedding.vector_index_name)
         """
         settings = get_settings()
         bm25_retriever = BM25Retriever(driver, neo4j_database)
@@ -257,14 +257,14 @@ class BM25FulltextVectorHybridRetriever(HybridRetriever):
             driver,
             embed_fn,
             neo4j_database,
-            index_name=index_name or settings.vector_index_name,
+            index_name=index_name or settings.embedding.vector_index_name,
         )
 
         super().__init__(
             retrievers=[bm25_retriever, fulltext_retriever, vector_retriever],
             retriever_names=["bm25", "fulltext", "vector"],
             weights=[1.0, 1.0, 1.0],  # Equal weights for all methods
-            k1=settings.rrf_k1,
+            k1=settings.embedding.rrf_k1,
         )
 
 
@@ -303,7 +303,7 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
             driver,
             embed_fn,
             neo4j_database,
-            index_name=index_name or settings.vector_index_name,
+            index_name=index_name or settings.embedding.vector_index_name,
         )
 
         # Store for config tracking
@@ -314,7 +314,7 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
             retrievers=[self.text2cypher, self.vector],
             retriever_names=["text2cypher", "vector"],
             weights=[1.0, 1.0],
-            k1=settings.rrf_k1,
+            k1=settings.embedding.rrf_k1,
         )
 
     async def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:  # type: ignore[override]

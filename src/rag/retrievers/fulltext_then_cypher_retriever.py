@@ -42,11 +42,11 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
         Args:
             driver: Neo4j driver instance
             neo4j_database: Optional database name
-            index_name: Fulltext index name (default: from settings)
+            index_name: Fulltext index name (default: from settings.embedding)
             remove_stopwords: Whether to remove stop words from queries before searching
         """
         super().__init__(driver, neo4j_database)
-        self.index_name = index_name or get_settings().fulltext_index_name
+        self.index_name = index_name or get_settings().embedding.fulltext_index_name
         self.remove_stopwords = remove_stopwords
         if self.remove_stopwords:
             self._initialize_nltk()

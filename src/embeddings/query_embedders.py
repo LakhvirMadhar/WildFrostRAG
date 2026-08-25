@@ -31,19 +31,20 @@ def get_query_embed_fn(embedder: str) -> Callable[[str], list[float]]:
     """Return an embedding function for the given embedder provider.
 
     Args:
-        embedder: Provider name — must be a key in settings.embedding_configs
+        embedder: Provider name — must be a key in settings.embedding.embedding_configs
                   (e.g. "hf", "gemma", "openai")
 
     Returns:
         A function: (query: str) -> list[float]
     """
     settings = get_settings()
-    if embedder not in settings.embedding_configs:
+    if embedder not in settings.embedding.embedding_configs:
         raise ValueError(
-            f"Unknown embedder: {embedder}. Available: {list(settings.embedding_configs.keys())}"
+            f"Unknown embedder: {embedder}. "
+            f"Available: {list(settings.embedding.embedding_configs.keys())}"
         )
 
-    config = settings.embedding_configs[embedder]
+    config = settings.embedding.embedding_configs[embedder]
     model_name = config["model"]
 
     if embedder == "hf":
@@ -89,9 +90,9 @@ def _make_openai_embed_fn(model_name: str) -> Callable[[str], list[float]]:
         if _cache.openai_client is None:
             logger.info(f"Initializing OpenAI client for model: {model_name}")
             settings = get_settings()
-            if settings.openai_api_key is None:
+            if settings.openai.api_key is None:
                 raise ValueError("OPENAI_API_KEY not configured")
-            _cache.openai_client = OpenAI(api_key=settings.openai_api_key.get_secret_value())
+            _cache.openai_client = OpenAI(api_key=settings.openai.api_key.get_secret_value())
         response = _cache.openai_client.embeddings.create(input=[query], model=model_name)
         return response.data[0].embedding
 

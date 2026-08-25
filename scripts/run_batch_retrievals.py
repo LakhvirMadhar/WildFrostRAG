@@ -53,9 +53,11 @@ async def main() -> None:  # noqa: C901
     for retriever_config in retrievers:
         if "embedder" in retriever_config:
             embedder = retriever_config["embedder"]
-            if embedder not in settings.embedding_configs:
+            if embedder not in settings.embedding.embedding_configs:
                 logger.error(f"Unknown embedder: {embedder}")
-                logger.error(f"Available embedders: {list(settings.embedding_configs.keys())}")
+                logger.error(
+                    f"Available embedders: {list(settings.embedding.embedding_configs.keys())}"
+                )
                 logger.error("Please add to config.py or run add_embeddings.py")
                 exit(1)
 
@@ -120,7 +122,7 @@ def experiment_exists(run_num: int, retriever_config: dict[str, str]) -> bool:
     if "embedder" in retriever_config:
         retriever_type = f"{retriever_type}_{retriever_config['embedder']}"
 
-    path = get_settings().outputs_dir / f"run_{run_num}" / "retrievals" / retriever_type
+    path = get_settings().paths.outputs_dir / f"run_{run_num}" / "retrievals" / retriever_type
     return path.exists() and any(path.iterdir())  # Check if any experiments exist
 
 
