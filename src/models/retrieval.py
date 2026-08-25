@@ -75,6 +75,19 @@ class RetrievedChunk(BaseModel):
         )
 
 
+def to_retrieved_chunks(results: list[dict[str, Any]]) -> list[RetrievedChunk]:
+    """Convert raw retriever result dicts to typed RetrievedChunk objects.
+
+    Strips embedding vectors (they bloat storage and aren't needed downstream)
+    before delegating to RetrievedChunk.from_raw_retriever_dict().
+    """
+    cleaned = [
+        {k: v for k, v in result.items() if not k.endswith("_embedding") and k != "embedding"}
+        for result in results
+    ]
+    return [RetrievedChunk.from_raw_retriever_dict(result) for result in cleaned]
+
+
 class CypherExecution(BaseModel):
     """Tracks the Cypher query that was executed and whether it succeeded."""
 

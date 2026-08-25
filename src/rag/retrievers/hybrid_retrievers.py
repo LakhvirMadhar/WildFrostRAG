@@ -13,6 +13,8 @@ Available hybrid retrievers:
 from typing import Any
 from collections.abc import Callable
 from neo4j import Driver
+from core.exceptions import WildFrostRAGError
+from models.retrieval import RetrievedChunk
 from rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
 from rag.retrievers.bm25_retriever import BM25Retriever
 from rag.retrievers.neo4j_fulltext_search import Neo4jFullTextSearch
@@ -46,7 +48,7 @@ class HybridRetriever:
         self.retrievers = retrievers
         self.retriever_names = retriever_names
         self.k1 = k1
-        self.last_individual_results: dict[str, Any] | None = None
+        self.last_individual_results: dict[str, list[RetrievedChunk]] | None = None
 
         if weights is None:
             # Default to equal weights
@@ -59,7 +61,7 @@ class HybridRetriever:
         if len(retrievers) != len(retriever_names):
             raise ValueError("Number of retrievers must match number of retriever names")
 
-    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+    def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Retrieve results using multiple retrievers and combine them with RRF.
 
         Args:
@@ -67,19 +69,16 @@ class HybridRetriever:
             k: Number of top results to return (default: 5)
 
         Returns:
-            List of dictionaries containing retrieved chunks with their metadata and scores
+            List of typed RetrievedChunk objects, fused via RRF
         """
         # Get results from each retriever
-        all_results = []
-        individual_results = {}  # Store individual retriever results for analysis
+        all_results: list[tuple[list[RetrievedChunk], float]] = []
+        individual_results: dict[str, list[RetrievedChunk]] = {}
 
         for i, (retriever, name) in enumerate(
             zip(self.retrievers, self.retriever_names, strict=False)
         ):
             results = retriever.search(query, k=k * 2)  # Get more results to allow for fusion
-            # Add source information to help distinguish results during testing
-            for result in results:
-                result["source_retriever"] = name
             all_results.append((results, self.weights[i]))
             individual_results[name] = results
 
@@ -93,8 +92,8 @@ class HybridRetriever:
         return fused_results
 
     def _apply_rrf(
-        self, all_results: list[tuple[list[dict[str, Any]], float]], k: int
-    ) -> list[dict[str, Any]]:
+        self, all_results: list[tuple[list[RetrievedChunk], float]], k: int
+    ) -> list[RetrievedChunk]:
         """Apply Reciprocal Rank Fusion to combine results from multiple retrievers.
 
         Args:
@@ -102,43 +101,41 @@ class HybridRetriever:
             k: Number of top results to return
 
         Returns:
-            List of fused results sorted by RRF score
+            List of fused RetrievedChunk objects sorted by RRF score
         """
-        # Create a mapping from document text to RRF score and metadata
+        # Create a mapping from document identifier to RRF score and metadata
         doc_scores: dict[str, dict[str, Any]] = {}
 
         for retriever_idx, (results, weight) in enumerate(all_results):
-            for rank, doc in enumerate(results, 1):  # RRF uses 1-based ranking
+            for rank, chunk in enumerate(results, 1):  # RRF uses 1-based ranking
                 # Use a combination of text and other identifiers to uniquely identify documents
                 # Create a more robust identifier that includes source to avoid false duplicates
-                text_content = doc.get("text", "")
-                source_file = doc.get("source_file", "")
+                text_content = chunk.cypher_result.get("text", "") or chunk.retrieved_text
+                source_file = chunk.cypher_result.get("source_file", "")
                 doc_identifier = (
-                    f"{text_content[:50]}_{source_file}" if text_content else str(hash(str(doc)))
+                    f"{text_content[:50]}_{source_file}" if text_content else str(hash(str(chunk)))
                 )
 
                 # Calculate RRF score: weight * 1 / (k1 + rank)
                 rrf_score = weight * 1.0 / (self.k1 + rank)
+                retriever_name = self.retriever_names[retriever_idx]
 
                 if doc_identifier not in doc_scores:
-                    # Store the RRF score and the original document metadata
+                    # Store the RRF score and the original chunk
                     doc_scores[doc_identifier] = {
                         "rrf_score": rrf_score,
-                        "metadata": doc,
-                        "retriever_scores": {
-                            self.retriever_names[retriever_idx]: doc.get("score", 0)
-                        },
+                        "chunk": chunk,
+                        "source_retriever": retriever_name,
+                        "retriever_scores": {retriever_name: chunk.score},
                     }
                 else:
                     # Add to existing RRF score (this handles duplicates)
                     doc_scores[doc_identifier]["rrf_score"] += rrf_score
                     # Add the score from this retriever
-                    doc_scores[doc_identifier]["retriever_scores"][
-                        self.retriever_names[retriever_idx]
-                    ] = doc.get("score", 0)
-                    # Keep the metadata from the highest-ranked occurrence across methods
-                    # (Actually, we should keep the original metadata, so we'll just update the score)
-                    doc_scores[doc_identifier]["metadata"] = doc
+                    doc_scores[doc_identifier]["retriever_scores"][retriever_name] = chunk.score
+                    # Keep the chunk from the last-seen occurrence across methods
+                    doc_scores[doc_identifier]["chunk"] = chunk
+                    doc_scores[doc_identifier]["source_retriever"] = retriever_name
 
         # Sort by RRF score in descending order
         sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1]["rrf_score"], reverse=True)
@@ -146,14 +143,20 @@ class HybridRetriever:
         # Return top k results with updated scores
         top_results = []
         for _doc_identifier, data in sorted_docs[:k]:
-            result = data["metadata"].copy()
-            result["rrf_score"] = data["rrf_score"]  # Keep the RRF score
-            result["score"] = data["rrf_score"]  # Replace with RRF score
-            result["search_type"] = "hybrid_rrf"
-            result["retriever_scores"] = data[
-                "retriever_scores"
-            ]  # Add original scores from each retriever
-            top_results.append(result)
+            chunk = data["chunk"]
+            cypher_result = dict(chunk.cypher_result)
+            cypher_result["rrf_score"] = data["rrf_score"]
+            cypher_result["source_retriever"] = data["source_retriever"]
+            cypher_result["retriever_scores"] = data["retriever_scores"]
+            top_results.append(
+                RetrievedChunk(
+                    score=data["rrf_score"],
+                    search_type="hybrid_rrf",
+                    retrieved_text=chunk.retrieved_text,
+                    source_url=chunk.source_url,
+                    cypher_result=cypher_result,
+                )
+            )
 
         return top_results
 
@@ -317,7 +320,7 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
             k1=settings.embedding.rrf_k1,
         )
 
-    async def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:  # type: ignore[override]
+    async def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:  # type: ignore[override]
         """Search using Text2Cypher + Vector with RRF fusion.
 
         Override parent to handle async Text2Cypher and provide fallback.
@@ -327,34 +330,24 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
             k: Number of results to return
 
         Returns:
-            List of fused results (or vector-only if Text2Cypher fails)
+            List of fused RetrievedChunk objects (or vector-only if Text2Cypher fails)
         """
-        all_results = []
-        individual_results = {}
+        all_results: list[tuple[list[RetrievedChunk], float]] = []
+        individual_results: dict[str, list[RetrievedChunk]] = {}
 
         # Try Text2Cypher (async) with error handling
-        text2cypher_results = []
         text2cypher_success = False
         try:
             text2cypher_results = await self.text2cypher.search(query, k=k * 2)
-            # Check if Text2Cypher returned an error result
-            if not self._has_error(text2cypher_results):
-                text2cypher_success = True
-                for result in text2cypher_results:
-                    result["source_retriever"] = "text2cypher"
-                all_results.append((text2cypher_results, self.weights[0]))
-                individual_results["text2cypher"] = text2cypher_results
-            else:
-                logger.warning("Text2Cypher returned error, falling back to vector-only")
-                individual_results["text2cypher"] = text2cypher_results  # Keep error for tracking
-        except Exception as e:
-            logger.warning(f"Text2Cypher failed with exception, falling back to vector-only: {e}")
-            individual_results["text2cypher"] = [{"error": str(e)}]
+            text2cypher_success = True
+            all_results.append((text2cypher_results, self.weights[0]))
+            individual_results["text2cypher"] = text2cypher_results
+        except WildFrostRAGError as e:
+            logger.warning(f"Text2Cypher failed, falling back to vector-only: {e}")
+            individual_results["text2cypher"] = []
 
         # Vector search (sync) - always run
         vector_results = self.vector.search(query, k=k * 2)
-        for result in vector_results:
-            result["source_retriever"] = "vector"
         all_results.append((vector_results, self.weights[1]))
         individual_results["vector"] = vector_results
 
@@ -363,18 +356,19 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
             fused_results = self._apply_rrf(all_results, k)
         else:
             # Vector-only fallback
-            fused_results = vector_results[:k]
-            for result in fused_results:
-                result["search_type"] = "text2cypher_vector_fallback"
+            fused_results = [
+                RetrievedChunk(
+                    score=chunk.score,
+                    search_type="text2cypher_vector_fallback",
+                    retrieved_text=chunk.retrieved_text,
+                    source_url=chunk.source_url,
+                    cypher_result=chunk.cypher_result,
+                )
+                for chunk in vector_results[:k]
+            ]
 
         # Store individual results for experiment tracking
         self.last_individual_results = individual_results
         self.text2cypher_success = text2cypher_success
 
         return fused_results
-
-    def _has_error(self, results: list[dict[str, Any]]) -> bool:
-        """Check if Text2Cypher returned an error result."""
-        if not results:
-            return True
-        return any("error" in r for r in results)
