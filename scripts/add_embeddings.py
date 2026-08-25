@@ -27,7 +27,7 @@ import ollama
 from wildfrost_rag.rag.augmented_generation.openai_client import call_openai_embeddings
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
-from wildfrost_rag.neo4j_kg.vector_store import create_embedding_index
+from wildfrost_rag.neo4j_kg.vector_store import VectorRepository
 
 
 @dataclass
@@ -256,7 +256,8 @@ async def main() -> None:
 
         # Create vector index
         logger.info(f"Creating vector index: {config.index_name}...")
-        create_embedding_index(
+        vector_repository = VectorRepository(driver)
+        vector_repository.create_embedding_index(
             property_name=config.property_name,
             index_name=config.index_name,
             dimension=config.dimension,

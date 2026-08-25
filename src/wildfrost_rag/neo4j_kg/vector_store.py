@@ -9,11 +9,10 @@ injection — the caller (ingest_data.py) manages driver lifecycle.
 
 from pathlib import Path
 from typing import Any
-from neo4j import GraphDatabase, Session
+from neo4j import Driver, Session
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
 from wildfrost_rag.neo4j_kg.query_utils import single_value
-from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
 
 
@@ -86,32 +85,38 @@ def ingest_documents_into_neo4j(
     logger.info("Data ingestion complete")
 
 
-def create_embedding_index(property_name: str, index_name: str, dimension: int) -> None:
-    """Create a vector index for a specific embedding property.
+class VectorRepository:
+    """Neo4j vector index operations, driver injected via constructor.
 
-    This allows storing multiple embedding providers' vectors on the same
-    Document nodes and querying each provider's index independently.
-
-    Args:
-        property_name: Property name on Document nodes (e.g., "hf_embedding", "openai_embedding")
-        index_name: Name for the vector index (e.g., "document-embeddings-hf")
-        dimension: Vector dimensionality (e.g., 384 for HF, 1536 for OpenAI)
+    Follows the same DI pattern as BaseNeo4jRetriever: the driver is built
+    once by the caller (composition root) and passed in here - this class
+    never constructs or closes its own driver connection.
     """
-    logger.info(
-        f"Creating vector index '{index_name}' for property '{property_name}' (dim={dimension})"
-    )
 
-    settings = get_settings()
-    driver = GraphDatabase.driver(
-        settings.neo4j.uri.get_secret_value(),
-        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
-    )
+    def __init__(self, driver: Driver) -> None:
+        """Initialize with an externally-managed Neo4j driver.
 
-    try:
-        driver.verify_connectivity()
-        logger.info("Connection to Neo4j successful")
+        Args:
+            driver: Neo4j driver instance (created and closed by the caller)
+        """
+        self.driver = driver
 
-        with driver.session() as session:
+    def create_embedding_index(self, property_name: str, index_name: str, dimension: int) -> None:
+        """Create a vector index for a specific embedding property.
+
+        This allows storing multiple embedding providers' vectors on the same
+        Document nodes and querying each provider's index independently.
+
+        Args:
+            property_name: Property name on Document nodes (e.g., "hf_embedding", "openai_embedding")
+            index_name: Name for the vector index (e.g., "document-embeddings-hf")
+            dimension: Vector dimensionality (e.g., 384 for HF, 1536 for OpenAI)
+        """
+        logger.info(
+            f"Creating vector index '{index_name}' for property '{property_name}' (dim={dimension})"
+        )
+
+        with self.driver.session() as session:
             # Create vector index using Neo4j 5.x syntax
             create_index_query = f"""
             CREATE VECTOR INDEX `{index_name}` IF NOT EXISTS
@@ -128,40 +133,30 @@ def create_embedding_index(property_name: str, index_name: str, dimension: int) 
             session.run(create_index_query)
             logger.info(f"Vector index '{index_name}' created successfully")
 
-    finally:
-        driver.close()
+    def get_retrieved_chunks(
+        self,
+        query: str,
+        embedding_model: SentenceTransformer,
+        index_name: str = "document-embeddings",
+        k: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Retrieve the top-k most relevant document chunks using vector search.
 
+        Args:
+            query: User's search query
+            embedding_model: Pre-loaded SentenceTransformer model for query embedding
+            index_name: Name of the vector index to query
+            k: Number of results to return
 
-def get_retrieved_chunks(
-    query: str,
-    embedding_model: SentenceTransformer,
-    index_name: str = "document-embeddings",
-    k: int = 5,
-) -> list[dict[str, Any]]:
-    """Retrieve the top-k most relevant document chunks using vector search.
+        Returns:
+            List of dictionaries containing retrieved chunks with their metadata and scores
+        """
+        logger.info(f"Retrieving top-{k} chunks for query: '{query}'")
 
-    Args:
-        query: User's search query
-        embedding_model: Pre-loaded SentenceTransformer model for query embedding
-        index_name: Name of the vector index to query
-        k: Number of results to return
+        # Generate query embedding
+        query_embedding = embedding_model.encode(query).tolist()
 
-    Returns:
-        List of dictionaries containing retrieved chunks with their metadata and scores
-    """
-    logger.info(f"Retrieving top-{k} chunks for query: '{query}'")
-
-    # Generate query embedding
-    query_embedding = embedding_model.encode(query).tolist()
-
-    settings = get_settings()
-    driver = GraphDatabase.driver(
-        settings.neo4j.uri.get_secret_value(),
-        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
-    )
-
-    try:
-        with driver.session() as session:
+        with self.driver.session() as session:
             # Vector similarity search query
             search_query = """
             CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
@@ -195,9 +190,6 @@ def get_retrieved_chunks(
 
             logger.info(f"Retrieved {len(retrieved_chunks)} chunks")
             return retrieved_chunks
-
-    finally:
-        driver.close()
 
 
 def link_documents_to_cards(session: Session) -> int:
