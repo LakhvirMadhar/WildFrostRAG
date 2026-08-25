@@ -31,3 +31,12 @@ jobs:
           cache-dependency-path: poetry.lock
       - run: poetry install
       - run: poetry run pytest --doctest-modules src/ tests/
+        env:
+          # Settings() currently validates eagerly at import time (see
+          # docs/migration_plan - T1.0), so importing almost anything
+          # requires these to be set even though this job never connects
+          # to a real database. Fake values only satisfy Pydantic's
+          # required-field check for import-checking purposes.
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USERNAME: fake
+          NEO4J_PASSWORD: fake
