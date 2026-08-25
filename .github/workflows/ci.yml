@@ -30,6 +30,13 @@ jobs:
           cache: poetry
           cache-dependency-path: poetry.lock
       - run: poetry install
+      - uses: actions/cache@v4
+        id: nltk-cache
+        with:
+          path: ~/nltk_data
+          key: nltk-stopwords-v1
+      - if: steps.nltk-cache.outputs.cache-hit != 'true'
+        run: poetry run python -m nltk.downloader stopwords
       - run: poetry run pytest --doctest-modules src/ tests/
         env:
           # Settings() currently validates eagerly at import time (see
