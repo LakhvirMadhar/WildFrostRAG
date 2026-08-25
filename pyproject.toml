@@ -47,6 +47,7 @@ convention = "google"
 [tool.poetry]
 package-mode = true
 packages = [
+    {include = "core", from = "src"},
     {include = "utils", from = "src"},
     {include = "models", from = "src"},
     {include = "prompts", from = "src"},

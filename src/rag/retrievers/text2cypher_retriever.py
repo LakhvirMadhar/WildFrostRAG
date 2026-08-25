@@ -8,6 +8,7 @@ from typing import Any
 
 from neo4j import Driver, ManagedTransaction, Record, Session
 
+from core.exceptions import CypherExecutionError
 from utils.config import get_settings
 from utils.logger import logger
 from prompts.prompt_utils import format_prompt_tuple, VersionedPrompt
@@ -210,13 +211,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             return self._add_metadata(results, "text2cypher_llm")
 
         except Exception as e:
-            error_results = [
-                {
-                    "error": f"Generated Cypher query failed: {str(e)}",
-                    "generated_cypher": cypher_query,
-                }
-            ]
-            return self._add_metadata(error_results, "text2cypher_llm_error")
+            raise CypherExecutionError(cypher_query=cypher_query, reason=str(e)) from e
 
     async def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
         """Retrieve results by generating and executing a Cypher query from the natural language query.
