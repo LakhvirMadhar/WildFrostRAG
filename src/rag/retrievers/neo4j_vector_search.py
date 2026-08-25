@@ -5,9 +5,9 @@ This module provides various retrieval strategies using Neo4j:
 - Future implementations: BM25, Hybrid, Text2Cypher, Graph RAG
 """
 
-from typing import Any
 from collections.abc import Callable
 from neo4j import Driver
+from models.retrieval import RetrievedChunk, to_retrieved_chunks
 from utils.config import get_settings
 from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
@@ -38,7 +38,7 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
         self._embed_fn = embed_fn
         self.index_name = index_name or get_settings().embedding.vector_index_name
 
-    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+    def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Retrieve the top-k most relevant document chunks from Neo4j based on semantic similarity.
 
         This method performs vector similarity search using Neo4j's built-in vector indexing
@@ -50,7 +50,7 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
             k: Number of top results to return (default: 5)
 
         Returns:
-            List of dictionaries containing retrieved chunks with their metadata and scores
+            List of typed RetrievedChunk objects
         """
         # Step 1: Embed the user's query
         query_embedding = self._embed_fn(query)
@@ -70,4 +70,4 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
         }
 
         results = self._execute_query(search_query, params)
-        return self._add_metadata(results, "vector")
+        return to_retrieved_chunks(self._add_metadata(results, "vector"))

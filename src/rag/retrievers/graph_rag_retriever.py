@@ -4,8 +4,8 @@ This module will implement retrieval using graph traversal patterns based on the
 knowledge graph structure to find relevant information for a query.
 """
 
-from typing import Any
 from neo4j import Driver
+from models.retrieval import RetrievedChunk
 from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 
@@ -19,7 +19,7 @@ class GraphRagRetriever(BaseNeo4jRetriever):
         """Initialize the Graph RAG retriever."""
         super().__init__(driver, neo4j_database)
 
-    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+    def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Retrieve results using graph traversal based on the knowledge graph structure.
 
         Args:
@@ -27,7 +27,7 @@ class GraphRagRetriever(BaseNeo4jRetriever):
             k: Number of top results to return (default: 5)
 
         Returns:
-            List of dictionaries containing retrieved chunks with their metadata and scores
+            List of typed RetrievedChunk objects
         """
         # TODO: Implement graph traversal logic
         # This is a placeholder implementation

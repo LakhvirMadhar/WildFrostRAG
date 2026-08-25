@@ -11,6 +11,7 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from neo4j import Driver
 from rank_bm25 import BM25Okapi
+from models.retrieval import RetrievedChunk, to_retrieved_chunks
 from utils.config import get_settings
 from utils.logger import logger
 from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
@@ -152,7 +153,7 @@ class BM25Retriever(BaseNeo4jRetriever):
 
             logger.info(f"BM25 index built with {len(self.documents)} documents")
 
-    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+    def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Retrieve the top-k most relevant document chunks using BM25 scoring.
 
         Args:
@@ -160,7 +161,7 @@ class BM25Retriever(BaseNeo4jRetriever):
             k: Number of top results to return (default: 5)
 
         Returns:
-            List of dictionaries containing retrieved chunks with their metadata and scores
+            List of typed RetrievedChunk objects
         """
         if self.bm25_model is None:
             self._load_documents_from_neo4j()
@@ -180,4 +181,4 @@ class BM25Retriever(BaseNeo4jRetriever):
             node_data["score"] = score
             results.append(node_data)
 
-        return self._add_metadata(results, "bm25")
+        return to_retrieved_chunks(self._add_metadata(results, "bm25"))

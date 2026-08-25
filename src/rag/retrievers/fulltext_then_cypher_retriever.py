@@ -8,13 +8,12 @@ The name "FulltextThenCypher" makes the order explicit:
 2. Cypher traversal SECOND (enrich with graph data)
 """
 
-from typing import Any
-
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from neo4j import Driver
 
+from models.retrieval import RetrievedChunk, to_retrieved_chunks
 from utils.config import get_settings
 from utils.logger import logger
 from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
@@ -69,7 +68,7 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
         filtered = [token for token in tokens if token.isalpha() and token not in stop_words]
         return " ".join(filtered)
 
-    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+    def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Search using fulltext similarity + graph traversal.
 
         Args:
@@ -77,7 +76,7 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
             k: Number of results to return
 
         Returns:
-            List of enriched results with Card/Tribe/CardType/Keyword/Stat data
+            List of typed RetrievedChunk objects enriched with graph data
         """
         search_query_text = query
         if self.remove_stopwords:
@@ -98,4 +97,4 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
         }
 
         results = self._execute_query(combined_query, params)
-        return self._add_metadata(results, "fulltext_then_cypher")
+        return to_retrieved_chunks(self._add_metadata(results, "fulltext_then_cypher"))

@@ -49,7 +49,7 @@ from rag.retrievers import (
 from rag.retrievers.hybrid_retrievers import HybridRetriever
 from core.exceptions import CypherExecutionError
 from embeddings.query_embedders import get_query_embed_fn
-from models.retrieval import RetrievedChunk, QueryResult, CypherExecution
+from models.retrieval import QueryResult, CypherExecution
 from utils.logger import logger
 from utils.config import get_settings
 from utils.experiment_utils import (
@@ -170,17 +170,8 @@ def _get_vector_index_name(retriever_type: str, embedder: str) -> str | None:
     return index_name
 
 
-def _clean_chunks(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Remove embedding arrays from chunks (they bloat files and aren't needed for evaluation)."""
-    return [
-        {k: v for k, v in chunk.items() if not k.endswith("_embedding") and k != "embedding"}
-        for chunk in chunks
-    ]
-
-
 async def _process_single_query(
     retriever: Any,  # noqa: ANN401
-    retriever_type: str,
     query: str,
     query_id: int,
     k: int,
@@ -213,53 +204,33 @@ async def _process_single_query(
         )
         return failed_result, None
 
-    cleaned_chunks = _clean_chunks(retrieved_chunks)
-
-    # Build CypherExecution for ALL retrievers
-    if retriever_type == "text2cypher":
-        # Read cypher info from result chunks (concurrent-safe, not shared retriever state)
-        generated_cypher = None
-        for chunk in retrieved_chunks:
-            if "generated_cypher" in chunk:
-                generated_cypher = chunk["generated_cypher"]
-                break
-
-        cypher_execution = CypherExecution(
-            cypher_query=generated_cypher,
-            cypher_execution_status="success",
-            cypher_error_message=None,
-        )
-
-        # Filter out metadata-only entries BEFORE conversion to typed chunks
-        cleaned_chunks = [c for c in cleaned_chunks if not c.get("no_results")]
-    else:
-        # For Neo4j-based retrievers: read last_cypher_query set by _execute_query
-        # For BM25/hybrid: last_cypher_query is None (no per-query Cypher)
-        cypher_query = getattr(retriever, "last_cypher_query", None)
-        cypher_execution = CypherExecution(
-            cypher_query=cypher_query,
-            cypher_execution_status="success",
-            cypher_error_message=None,
-        )
-
-    # Convert raw retriever dicts to typed RetrievedChunk objects
-    typed_chunks = [RetrievedChunk.from_raw_retriever_dict(c) for c in cleaned_chunks]
+    # Retrievers return typed RetrievedChunk objects and record the Cypher query
+    # they ran (if any) on last_cypher_query - None for BM25/hybrid retrievers.
+    cypher_query = getattr(retriever, "last_cypher_query", None)
+    cypher_execution = CypherExecution(
+        cypher_query=cypher_query,
+        cypher_execution_status="success",
+        cypher_error_message=None,
+    )
 
     query_result = QueryResult(
         query_id=query_id,
         query=query,
         cypher_execution=cypher_execution,
-        retrieved_chunks=typed_chunks,
+        retrieved_chunks=retrieved_chunks,
         relevance_annotations=[],
     )
 
     # Capture hybrid retriever individual results
     individual_entry = None
-    if isinstance(retriever, HybridRetriever) and hasattr(retriever, "last_individual_results"):
+    if isinstance(retriever, HybridRetriever) and retriever.last_individual_results is not None:
         individual_entry = {
             "query_id": query_id,
             "query": query,
-            "individual_results": retriever.last_individual_results,
+            "individual_results": {
+                name: [chunk.to_dict() for chunk in chunks]
+                for name, chunks in retriever.last_individual_results.items()
+            },
         }
 
     return query_result, individual_entry
@@ -292,8 +263,7 @@ async def _process_all_queries(
     if is_async:
         logger.info(f"Running {len(query_rows)} queries concurrently")
         tasks = [
-            _process_single_query(retriever, retriever_type, query, query_id, k)
-            for query_id, query in query_rows
+            _process_single_query(retriever, query, query_id, k) for query_id, query in query_rows
         ]
         all_results = await tqdm_asyncio.gather(
             *tasks, desc=f"{retriever_type} queries", unit="query"
@@ -302,7 +272,7 @@ async def _process_all_queries(
         logger.info(f"Running {len(query_rows)} queries sequentially")
         all_results = []
         for query_id, query in tqdm(query_rows, desc=f"{retriever_type} queries", unit="query"):
-            result = await _process_single_query(retriever, retriever_type, query, query_id, k)
+            result = await _process_single_query(retriever, query, query_id, k)
             all_results.append(result)
 
     results: list[QueryResult] = []

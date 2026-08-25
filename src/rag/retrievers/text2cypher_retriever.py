@@ -9,6 +9,7 @@ from typing import Any
 from neo4j import Driver, ManagedTransaction, Record, Session
 
 from core.exceptions import CypherExecutionError
+from models.retrieval import RetrievedChunk, to_retrieved_chunks
 from utils.config import get_settings
 from utils.logger import logger
 from prompts.prompt_utils import format_prompt_tuple, VersionedPrompt
@@ -213,7 +214,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         except Exception as e:
             raise CypherExecutionError(cypher_query=cypher_query, reason=str(e)) from e
 
-    async def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+    async def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Retrieve results by generating and executing a Cypher query from the natural language query.
 
         Args:
@@ -221,7 +222,7 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             k: Number of top results to return (default: 5)
 
         Returns:
-            List of dictionaries containing retrieved chunks with their metadata and scores
+            List of typed RetrievedChunk objects
         """
         with self.driver.session(database=self.neo4j_database) as session:
             schema = self._get_schema(session)
@@ -230,4 +231,10 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
             logger.info(f"Generated Cypher query:\n{cypher_query}")
 
             cypher_query = self._add_limit_clause(cypher_query, k)
-            return self._execute_cypher_query(session, cypher_query, k)
+            self.last_cypher_query = cypher_query
+            raw_results = self._execute_cypher_query(session, cypher_query, k)
+
+        # A "no results" placeholder is metadata for the caller (via last_cypher_query),
+        # not a retrieved chunk — drop it before converting.
+        raw_results = [r for r in raw_results if not r.get("no_results")]
+        return to_retrieved_chunks(raw_results)

@@ -8,11 +8,11 @@ The name "VectorThenCypher" makes the order explicit:
 2. Cypher traversal SECOND (enrich with graph data)
 """
 
-from typing import Any
 from collections.abc import Callable
 
 from neo4j import Driver
 
+from models.retrieval import RetrievedChunk, to_retrieved_chunks
 from utils.config import get_settings
 from rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 from rag.retrievers.traversal_patterns import GRAPH_TRAVERSAL_QUERY
@@ -51,7 +51,7 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         self._embed_fn = embed_fn
         self.index_name = index_name or get_settings().embedding.vector_index_name
 
-    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+    def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Search using vector similarity + graph traversal.
 
         Args:
@@ -59,7 +59,7 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
             k: Number of results to return
 
         Returns:
-            List of enriched results with Card/Tribe/CardType/Keyword/Stat data
+            List of typed RetrievedChunk objects enriched with graph data
         """
         query_embedding = self._embed_fn(query)
 
@@ -76,4 +76,4 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         }
 
         results = self._execute_query(combined_query, params)
-        return self._add_metadata(results, "vector_then_cypher")
+        return to_retrieved_chunks(self._add_metadata(results, "vector_then_cypher"))

@@ -4,11 +4,11 @@ This module implements lexical retrieval using Neo4j's built-in full-text search
 capabilities, which are based on Apache Lucene.
 """
 
-from typing import Any
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from neo4j import Driver
+from models.retrieval import RetrievedChunk, to_retrieved_chunks
 from utils.config import get_settings
 from utils.logger import logger
 from .base_neo4j_retriever import BaseNeo4jRetriever
@@ -60,7 +60,7 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
         filtered = [token for token in tokens if token.isalpha() and token not in stop_words]
         return " ".join(filtered)
 
-    def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
+    def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Retrieve the top-k most relevant document chunks from Neo4j based on lexical similarity.
 
         This method performs full-text search using Neo4j's built-in full-text indexing
@@ -74,7 +74,7 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
             k: Number of top results to return (default: 5)
 
         Returns:
-            List of dictionaries containing retrieved chunks with their metadata and scores
+            List of typed RetrievedChunk objects
         """
         search_query_text = query
         if self.remove_stopwords:
@@ -94,7 +94,7 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
 
         try:
             results = self._execute_query(search_query, params)
-            return self._add_metadata(results, "fulltext")
+            return to_retrieved_chunks(self._add_metadata(results, "fulltext"))
         except Exception as e:
             logger.error(
                 f"Fulltext search failed. Index '{self.index_name}' may not exist. "
