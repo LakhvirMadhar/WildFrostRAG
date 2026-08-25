@@ -47,6 +47,7 @@ from rag.retrievers import (
     FulltextThenCypherRetriever,
 )
 from rag.retrievers.hybrid_retrievers import HybridRetriever
+from core.exceptions import CypherExecutionError
 from embeddings.query_embedders import get_query_embed_fn
 from models.retrieval import RetrievedChunk, QueryResult, CypherExecution
 from utils.logger import logger
@@ -190,30 +191,43 @@ async def _process_single_query(
         Tuple of (QueryResult, individual_results_entry or None)
     """
     # Handle both sync and async retrievers
-    result = retriever.search(query, k=k)
-    if asyncio.iscoroutine(result):
-        retrieved_chunks = await result
-    else:
-        retrieved_chunks = result
+    try:
+        result = retriever.search(query, k=k)
+        if asyncio.iscoroutine(result):
+            retrieved_chunks = await result
+        else:
+            retrieved_chunks = result
+    except CypherExecutionError as e:
+        # A single bad generated Cypher query shouldn't kill the whole batch -
+        # record it as a failed query and let the run continue.
+        failed_result = QueryResult(
+            query_id=query_id,
+            query=query,
+            cypher_execution=CypherExecution(
+                cypher_query=e.cypher_query,
+                cypher_execution_status="failed",
+                cypher_error_message=e.reason,
+            ),
+            retrieved_chunks=[],
+            relevance_annotations=[],
+        )
+        return failed_result, None
+
     cleaned_chunks = _clean_chunks(retrieved_chunks)
 
     # Build CypherExecution for ALL retrievers
     if retriever_type == "text2cypher":
         # Read cypher info from result chunks (concurrent-safe, not shared retriever state)
         generated_cypher = None
-        error_message = None
         for chunk in retrieved_chunks:
             if "generated_cypher" in chunk:
                 generated_cypher = chunk["generated_cypher"]
-            if "error" in chunk:
-                error_message = chunk["error"]
-            if generated_cypher or error_message:
                 break
 
         cypher_execution = CypherExecution(
             cypher_query=generated_cypher,
-            cypher_execution_status="success" if not error_message else "failed",
-            cypher_error_message=error_message,
+            cypher_execution_status="success",
+            cypher_error_message=None,
         )
 
         # Filter out metadata-only entries BEFORE conversion to typed chunks
