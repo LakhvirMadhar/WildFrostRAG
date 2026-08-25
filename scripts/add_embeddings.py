@@ -21,12 +21,13 @@ from tqdm import tqdm
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from neo4j import GraphDatabase, Driver
+from neo4j import Driver
 from sentence_transformers import SentenceTransformer
 import ollama
 from wildfrost_rag.rag.augmented_generation.openai_client import call_openai_embeddings
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.neo4j_kg.driver import neo4j_driver
 from wildfrost_rag.neo4j_kg.vector_store import VectorRepository
 
 
@@ -196,13 +197,7 @@ async def main() -> None:
     logger.info(f"Index name: {config.index_name}")
     logger.info(f"Dimension: {config.dimension}")
 
-    settings = get_settings()
-    driver = GraphDatabase.driver(
-        settings.neo4j.uri.get_secret_value(),
-        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
-    )
-
-    try:
+    with neo4j_driver() as driver:
         driver.verify_connectivity()
         logger.info("Connected to Neo4j successfully")
 
@@ -265,9 +260,6 @@ async def main() -> None:
         logger.info(f"Vector index '{config.index_name}' created")
 
         log_summary(config, total_updated)
-
-    finally:
-        driver.close()
 
 
 if __name__ == "__main__":
