@@ -29,9 +29,9 @@ def _get_client() -> AsyncOpenAI:
     global _client
     if _client is None:
         settings = get_settings()
-        if settings.openai_api_key is None:
+        if settings.openai.api_key is None:
             raise ValueError("OPENAI_API_KEY not configured")
-        _client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
+        _client = AsyncOpenAI(api_key=settings.openai.api_key.get_secret_value())
     return _client
 
 
@@ -39,7 +39,7 @@ def _get_semaphore() -> asyncio.Semaphore:
     """Get or create the singleton semaphore for rate limiting."""
     global _semaphore
     if _semaphore is None:
-        _semaphore = asyncio.Semaphore(get_settings().llm_semaphore_limit)
+        _semaphore = asyncio.Semaphore(get_settings().openai.llm_semaphore_limit)
     return _semaphore
 
 
@@ -58,9 +58,9 @@ async def call_openai_api(
 
     Args:
         messages: List of message dicts with 'role' and 'content' keys
-        model: Model name (defaults to settings.openai_model_name)
-        temperature: Temperature (defaults to settings.openai_temperature)
-        seed: Random seed (defaults to settings.openai_seed)
+        model: Model name (defaults to settings.openai.model_name)
+        temperature: Temperature (defaults to settings.openai.temperature)
+        seed: Random seed (defaults to settings.openai.seed)
 
     Returns:
         The generated response text
@@ -70,10 +70,10 @@ async def call_openai_api(
         settings = get_settings()
         try:
             response = await client.chat.completions.create(
-                model=model or settings.openai_model_name,
+                model=model or settings.openai.model_name,
                 messages=messages,
-                temperature=temperature if temperature is not None else settings.openai_temperature,
-                seed=seed if seed is not None else settings.openai_seed,
+                temperature=temperature if temperature is not None else settings.openai.temperature,
+                seed=seed if seed is not None else settings.openai.seed,
             )
             content = response.choices[0].message.content
             if content is None:
@@ -96,9 +96,9 @@ async def call_openai_api_structured[T: BaseModel](
     Args:
         messages: List of message dicts with 'role' and 'content' keys
         response_model: Pydantic model class for the response
-        model: Model name (defaults to settings.openai_model_name)
-        temperature: Temperature (defaults to settings.openai_temperature)
-        seed: Random seed (defaults to settings.openai_seed)
+        model: Model name (defaults to settings.openai.model_name)
+        temperature: Temperature (defaults to settings.openai.temperature)
+        seed: Random seed (defaults to settings.openai.seed)
 
     Returns:
         Parsed Pydantic model instance
@@ -108,11 +108,11 @@ async def call_openai_api_structured[T: BaseModel](
         settings = get_settings()
         try:
             response = await client.beta.chat.completions.parse(
-                model=model or settings.openai_model_name,
+                model=model or settings.openai.model_name,
                 messages=messages,
                 response_format=response_model,
-                temperature=temperature if temperature is not None else settings.openai_temperature,
-                seed=seed if seed is not None else settings.openai_seed,
+                temperature=temperature if temperature is not None else settings.openai.temperature,
+                seed=seed if seed is not None else settings.openai.seed,
             )
             parsed = response.choices[0].message.parsed
             if parsed is None:
@@ -131,7 +131,8 @@ async def call_openai_embeddings(
 
     Args:
         texts: List of texts to embed
-        model: Embedding model name (defaults to settings.embedding_configs["openai"]["model"])
+        model: Embedding model name (defaults to
+            settings.embedding.embedding_configs["openai"]["model"])
 
     Returns:
         List of embedding vectors
@@ -141,7 +142,7 @@ async def call_openai_embeddings(
         try:
             response = await client.embeddings.create(
                 input=texts,
-                model=model or get_settings().embedding_configs["openai"]["model"],
+                model=model or get_settings().embedding.embedding_configs["openai"]["model"],
             )
             return [item.embedding for item in response.data]
         except Exception as e:

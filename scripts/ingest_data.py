@@ -127,8 +127,8 @@ def _generate_schema() -> dict[str, list[str]]:
     card_type_schema = generate_card_type_html_schema()
 
     settings = get_settings()
-    schema_path = settings.schemas_dir / "card_type_schema.json"
-    settings.schemas_dir.mkdir(parents=True, exist_ok=True)
+    schema_path = settings.paths.schemas_dir / "card_type_schema.json"
+    settings.paths.schemas_dir.mkdir(parents=True, exist_ok=True)
     with open(schema_path, "w", encoding="utf-8") as f:
         json.dump(card_type_schema, f, indent=4)
     logger.info(f"Schema saved to {schema_path}")
@@ -148,7 +148,7 @@ def _create_card_infos(card_type_schema: dict[str, list[str]]) -> list[CardInfo]
                 CardInfo(
                     card_name=card_name,
                     card_type=CardType.from_schema_key(card_type),
-                    url=f"{get_settings().wildfrost_wiki_base_url}/{cleaned_name}",
+                    url=f"{get_settings().scraping.wildfrost_wiki_base_url}/{cleaned_name}",
                 )
             )
 
@@ -197,7 +197,7 @@ async def _scrape_missing_cards(
     logger.info(f"Scraping {len(cards_to_scrape)} missing card pages...")
     urls = [card.url for card in cards_to_scrape]
     html_outputs = await scrape_multiple_links(
-        urls, max_concurrent=get_settings().max_concurrent_requests
+        urls, max_concurrent=get_settings().scraping.max_concurrent_requests
     )
 
     new_cards: list[CardInfo] = []
@@ -385,8 +385,8 @@ def stage_2_enrich_data(card_infos: list[CardInfo]) -> None:
 
     enrich_cards_with_tribes(
         card_infos=card_infos,
-        companions_url=get_settings().companions_page_url,
-        items_url=get_settings().items_page_url,
+        companions_url=get_settings().scraping.companions_page_url,
+        items_url=get_settings().scraping.items_page_url,
     )
 
 
@@ -452,7 +452,7 @@ def _populate_map_and_fights(session: Session, data: PipelineData, urls: dict[st
             data.fight_slots,
             data.fight_page_mapping,
             url=urls.get("Map.html"),
-            base_url=get_settings().wildfrost_wiki_base_url,
+            base_url=get_settings().scraping.wildfrost_wiki_base_url,
         )
         logger.info(f"Map graph created: {counts}")
 
@@ -543,8 +543,8 @@ def stage_3_populate_graph(data: PipelineData) -> None:
 
     settings = get_settings()
     driver = GraphDatabase.driver(
-        settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
+        settings.neo4j.uri.get_secret_value(),
+        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
     )
     try:
         with driver.session() as session:
@@ -587,7 +587,7 @@ def stage_4_document_ingestion(pipeline_data: PipelineData, split_text: bool = T
     logger.info("Collecting HTML files...")
     settings = get_settings()
     all_html_filepaths = []
-    for root, _dirs, files in os.walk(settings.structured_outputs_dir):
+    for root, _dirs, files in os.walk(settings.paths.structured_outputs_dir):
         for file in files:
             if file.endswith(".html"):
                 filepath = os.path.join(root, file)
@@ -605,8 +605,8 @@ def stage_4_document_ingestion(pipeline_data: PipelineData, split_text: bool = T
 
     # Single driver for all document operations
     driver = GraphDatabase.driver(
-        settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
+        settings.neo4j.uri.get_secret_value(),
+        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
     )
     try:
         with driver.session() as session:
@@ -622,7 +622,7 @@ def stage_4_document_ingestion(pipeline_data: PipelineData, split_text: bool = T
             logger.info("Creating full-text search index...")
             create_fulltext_index(
                 session=session,
-                index_name=settings.fulltext_index_name,
+                index_name=settings.embedding.fulltext_index_name,
                 node_label="Document",
                 text_property="text",
             )
@@ -714,15 +714,19 @@ async def main() -> None:
 
     settings = get_settings()
     logger.info("Starting WildFrostRAG data ingestion pipeline")
-    logger.info(f"Configuration: {settings.model_dump()}")
+    logger.info(
+        f"Configuration: neo4j_uri=<redacted>, openai_model={settings.openai.model_name}, "
+        f"embedding_model={settings.embedding.model_name}, "
+        f"wiki_base_url={settings.scraping.wildfrost_wiki_base_url}"
+    )
 
     # Clear database if requested
     if args.clear_db:
         logger.warning("⚠️  CLEARING ENTIRE NEO4J DATABASE ⚠️")
 
         driver = GraphDatabase.driver(
-            settings.neo4j_uri.get_secret_value(),
-            auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
+            settings.neo4j.uri.get_secret_value(),
+            auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
         )
         try:
             with driver.session() as session:

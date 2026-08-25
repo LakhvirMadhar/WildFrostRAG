@@ -33,11 +33,11 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
             neo4j_database: Optional database name (default: None uses default database)
-            index_name: Optional fulltext index name override (default: from settings)
+            index_name: Optional fulltext index name override (default: from settings.embedding)
             remove_stopwords: Whether to remove stop words from queries before sending to Lucene
         """
         super().__init__(driver, neo4j_database)
-        self.index_name = index_name or get_settings().fulltext_index_name
+        self.index_name = index_name or get_settings().embedding.fulltext_index_name
         self.remove_stopwords = remove_stopwords
         if self.remove_stopwords:
             self._initialize_nltk()

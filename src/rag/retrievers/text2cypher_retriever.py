@@ -150,8 +150,8 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         settings = get_settings()
         response = await call_openai_api(
             messages=[{"role": "user", "content": prompt}],
-            model=settings.text2cypher_model,
-            temperature=settings.text2cypher_temperature,
+            model=settings.openai.text2cypher_model,
+            temperature=settings.openai.text2cypher_temperature,
         )
 
         cypher_query = response.strip()

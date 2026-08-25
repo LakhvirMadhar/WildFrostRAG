@@ -60,14 +60,14 @@ def sample_queries(
 
     # Save schema to file (using settings for path)
     settings = get_settings()
-    schema_filename = settings.schemas_dir / "card_type_schema.json"
-    os.makedirs(settings.schemas_dir, exist_ok=True)
+    schema_filename = settings.paths.schemas_dir / "card_type_schema.json"
+    os.makedirs(settings.paths.schemas_dir, exist_ok=True)
 
     with open(schema_filename, "w", encoding="utf-8") as f:
         json.dump(card_type_schema, f, indent=4)
 
     # Set base URL
-    base_url = settings.wildfrost_wiki_base_url
+    base_url = settings.scraping.wildfrost_wiki_base_url
 
     # Create card infos
     card_infos = []

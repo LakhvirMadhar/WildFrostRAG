@@ -114,7 +114,7 @@ def load_retrieval_data(
         sys.exit(1)
 
     retrieval_path = (
-        get_settings().outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
+        get_settings().paths.outputs_dir / f"run_{run_num}" / "retrievals" / retrieval_reference
     )
     config = load_config(retrieval_path / "config.json")
     raw_results = load_results(retrieval_path / "results.json")
@@ -131,7 +131,9 @@ def load_queries_for_zero_shot() -> list[RetrievalQueryResult]:
     """Load queries from the base query CSV for zero-shot mode."""
     import pandas as pd
 
-    queries_path = get_settings().project_root / "queries" / "simple_reference_based_queries.csv"
+    queries_path = (
+        get_settings().paths.project_root / "queries" / "simple_reference_based_queries.csv"
+    )
     if not queries_path.exists():
         logger.error(f"Queries file not found: {queries_path}")
         sys.exit(1)
@@ -301,7 +303,7 @@ async def run(args: argparse.Namespace) -> None:
     rag_prompt = load_prompt(args.rag_prompt) if args.rag_prompt else None
 
     # Setup experiment directory
-    base_path = settings.outputs_dir / f"run_{args.run_num}" / "generation"
+    base_path = settings.paths.outputs_dir / f"run_{args.run_num}" / "generation"
     generation_id = get_next_experiment_id(base_path)
     experiment_dir = base_path / generation_id
     experiment_dir.mkdir(parents=True, exist_ok=True)

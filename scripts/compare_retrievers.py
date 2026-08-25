@@ -50,7 +50,7 @@ def load_experiment(experiment_dir: Path) -> dict[str, Any] | None:
 
 def discover_experiments(run_num: int) -> dict[str, list[dict[str, Any]]]:
     """Discover all experiments in a run, grouped by retriever type."""
-    base = get_settings().outputs_dir / f"run_{run_num}" / "retrievals"
+    base = get_settings().paths.outputs_dir / f"run_{run_num}" / "retrievals"
     experiments: dict[str, list[dict[str, Any]]] = {}
 
     if not base.exists():
@@ -76,7 +76,7 @@ def discover_experiments(run_num: int) -> dict[str, list[dict[str, Any]]]:
 
 def resolve_experiments(exp_refs: list[str], run_num: int) -> list[dict[str, Any]]:
     """Resolve experiment references like 'bm25/002' to loaded experiment dicts."""
-    base = get_settings().outputs_dir / f"run_{run_num}" / "retrievals"
+    base = get_settings().paths.outputs_dir / f"run_{run_num}" / "retrievals"
     results = []
 
     for ref in exp_refs:

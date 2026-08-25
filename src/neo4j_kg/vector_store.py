@@ -103,8 +103,8 @@ def create_embedding_index(property_name: str, index_name: str, dimension: int) 
 
     settings = get_settings()
     driver = GraphDatabase.driver(
-        settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
+        settings.neo4j.uri.get_secret_value(),
+        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
     )
 
     try:
@@ -156,8 +156,8 @@ def get_retrieved_chunks(
 
     settings = get_settings()
     driver = GraphDatabase.driver(
-        settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
+        settings.neo4j.uri.get_secret_value(),
+        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
     )
 
     try:

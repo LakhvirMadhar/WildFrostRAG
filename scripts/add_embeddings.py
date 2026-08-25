@@ -58,12 +58,12 @@ def parse_args() -> argparse.Namespace:
 def get_embedder_config(embedder_name: str) -> EmbedderConfig:
     """Validate embedder name and return its configuration."""
     settings = get_settings()
-    if embedder_name not in settings.embedding_configs:
+    if embedder_name not in settings.embedding.embedding_configs:
         logger.error(f"Unknown embedder: {embedder_name}")
-        logger.error(f"Available embedders: {list(settings.embedding_configs.keys())}")
+        logger.error(f"Available embedders: {list(settings.embedding.embedding_configs.keys())}")
         sys.exit(1)
 
-    config = settings.embedding_configs[embedder_name]
+    config = settings.embedding.embedding_configs[embedder_name]
     return EmbedderConfig(
         name=embedder_name,
         property_name=config["property_name"],
@@ -111,10 +111,10 @@ def load_embedding_model(
 
     if embedder_name == "openai":
         settings = get_settings()
-        if not settings.openai_api_key:
+        if not settings.openai.api_key:
             logger.error("OpenAI API key not found in settings")
             sys.exit(1)
-        client = OpenAI(api_key=settings.openai_api_key.get_secret_value())
+        client = OpenAI(api_key=settings.openai.api_key.get_secret_value())
         logger.info("OpenAI client initialized")
         return client
 
@@ -205,8 +205,8 @@ async def main() -> None:
 
     settings = get_settings()
     driver = GraphDatabase.driver(
-        settings.neo4j_uri.get_secret_value(),
-        auth=(settings.neo4j_username, settings.neo4j_password.get_secret_value()),
+        settings.neo4j.uri.get_secret_value(),
+        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
     )
 
     try:

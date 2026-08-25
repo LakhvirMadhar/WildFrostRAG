@@ -45,11 +45,11 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
             driver: Neo4j driver instance
             embed_fn: Function that encodes a query string into a list of floats
             neo4j_database: Optional database name
-            index_name: Vector index name (default: from settings)
+            index_name: Vector index name (default: from settings.embedding)
         """
         super().__init__(driver, neo4j_database)
         self._embed_fn = embed_fn
-        self.index_name = index_name or get_settings().vector_index_name
+        self.index_name = index_name or get_settings().embedding.vector_index_name
 
     def search(self, query: str, k: int = 5) -> list[dict[str, Any]]:
         """Search using vector similarity + graph traversal.

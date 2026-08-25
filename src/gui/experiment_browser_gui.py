@@ -41,7 +41,7 @@ class ExperimentBrowserGUI:
         """Initialize experiment browser.
 
         Args:
-            outputs_dir: Path to outputs directory. Defaults to settings.outputs_dir.
+            outputs_dir: Path to outputs directory. Defaults to settings.paths.outputs_dir.
         """
         self.registry = ExperimentRegistry(outputs_dir)
         self.selected_experiment: dict[str, Any] | None = None
