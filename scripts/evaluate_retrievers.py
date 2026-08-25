@@ -27,7 +27,7 @@ from tqdm.asyncio import tqdm_asyncio
 from tqdm import tqdm
 
 import pandas as pd
-from neo4j import GraphDatabase, Driver
+from neo4j import Driver
 
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -53,6 +53,7 @@ from wildfrost_rag.models.experiment_config import RetrievalConfig
 from wildfrost_rag.models.retrieval import QueryResult, CypherExecution
 from wildfrost_rag.utils.logger import logger
 from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.neo4j_kg.driver import neo4j_driver
 from wildfrost_rag.utils.experiment_utils import (
     get_next_experiment_id,
     create_retrieval_config,
@@ -569,12 +570,7 @@ async def run(args: argparse.Namespace) -> None:
     df = load_and_filter_queries(args.file, args.query_ids, args.exclude_query_ids)
     chunking = args.chunking == "yes"
 
-    driver = GraphDatabase.driver(
-        settings.neo4j.uri.get_secret_value(),
-        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
-    )
-
-    try:
+    with neo4j_driver() as driver:
         retriever_kwargs = {}
         config_kwargs = {}
 
@@ -622,9 +618,7 @@ async def run(args: argparse.Namespace) -> None:
         else:
             logger.error("Retriever run failed.")
 
-    finally:
-        driver.close()
-        logger.info("Neo4j driver closed")
+    logger.info("Neo4j driver closed")
 
 
 async def main() -> None:

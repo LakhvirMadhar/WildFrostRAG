@@ -27,7 +27,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 from tqdm import tqdm
-from neo4j import GraphDatabase, Session
+from neo4j import Session
 
 from wildfrost_rag.web_scraper.sitemap_scraper import scrape_multiple_links
 from wildfrost_rag.data_processing.cards import CardInfo, CardType
@@ -94,6 +94,7 @@ from wildfrost_rag.neo4j_kg.vector_store import (
     link_documents_to_bells,
 )
 from wildfrost_rag.neo4j_kg.neo4j_indexes import create_fulltext_index, wait_for_index_population
+from wildfrost_rag.neo4j_kg.driver import neo4j_driver
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
 
@@ -544,27 +545,19 @@ def stage_3_populate_graph(data: PipelineData) -> None:
     logger.info("STAGE 3: NEO4J GRAPH POPULATION")
     logger.info("=" * 60)
 
-    settings = get_settings()
-    driver = GraphDatabase.driver(
-        settings.neo4j.uri.get_secret_value(),
-        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
-    )
-    try:
-        with driver.session() as session:
-            urls = data.page_urls
+    with neo4j_driver() as driver, driver.session() as session:
+        urls = data.page_urls
 
-            _populate_stats_and_keywords(session, data, urls)
-            _populate_charms(session, data)
-            cards_dict_data = _populate_cards_and_core(session, data, urls)
-            _populate_keyword_relationships(session, data, cards_dict_data)
-            _populate_map_and_fights(session, data, urls)
-            _populate_bells(session, data)
-            _populate_bling_economy(session, data, urls)
+        _populate_stats_and_keywords(session, data, urls)
+        _populate_charms(session, data)
+        cards_dict_data = _populate_cards_and_core(session, data, urls)
+        _populate_keyword_relationships(session, data, cards_dict_data)
+        _populate_map_and_fights(session, data, urls)
+        _populate_bells(session, data)
+        _populate_bling_economy(session, data, urls)
 
-            url_link_count = session.execute_write(create_url_nodes)
-            logger.info(f"Created URL nodes with {url_link_count} HAS_LINK relationships")
-    finally:
-        driver.close()
+        url_link_count = session.execute_write(create_url_nodes)
+        logger.info(f"Created URL nodes with {url_link_count} HAS_LINK relationships")
 
     logger.info("Graph population complete")
 
@@ -607,84 +600,76 @@ def stage_4_document_ingestion(pipeline_data: PipelineData, split_text: bool = T
     logger.info(f"URL lookup has {len(url_lookup)} entries")
 
     # Single driver for all document operations
-    driver = GraphDatabase.driver(
-        settings.neo4j.uri.get_secret_value(),
-        auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
-    )
-    try:
-        with driver.session() as session:
-            # Ingest into Neo4j (no embeddings)
-            logger.info("Ingesting documents into Neo4j...")
-            ingest_documents_into_neo4j(
-                session=session,
-                document_chunks=all_document_chunks,
-                url_lookup=url_lookup,
-            )
+    with neo4j_driver() as driver, driver.session() as session:
+        # Ingest into Neo4j (no embeddings)
+        logger.info("Ingesting documents into Neo4j...")
+        ingest_documents_into_neo4j(
+            session=session,
+            document_chunks=all_document_chunks,
+            url_lookup=url_lookup,
+        )
 
-            # Create full-text search index
-            logger.info("Creating full-text search index...")
-            create_fulltext_index(
-                session=session,
-                index_name=settings.embedding.fulltext_index_name,
-                node_label="Document",
-                text_property="text",
-            )
+        # Create full-text search index
+        logger.info("Creating full-text search index...")
+        create_fulltext_index(
+            session=session,
+            index_name=settings.embedding.fulltext_index_name,
+            node_label="Document",
+            text_property="text",
+        )
 
-            # Wait for index to populate
-            wait_for_index_population(seconds=5)
+        # Wait for index to populate
+        wait_for_index_population(seconds=5)
 
-            # Link Document nodes to Card nodes in the knowledge graph
-            logger.info("Linking documents to cards in knowledge graph...")
-            link_count = link_documents_to_cards(session)
-            logger.info(f"Linked {link_count} documents to cards")
+        # Link Document nodes to Card nodes in the knowledge graph
+        logger.info("Linking documents to cards in knowledge graph...")
+        link_count = link_documents_to_cards(session)
+        logger.info(f"Linked {link_count} documents to cards")
 
-            # Link Document nodes to Crown nodes
-            logger.info("Linking documents to crowns in knowledge graph...")
-            crown_link_count = link_documents_to_crowns(session)
-            logger.info(f"Linked {crown_link_count} documents to crowns")
+        # Link Document nodes to Crown nodes
+        logger.info("Linking documents to crowns in knowledge graph...")
+        crown_link_count = link_documents_to_crowns(session)
+        logger.info(f"Linked {crown_link_count} documents to crowns")
 
-            # Link Document nodes to Stat nodes
-            logger.info("Linking documents to stats in knowledge graph...")
-            stat_link_count = link_documents_to_stats(session)
-            logger.info(f"Linked {stat_link_count} documents to stats")
+        # Link Document nodes to Stat nodes
+        logger.info("Linking documents to stats in knowledge graph...")
+        stat_link_count = link_documents_to_stats(session)
+        logger.info(f"Linked {stat_link_count} documents to stats")
 
-            # Link Document nodes to Charm nodes
-            logger.info("Linking documents to charms in knowledge graph...")
-            charm_link_count = link_documents_to_charms(session)
-            logger.info(f"Linked {charm_link_count} documents to charms")
+        # Link Document nodes to Charm nodes
+        logger.info("Linking documents to charms in knowledge graph...")
+        charm_link_count = link_documents_to_charms(session)
+        logger.info(f"Linked {charm_link_count} documents to charms")
 
-            # Link shade Card nodes to Shades.html overview Document
-            logger.info("Linking shade cards to Shades overview document...")
-            shade_link_count = link_documents_to_shades(session)
-            logger.info(f"Linked {shade_link_count} shade cards to Shades overview document")
+        # Link shade Card nodes to Shades.html overview Document
+        logger.info("Linking shade cards to Shades overview document...")
+        shade_link_count = link_documents_to_shades(session)
+        logger.info(f"Linked {shade_link_count} shade cards to Shades overview document")
 
-            # Link Document nodes to Map nodes (Map, Zone, MapEvent)
-            logger.info("Linking documents to map nodes in knowledge graph...")
-            map_link_count = link_documents_to_map(session)
-            logger.info(f"Linked {map_link_count} documents to map nodes")
+        # Link Document nodes to Map nodes (Map, Zone, MapEvent)
+        logger.info("Linking documents to map nodes in knowledge graph...")
+        map_link_count = link_documents_to_map(session)
+        logger.info(f"Linked {map_link_count} documents to map nodes")
 
-            # Link Fight nodes to their individual fight page Documents
-            logger.info("Linking fight nodes to fight page documents...")
-            fight_link_count = link_documents_to_fights(session)
-            logger.info(f"Linked {fight_link_count} fight nodes to their documents")
+        # Link Fight nodes to their individual fight page Documents
+        logger.info("Linking fight nodes to fight page documents...")
+        fight_link_count = link_documents_to_fights(session)
+        logger.info(f"Linked {fight_link_count} fight nodes to their documents")
 
-            # Link Shop nodes to their wiki page Documents
-            logger.info("Linking shop nodes to documents...")
-            shop_link_count = link_documents_to_shops(session)
-            logger.info(f"Linked {shop_link_count} shop nodes to their documents")
+        # Link Shop nodes to their wiki page Documents
+        logger.info("Linking shop nodes to documents...")
+        shop_link_count = link_documents_to_shops(session)
+        logger.info(f"Linked {shop_link_count} shop nodes to their documents")
 
-            # Link Bling node to its wiki page Document
-            logger.info("Linking bling node to document...")
-            bling_link_count = link_documents_to_bling(session)
-            logger.info(f"Linked {bling_link_count} bling node to its document")
+        # Link Bling node to its wiki page Document
+        logger.info("Linking bling node to document...")
+        bling_link_count = link_documents_to_bling(session)
+        logger.info(f"Linked {bling_link_count} bling node to its document")
 
-            # Link Bell nodes to their wiki page Document
-            logger.info("Linking bell nodes to document...")
-            bell_link_count = link_documents_to_bells(session)
-            logger.info(f"Linked {bell_link_count} bell nodes to their document")
-
-    finally:
-        driver.close()
+        # Link Bell nodes to their wiki page Document
+        logger.info("Linking bell nodes to document...")
+        bell_link_count = link_documents_to_bells(session)
+        logger.info(f"Linked {bell_link_count} bell nodes to their document")
 
     logger.info("Document ingestion complete")
 
@@ -727,16 +712,9 @@ async def main() -> None:
     if args.clear_db:
         logger.warning("⚠️  CLEARING ENTIRE NEO4J DATABASE ⚠️")
 
-        driver = GraphDatabase.driver(
-            settings.neo4j.uri.get_secret_value(),
-            auth=(settings.neo4j.username, settings.neo4j.password.get_secret_value()),
-        )
-        try:
-            with driver.session() as session:
-                session.execute_write(clear_database)
-            logger.info("✅ Database cleared successfully")
-        finally:
-            driver.close()
+        with neo4j_driver() as driver, driver.session() as session:
+            session.execute_write(clear_database)
+        logger.info("✅ Database cleared successfully")
 
     # Ensure directories exist
     settings.create_directories()

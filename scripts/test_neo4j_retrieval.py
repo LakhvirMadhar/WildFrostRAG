@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 import argparse
 from typing import Any
-from neo4j import Driver, GraphDatabase
+from neo4j import Driver
 
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -35,7 +35,7 @@ from wildfrost_rag.rag.retrievers import (
     BM25FulltextVectorHybridRetriever,
     Text2CypherRetriever,
 )
-from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.neo4j_kg.driver import neo4j_driver
 from wildfrost_rag.utils.logger import logger
 
 
@@ -92,13 +92,14 @@ def main() -> None:
 
     logger.info(f"Searching for: '{args.query}' using {args.retriever} retriever (k={args.k})")
 
-    # Create driver once at the start (efficient pattern)
-    settings = get_settings()
-    uri = settings.neo4j.uri.get_secret_value()
-    username = settings.neo4j.username
-    password = settings.neo4j.password.get_secret_value()
-    driver = GraphDatabase.driver(uri, auth=(username, password))
+    with neo4j_driver() as driver:
+        _run_search(args, driver)
 
+    logger.info("Neo4j driver closed")
+
+
+def _run_search(args: argparse.Namespace, driver: Driver) -> None:
+    """Run the retriever search and print the results."""
     try:
         retriever = get_retriever(args.retriever, driver)
         results = retriever.search(args.query, k=args.k)
@@ -155,10 +156,6 @@ def main() -> None:
     except Exception as e:
         logger.error(f"Error during retrieval: {e}")
         logger.error(f"Error: {e}")
-    finally:
-        # Close driver at the end (only closed once for entire script)
-        driver.close()
-        logger.info("Neo4j driver closed")
 
 
 if __name__ == "__main__":
