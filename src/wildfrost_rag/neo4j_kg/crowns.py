@@ -1,0 +1,105 @@
+import neo4j
+
+from wildfrost_rag.data_processing.crowns import CROWNS, CROWNABLE_CARD_TYPES
+from wildfrost_rag.neo4j_kg.query_utils import single_value
+
+
+def create_crowns(tx: neo4j.ManagedTransaction, url: str | None = None) -> int:
+    """Create Crown nodes from hardcoded crown definitions.
+
+    Args:
+        tx: Neo4j transaction
+        url: Wiki page URL for all crowns (shared /Crowns page)
+    """
+    crown_data = [
+        {
+            "name": crown.name,
+            "removable": crown.removable,
+            "description": crown.description,
+            "max_per_card": crown.max_per_card,
+        }
+        for crown in CROWNS
+    ]
+
+    query = """
+    UNWIND $crowns AS crown
+    MERGE (c:Crown {name: crown.name})
+    SET c.removable = crown.removable,
+        c.description = crown.description,
+        c.max_per_card = crown.max_per_card,
+        c.url = $url
+    RETURN count(c) AS crownsCreated
+    """
+    result = tx.run(query, crowns=crown_data, url=url)
+    return single_value(result, "crownsCreated")
+
+
+def create_crown_relationships(tx: neo4j.ManagedTransaction) -> int:
+    """Create all Crown relationships in the knowledge graph.
+
+    Includes IS_CURSED_VERSION_OF, CAN_BE_PLACED_ON, REDUCES, and STARTS_WITH_PERMANENT.
+    """
+    relationships_created = 0
+
+    # IS_CURSED_VERSION_OF: Cursed Crown -> Crown
+    query_cursed = """
+    MATCH (cursed:Crown {name: "Cursed Crown"})
+    MATCH (regular:Crown {name: "Crown"})
+    MERGE (cursed)-[:IS_CURSED_VERSION_OF]->(regular)
+    RETURN count(*) AS created
+    """
+    result = tx.run(query_cursed)
+    relationships_created += single_value(result, "created")
+
+    # CAN_BE_PLACED_ON: Crown -> CardType
+    query_placeable = """
+    UNWIND $card_types AS card_type_name
+    MATCH (crown:Crown {name: "Crown"})
+    MATCH (ct:CardType {name: card_type_name})
+    MERGE (crown)-[:CAN_BE_PLACED_ON]->(ct)
+    RETURN count(*) AS created
+    """
+    result = tx.run(query_placeable, card_types=CROWNABLE_CARD_TYPES)
+    relationships_created += single_value(result, "created")
+
+    # Cursed Crown can also be placed on same card types
+    query_cursed_placeable = """
+    UNWIND $card_types AS card_type_name
+    MATCH (crown:Crown {name: "Cursed Crown"})
+    MATCH (ct:CardType {name: card_type_name})
+    MERGE (crown)-[:CAN_BE_PLACED_ON]->(ct)
+    RETURN count(*) AS created
+    """
+    result = tx.run(query_cursed_placeable, card_types=CROWNABLE_CARD_TYPES)
+    relationships_created += single_value(result, "created")
+
+    # REDUCES: Cursed Crown -> Stat (Health, Attack)
+    # Find the cursed crown and create REDUCES relationships
+    for crown in CROWNS:
+        if crown.reduces_stats:
+            query_reduces = """
+            UNWIND $stats AS stat_name
+            MATCH (cursed:Crown {name: $crown_name})
+            MATCH (stat:Stat {name: stat_name})
+            MERGE (cursed)-[:REDUCES {amount: $amount}]->(stat)
+            RETURN count(*) AS created
+            """
+            result = tx.run(
+                query_reduces,
+                crown_name=crown.name,
+                stats=crown.reduces_stats,
+                amount=crown.reduces_amount,
+            )
+            relationships_created += single_value(result, "created")
+
+    # STARTS_WITH_PERMANENT: CardType:leaders -> Crown
+    query_leader_crown = """
+    MATCH (leader_type:CardType {name: "leaders"})
+    MATCH (crown:Crown {name: "Crown"})
+    MERGE (leader_type)-[:STARTS_WITH_PERMANENT]->(crown)
+    RETURN count(*) AS created
+    """
+    result = tx.run(query_leader_crown)
+    relationships_created += single_value(result, "created")
+
+    return relationships_created

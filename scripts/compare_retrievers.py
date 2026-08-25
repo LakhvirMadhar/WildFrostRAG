@@ -29,7 +29,7 @@ from nltk.corpus import stopwords as nltk_stopwords
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from utils.config import get_settings
+from wildfrost_rag.utils.config import get_settings
 
 
 def load_experiment(experiment_dir: Path) -> dict[str, Any] | None:

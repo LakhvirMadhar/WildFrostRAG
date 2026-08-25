@@ -17,8 +17,8 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from rag.evaluation.taxonomy import generate_taxonomy_from_annotations
-from utils.logger import logger
+from wildfrost_rag.rag.evaluation.taxonomy import generate_taxonomy_from_annotations
+from wildfrost_rag.utils.logger import logger
 
 
 async def main() -> None:

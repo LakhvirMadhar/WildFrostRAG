@@ -47,18 +47,7 @@ convention = "google"
 [tool.poetry]
 package-mode = true
 packages = [
-    {include = "core", from = "src"},
-    {include = "utils", from = "src"},
-    {include = "models", from = "src"},
-    {include = "prompts", from = "src"},
-    {include = "data_processing", from = "src"},
-    {include = "neo4j_kg", from = "src"},
-    {include = "scraping", from = "src"},
-    {include = "web_scraper", from = "src"},
-    {include = "rag", from = "src"},
-    {include = "experiment_tracker", from = "src"},
-    {include = "embeddings", from = "src"},
-    {include = "gui", from = "src"},
+    {include = "wildfrost_rag", from = "src"},
 ]
 
 [tool.poetry.group.dev.dependencies]

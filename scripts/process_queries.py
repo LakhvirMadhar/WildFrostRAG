@@ -19,7 +19,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
-from utils.logger import logger
+from wildfrost_rag.utils.logger import logger
 
 
 def load_csv(csv_path: Path) -> list[dict[str, Any]]:

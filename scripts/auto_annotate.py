@@ -16,8 +16,8 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from gui.auto_annotator import run_auto_annotation
-from utils.logger import logger
+from wildfrost_rag.gui.auto_annotator import run_auto_annotation
+from wildfrost_rag.utils.logger import logger
 
 
 def main() -> None:

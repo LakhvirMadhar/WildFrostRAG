@@ -26,7 +26,7 @@ from neo4j import Driver, GraphDatabase
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from rag.retrievers import (
+from wildfrost_rag.rag.retrievers import (
     Neo4jVectorSearch,
     Neo4jFullTextSearch,
     BM25Retriever,
@@ -35,8 +35,8 @@ from rag.retrievers import (
     BM25FulltextVectorHybridRetriever,
     Text2CypherRetriever,
 )
-from utils.config import get_settings
-from utils.logger import logger
+from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.utils.logger import logger
 
 
 def get_retriever(retriever_type: str, driver: Driver) -> Any:  # noqa: ANN401
