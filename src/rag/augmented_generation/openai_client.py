@@ -8,9 +8,16 @@ All functions are async with built-in rate limiting via semaphore.
 """
 
 import asyncio
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
+from core.exceptions import (
+    EmbeddingError,
+    LLMAuthenticationError,
+    LLMError,
+    LLMMalformedResponseError,
+    LLMRateLimitError,
+)
 from utils.config import get_settings
 from utils.logger import logger
 from prompts.prompt_utils import VersionedPrompt, format_prompt_tuple
@@ -68,20 +75,30 @@ async def call_openai_api(
     async with _get_semaphore():
         client = _get_client()
         settings = get_settings()
+        resolved_model = model or settings.openai.model_name
         try:
             response = await client.chat.completions.create(
-                model=model or settings.openai.model_name,
+                model=resolved_model,
                 messages=messages,
                 temperature=temperature if temperature is not None else settings.openai.temperature,
                 seed=seed if seed is not None else settings.openai.seed,
             )
-            content = response.choices[0].message.content
-            if content is None:
-                raise RuntimeError("OpenAI returned empty response content")
-            return content
-        except Exception as e:
-            logger.error(f"Error in call_openai_api: {e}")
-            raise
+        except RateLimitError as e:
+            logger.error(f"OpenAI rate limit exceeded in call_openai_api: {e}")
+            raise LLMRateLimitError(str(e), model=resolved_model) from e
+        except AuthenticationError as e:
+            logger.error(f"OpenAI authentication failed in call_openai_api: {e}")
+            raise LLMAuthenticationError(str(e), model=resolved_model) from e
+        except APIError as e:
+            logger.error(f"OpenAI API error in call_openai_api: {e}")
+            raise LLMError(str(e), model=resolved_model) from e
+
+        content = response.choices[0].message.content
+        if content is None:
+            raise LLMMalformedResponseError(
+                "OpenAI returned empty response content", model=resolved_model
+            )
+        return content
 
 
 async def call_openai_api_structured[T: BaseModel](
@@ -106,21 +123,31 @@ async def call_openai_api_structured[T: BaseModel](
     async with _get_semaphore():
         client = _get_client()
         settings = get_settings()
+        resolved_model = model or settings.openai.model_name
         try:
             response = await client.beta.chat.completions.parse(
-                model=model or settings.openai.model_name,
+                model=resolved_model,
                 messages=messages,
                 response_format=response_model,
                 temperature=temperature if temperature is not None else settings.openai.temperature,
                 seed=seed if seed is not None else settings.openai.seed,
             )
-            parsed = response.choices[0].message.parsed
-            if parsed is None:
-                raise RuntimeError("OpenAI returned empty parsed response")
-            return parsed
-        except Exception as e:
-            logger.error(f"Error in call_openai_api_structured: {e}")
-            raise
+        except RateLimitError as e:
+            logger.error(f"OpenAI rate limit exceeded in call_openai_api_structured: {e}")
+            raise LLMRateLimitError(str(e), model=resolved_model) from e
+        except AuthenticationError as e:
+            logger.error(f"OpenAI authentication failed in call_openai_api_structured: {e}")
+            raise LLMAuthenticationError(str(e), model=resolved_model) from e
+        except APIError as e:
+            logger.error(f"OpenAI API error in call_openai_api_structured: {e}")
+            raise LLMError(str(e), model=resolved_model) from e
+
+        parsed = response.choices[0].message.parsed
+        if parsed is None:
+            raise LLMMalformedResponseError(
+                "OpenAI returned empty parsed response", model=resolved_model
+            )
+        return parsed
 
 
 async def call_openai_embeddings(
@@ -139,15 +166,13 @@ async def call_openai_embeddings(
     """
     async with _get_semaphore():
         client = _get_client()
+        resolved_model = model or get_settings().embedding.embedding_configs["openai"]["model"]
         try:
-            response = await client.embeddings.create(
-                input=texts,
-                model=model or get_settings().embedding.embedding_configs["openai"]["model"],
-            )
+            response = await client.embeddings.create(input=texts, model=resolved_model)
             return [item.embedding for item in response.data]
-        except Exception as e:
-            logger.error(f"Error in call_openai_embeddings: {e}")
-            raise
+        except APIError as e:
+            logger.error(f"OpenAI API error in call_openai_embeddings: {e}")
+            raise EmbeddingError(provider="openai", reason=str(e)) from e
 
 
 # =============================================================================

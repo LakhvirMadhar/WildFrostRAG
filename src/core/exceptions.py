@@ -78,6 +78,32 @@ class ExperimentNotFoundError(WildFrostRAGError):
         super().__init__(f"No {experiment_type} experiment found for reference {experiment_id!r}")
 
 
+class LLMError(WildFrostRAGError):
+    """Base class for failures calling the OpenAI API."""
+
+    def __init__(self, message: str, model: str) -> None:
+        """Initialize with a message and the model that was being called.
+
+        Args:
+            message: Human-readable description of the failure.
+            model: The OpenAI model name the call was made against.
+        """
+        self.model = model
+        super().__init__(message)
+
+
+class LLMRateLimitError(LLMError):
+    """Raised when the OpenAI API rejects a request due to rate limiting."""
+
+
+class LLMAuthenticationError(LLMError):
+    """Raised when the OpenAI API rejects a request due to invalid credentials."""
+
+
+class LLMMalformedResponseError(LLMError):
+    """Raised when the OpenAI API returns a response with no usable content."""
+
+
 class EmbeddingError(WildFrostRAGError):
     """Raised when embedding generation fails for a given provider."""
 
