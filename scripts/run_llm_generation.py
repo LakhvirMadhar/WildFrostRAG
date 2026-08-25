@@ -260,10 +260,9 @@ def save_experiment(
         successful_queries=successful,
         failed_queries=failed,
         description=description,
+        is_zero_shot=is_zero_shot,
         batch_size=1,
     )
-
-    config["is_zero_shot"] = is_zero_shot
 
     save_config(config, experiment_dir)
 
