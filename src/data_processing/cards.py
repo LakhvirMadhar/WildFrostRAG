@@ -1,5 +1,4 @@
 import re
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 from pathlib import Path
@@ -7,6 +6,8 @@ from urllib.parse import unquote
 from bs4 import BeautifulSoup, Comment, Tag
 import logging
 from collections import defaultdict
+
+from pydantic import BaseModel
 
 from data_processing.phase_config import VARIANT_CARDS, PHASE_ORDER_OVERRIDES
 from data_processing.tribes import TribeExclusivity
@@ -73,8 +74,7 @@ class CardType(Enum):
         return len(self.parents) > 0
 
 
-@dataclass
-class CardInfo:
+class CardInfo(BaseModel):
     """Parsed card data from the Wildfrost Wiki."""
 
     card_name: str
