@@ -5,22 +5,20 @@ in a metadata-driven approach inspired by MLflow and Weights & Biases.
 """
 
 import json
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from models.experiment_config import (
+    EmbeddingConfig,
+    GenerationConfig,
+    PromptVersions,
+    QueryStats,
+    RetrievalConfig,
+    Text2CypherConfig,
+)
 from utils.config import get_settings
 from utils.logger import logger
-
-
-@dataclass
-class QueryStats:
-    """Statistics for queries processed in an experiment."""
-
-    total: int
-    successful: int
-    failed: int = 0
 
 
 def get_next_experiment_id(base_path: Path) -> str:
@@ -53,8 +51,17 @@ def create_retrieval_config(
     successful_queries: int,
     failed_queries: int = 0,
     description: str = "",
-    **kwargs: str | int | float | bool | None,
-) -> dict[str, Any]:
+    k: int = 10,
+    embedding_model: str | None = None,
+    embedding_provider: str | None = None,
+    vector_index_name: str | None = None,
+    text2cypher_prompt_version: str | None = None,
+    text2cypher_llm_model: str | None = None,
+    text2cypher_temperature: float | None = None,
+    text2cypher_seed: int | None = None,
+    notes: str | None = None,
+    **extra_metadata: str | int | float | bool | None,
+) -> RetrievalConfig:
     """Create config.json for retrieval experiment.
 
     Args:
@@ -66,62 +73,55 @@ def create_retrieval_config(
         successful_queries: Number of successful queries
         failed_queries: Number of failed queries
         description: Human-readable description
-        **kwargs: Additional metadata (e.g., text2cypher_prompt_version, embedding_provider, embedding_model, vector_index_name)
+        k: Number of chunks retrieved per query
+        embedding_model: Embedding model name (vector-based retrievers only)
+        embedding_provider: Embedding provider name (vector-based retrievers only)
+        vector_index_name: Vector index name (vector-based retrievers only)
+        text2cypher_prompt_version: Text2Cypher prompt version (text2cypher only)
+        text2cypher_llm_model: Text2Cypher LLM model (text2cypher only)
+        text2cypher_temperature: Text2Cypher LLM temperature (text2cypher only)
+        text2cypher_seed: Text2Cypher LLM seed (text2cypher only)
+        notes: Free-form notes (text2cypher only)
+        **extra_metadata: Anything else worth recording (e.g. sw_query, sw_docs)
 
     Returns:
-        Config dictionary ready to save
+        Typed retrieval config ready to save
     """
-    retrieval_id = f"{retriever_type}/{experiment_id}"
-
-    # Use provided embedding_model or default to settings
     settings = get_settings()
-    embedding_model = kwargs.get("embedding_model", settings.embedding.model_name)
 
-    config = {
-        "experiment_type": "retrieval",
-        "retrieval_id": retrieval_id,
-        "run_number": run_num,
-        "timestamp": datetime.now().isoformat(),
-        "retriever_type": retriever_type,
-        "chunking": chunking,
-        "embedding_model": embedding_model,
-        "k": kwargs.get("k", 10),
-        "description": description,
-        "dataset": "simple_reference_based_queries.csv",
-        "total_queries": total_queries,
-        "successful_queries": successful_queries,
-        "failed_queries": failed_queries,
-    }
-
-    # Add embedder-specific fields (for vector-based retrievers)
-    if "embedding_provider" in kwargs:
-        config["embedding_provider"] = kwargs["embedding_provider"]
-    if "vector_index_name" in kwargs:
-        config["vector_index_name"] = kwargs["vector_index_name"]
-
-    # Add text2cypher-specific fields
+    text2cypher = None
     if retriever_type == "text2cypher":
-        config["text2cypher_prompt_version"] = kwargs.get("text2cypher_prompt_version", "V1")
-        config["text2cypher_llm_model"] = kwargs.get(
-            "text2cypher_llm_model", settings.openai.text2cypher_model
+        text2cypher = Text2CypherConfig(
+            prompt_version=text2cypher_prompt_version or "V1",
+            llm_model=text2cypher_llm_model or settings.openai.text2cypher_model,
+            temperature=(
+                text2cypher_temperature
+                if text2cypher_temperature is not None
+                else settings.openai.text2cypher_temperature
+            ),
+            seed=text2cypher_seed if text2cypher_seed is not None else settings.openai.seed,
+            notes=notes,
         )
-        config["text2cypher_temperature"] = kwargs.get(
-            "text2cypher_temperature", settings.openai.text2cypher_temperature
-        )
-        config["text2cypher_seed"] = kwargs.get("text2cypher_seed", settings.openai.seed)
-        if "notes" in kwargs:
-            config["notes"] = kwargs["notes"]
 
-    # Add any additional metadata
-    excluded_keys = {"embedding_model", "embedding_provider", "vector_index_name", "k"}
-    additional_metadata = {
-        k: v
-        for k, v in kwargs.items()
-        if k not in config and k not in excluded_keys and not k.startswith("text2cypher_")
-    }
-    config["additional_metadata"] = additional_metadata
-
-    return config
+    return RetrievalConfig(
+        retrieval_id=f"{retriever_type}/{experiment_id}",
+        run_number=run_num,
+        timestamp=datetime.now().isoformat(),
+        retriever_type=retriever_type,
+        chunking=chunking,
+        k=k,
+        description=description,
+        query_stats=QueryStats(
+            total=total_queries, successful=successful_queries, failed=failed_queries
+        ),
+        embedding=EmbeddingConfig(
+            model=embedding_model or settings.embedding.model_name,
+            provider=embedding_provider,
+            vector_index_name=vector_index_name,
+        ),
+        text2cypher=text2cypher,
+        additional_metadata=dict(extra_metadata),
+    )
 
 
 def create_generation_config(
@@ -134,8 +134,12 @@ def create_generation_config(
     successful_queries: int,
     failed_queries: int = 0,
     description: str = "",
-    **kwargs: str | int | float | bool | None,
-) -> dict[str, Any]:
+    is_zero_shot: bool = False,
+    llm_model: str | None = None,
+    temperature: float = 0.0,
+    seed: int = 42,
+    **extra_metadata: str | int | float | bool | None,
+) -> GenerationConfig:
     """Create config.json for generation experiment.
 
     Args:
@@ -148,50 +152,46 @@ def create_generation_config(
         successful_queries: Number of successful queries
         failed_queries: Number of failed queries
         description: Human-readable description
-        **kwargs: Additional metadata
+        is_zero_shot: Whether this generation used no retrieval context
+        llm_model: LLM model name (defaults to settings.openai.model_name)
+        temperature: LLM temperature
+        seed: LLM seed
+        **extra_metadata: Anything else worth recording (e.g. batch_size)
 
     Returns:
-        Config dictionary ready to save
+        Typed generation config ready to save
     """
-    config = {
-        "experiment_type": "generation",
-        "generation_id": generation_id,
-        "run_number": run_num,
-        "timestamp": datetime.now().isoformat(),
-        "retrieval_reference": retrieval_reference,
-        "llm_model": kwargs.get("llm_model", get_settings().openai.model_name),
-        "temperature": kwargs.get("temperature", 0.0),
-        "seed": kwargs.get("seed", 42),
-        "prompts": {
-            "system_prompt_version": system_prompt_version,
-            "rag_prompt_version": rag_prompt_version,
-        },
-        "description": description,
-        "dataset": "simple_reference_based_queries.csv",
-        "total_queries": total_queries,
-        "successful_queries": successful_queries,
-        "failed_queries": failed_queries,
-    }
-
-    # Add any additional metadata
-    additional_metadata = {
-        k: v for k, v in kwargs.items() if k not in ["llm_model", "temperature", "seed"]
-    }
-    config["additional_metadata"] = additional_metadata
-
-    return config
+    return GenerationConfig(
+        generation_id=generation_id,
+        run_number=run_num,
+        timestamp=datetime.now().isoformat(),
+        retrieval_reference=retrieval_reference,
+        llm_model=llm_model or get_settings().openai.model_name,
+        temperature=temperature,
+        seed=seed,
+        prompts=PromptVersions(
+            system_prompt_version=system_prompt_version,
+            rag_prompt_version=rag_prompt_version,
+        ),
+        is_zero_shot=is_zero_shot,
+        description=description,
+        query_stats=QueryStats(
+            total=total_queries, successful=successful_queries, failed=failed_queries
+        ),
+        additional_metadata=dict(extra_metadata),
+    )
 
 
-def save_config(config: dict[str, Any], output_dir: Path) -> None:
+def save_config(config: RetrievalConfig | GenerationConfig, output_dir: Path) -> None:
     """Save config.json to experiment directory.
 
     Args:
-        config: Config dictionary
+        config: Typed experiment config
         output_dir: Directory to save config in
     """
     config_path = output_dir / "config.json"
     with open(config_path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
+        json.dump(config.model_dump(mode="json"), f, indent=2, ensure_ascii=False)
     logger.info(f"Saved config to {config_path}")
 
 

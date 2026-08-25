@@ -49,6 +49,7 @@ from rag.retrievers import (
 from rag.retrievers.hybrid_retrievers import HybridRetriever
 from core.exceptions import CypherExecutionError
 from embeddings.query_embedders import get_query_embed_fn
+from models.experiment_config import RetrievalConfig
 from models.retrieval import QueryResult, CypherExecution
 from utils.logger import logger
 from utils.config import get_settings
@@ -286,22 +287,23 @@ async def _process_all_queries(
     return results, individual_results_list
 
 
-def _get_embedder_config_kwargs(retriever_type: str, embedder: str) -> dict[str, str]:
-    """Get embedder configuration for config file (only for vector-based retrievers)."""
+def _get_embedder_config(
+    retriever_type: str, embedder: str
+) -> tuple[str | None, str | None, str | None]:
+    """Get (provider, model, vector_index_name) for config file.
+
+    Returns (None, None, None) for non-vector-based retrievers.
+    """
     if retriever_type not in VECTOR_BASED_RETRIEVERS:
-        return {}
+        return None, None, None
 
     embedder_cfg = get_settings().embedding.embedding_configs[embedder]
-    return {
-        "embedding_provider": embedder,
-        "embedding_model": embedder_cfg["model"],
-        "vector_index_name": embedder_cfg["index_name"],
-    }
+    return embedder, embedder_cfg["model"], embedder_cfg["index_name"]
 
 
 def _save_experiment_artifacts(
     experiment_dir: Path,
-    config: dict[str, Any],
+    config: RetrievalConfig,
     results: list[QueryResult],
     individual_results: list[dict[str, Any]],
     retriever: Any,  # noqa: ANN401
@@ -391,7 +393,9 @@ async def run_retriever(
             if not pd.isna(r.get("query", "")) and r.get("query", "") != ""
         ]
     )
-    embedder_kwargs = _get_embedder_config_kwargs(retriever_type, embedder)
+    embedding_provider, embedding_model, vector_index_name = _get_embedder_config(
+        retriever_type, embedder
+    )
 
     config = create_retrieval_config(
         run_num=run_num,
@@ -403,7 +407,9 @@ async def run_retriever(
         failed_queries=total_queries - len(results),
         description=description,
         k=k,
-        **embedder_kwargs,
+        embedding_provider=embedding_provider,
+        embedding_model=embedding_model,
+        vector_index_name=vector_index_name,
         **kwargs,
     )
 

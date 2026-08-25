@@ -10,6 +10,7 @@ import yaml
 from pathlib import Path
 from typing import Any
 
+from models.experiment_config import GenerationConfig, RetrievalConfig
 from utils.config import get_settings
 from utils.logger import logger
 
@@ -80,7 +81,7 @@ class ExperimentRegistry:
         run_num: int,
         retriever_type: str,
         experiment_id: str,
-        config: dict[str, Any],
+        config: RetrievalConfig,
     ) -> None:
         """Register a retrieval experiment in the registry.
 
@@ -101,18 +102,20 @@ class ExperimentRegistry:
         # Register retrieval
         retrieval_ref = f"{retriever_type}/{experiment_id}"
         registry["runs"][run_num]["retrievals"][retrieval_ref] = {
-            "timestamp": config.get("timestamp"),
+            "timestamp": config.timestamp,
             "retriever_type": retriever_type,
-            "chunking": config.get("chunking"),
-            "description": config.get("description", ""),
-            "total_queries": config.get("total_queries"),
-            "successful_queries": config.get("successful_queries"),
+            "chunking": config.chunking,
+            "description": config.description,
+            "total_queries": config.query_stats.total,
+            "successful_queries": config.query_stats.successful,
         }
 
         self._save_registry(registry)
         logger.info(f"Registered retrieval: run_{run_num}/{retrieval_ref}")
 
-    def register_generation(self, run_num: int, generation_id: str, config: dict[str, Any]) -> None:
+    def register_generation(
+        self, run_num: int, generation_id: str, config: GenerationConfig
+    ) -> None:
         """Register a generation experiment in the registry.
 
         Args:
@@ -131,12 +134,12 @@ class ExperimentRegistry:
         # Register generation
         gen_ref = f"gen/{generation_id}"
         registry["runs"][run_num]["generations"][gen_ref] = {
-            "timestamp": config.get("timestamp"),
-            "retrieval_reference": config.get("retrieval_reference"),
-            "system_prompt_version": config.get("prompts", {}).get("system_prompt_version"),
-            "description": config.get("description", ""),
-            "total_queries": config.get("total_queries"),
-            "successful_queries": config.get("successful_queries"),
+            "timestamp": config.timestamp,
+            "retrieval_reference": config.retrieval_reference,
+            "system_prompt_version": config.prompts.system_prompt_version,
+            "description": config.description,
+            "total_queries": config.query_stats.total,
+            "successful_queries": config.query_stats.successful,
         }
 
         self._save_registry(registry)
