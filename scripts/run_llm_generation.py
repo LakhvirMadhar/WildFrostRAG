@@ -25,13 +25,13 @@ from typing import Any
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from models.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
-from prompts import get_prompt
-from prompts.prompt_utils import VersionedPrompt
-from utils.logger import logger
-from utils.config import get_settings
-from rag.augmented_generation.openai_client import generate_zero_shot, generate_rag
-from utils.experiment_utils import (
+from wildfrost_rag.models.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
+from wildfrost_rag.prompts import get_prompt
+from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
+from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.rag.augmented_generation.openai_client import generate_zero_shot, generate_rag
+from wildfrost_rag.utils.experiment_utils import (
     get_next_experiment_id,
     create_generation_config,
     save_config,
@@ -41,7 +41,7 @@ from utils.experiment_utils import (
     validate_retrieval_reference,
     list_available_retrievals,
 )
-from experiment_tracker import ExperimentRegistry
+from wildfrost_rag.experiment_tracker import ExperimentRegistry
 
 
 def parse_args() -> argparse.Namespace:

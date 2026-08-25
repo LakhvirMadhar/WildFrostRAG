@@ -18,8 +18,8 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from scripts.evaluate_retrievers import run as run_retrieval
-from utils.config import get_settings
-from utils.logger import logger
+from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.utils.logger import logger
 
 
 async def main() -> None:  # noqa: C901

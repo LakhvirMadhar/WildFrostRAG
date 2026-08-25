@@ -36,11 +36,11 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from experiment_tracker import ExperimentRegistry
-from models.experiment import GenerationRecord, RetrievalRecord
+from wildfrost_rag.experiment_tracker import ExperimentRegistry
+from wildfrost_rag.models.experiment import GenerationRecord, RetrievalRecord
 from scripts.evaluate_retrievers import run as run_retrieval
 from scripts.run_llm_generation import run as run_generation
-from utils.logger import logger
+from wildfrost_rag.utils.logger import logger
 
 
 def cmd_retrieval(args: argparse.Namespace) -> None:

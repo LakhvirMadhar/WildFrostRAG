@@ -47,18 +47,7 @@ convention = "google"
 [tool.poetry]
 package-mode = true
 packages = [
-    {include = "core", from = "src"},
-    {include = "utils", from = "src"},
-    {include = "models", from = "src"},
-    {include = "prompts", from = "src"},
-    {include = "data_processing", from = "src"},
-    {include = "neo4j_kg", from = "src"},
-    {include = "scraping", from = "src"},
-    {include = "web_scraper", from = "src"},
-    {include = "rag", from = "src"},
-    {include = "experiment_tracker", from = "src"},
-    {include = "embeddings", from = "src"},
-    {include = "gui", from = "src"},
+    {include = "wildfrost_rag", from = "src"},
 ]
 
 [tool.poetry.group.dev.dependencies]
@@ -66,6 +55,7 @@ mypy = "1.20.0"
 pytest = "^9.0.2"
 pre-commit = "^4.0.0"
 graphviz = "^0.21"
+import-linter = "^2.13"
 
 [virtualenvs]
 in-project = true
@@ -86,6 +76,14 @@ show_error_codes = true
 pretty = true
 explicit_package_bases = true
 mypy_path = "src"
+
+[tool.importlinter]
+root_package = "wildfrost_rag"
+
+[[tool.importlinter.contracts]]
+name = "No import cycles within wildfrost_rag's packages/submodules"
+type = "acyclic_siblings"
+ancestors = ["wildfrost_rag"]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

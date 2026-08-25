@@ -1,0 +1,170 @@
+from typing import Any
+
+import neo4j
+
+from wildfrost_rag.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
+from wildfrost_rag.neo4j_kg.query_utils import single_value
+from wildfrost_rag.utils.logger import logger
+
+
+def create_map_graph(
+    tx: neo4j.ManagedTransaction,
+    zones: list[ZoneInfo],
+    map_events: list[MapEventInfo],
+    fight_slots: list[FightSlotInfo],
+    fight_page_mapping: dict[str, str] | None = None,
+    url: str | None = None,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    """Create the full map graph: Map node, Zones, MapEvents, Fights, and all relationships.
+
+    Graph structure:
+        (Map)-[:HAS_ZONE]->(Zone)-[:HAS_FIGHT {fight_number}]->(Fight)
+        (Map)-[:HAS_MAP_EVENT]->(MapEvent)
+
+    Args:
+        tx: Neo4j managed transaction
+        zones: List of ZoneInfo objects
+        map_events: List of MapEventInfo objects
+        fight_slots: List of FightSlotInfo objects
+        fight_page_mapping: Display name -> wiki page slug (e.g., {"Infernoko": "Infernoko_Fight"})
+        url: Wiki page URL for Map/Zone/MapEvent nodes (shared /Map page)
+        base_url: Wiki base URL for constructing per-fight URLs
+    """
+    # Create Map node
+    tx.run("MERGE (m:Map {name: 'Map'}) SET m.url = $url", url=url)
+
+    # Create Zone nodes + Map->Zone
+    zone_count = _create_zones(tx, zones, url=url)
+
+    # Create MapEvent nodes + Map->MapEvent
+    event_count = _create_map_events(tx, map_events, url=url)
+
+    # Create Fight nodes + Zone->Fight
+    fight_count = _create_fights_from_slots(
+        tx, fight_slots, fight_page_mapping or {}, base_url=base_url
+    )
+
+    logger.info(
+        f"Map graph: 1 Map, {zone_count} Zones, {event_count} MapEvents, {fight_count} Fights"
+    )
+    return {"zones": zone_count, "map_events": event_count, "fights": fight_count}
+
+
+def _create_zones(
+    tx: neo4j.ManagedTransaction, zones: list[ZoneInfo], url: str | None = None
+) -> int:
+    """Create Zone nodes and Map->Zone relationships."""
+    zone_data = [
+        {
+            "name": zone.name,
+            "zone_order": zone.zone_order,
+            "description": zone.description,
+        }
+        for zone in zones
+    ]
+
+    query = """
+    UNWIND $zones AS zone
+    MERGE (z:Zone {name: zone.name})
+    SET z.zone_order = zone.zone_order,
+        z.description = zone.description,
+        z.url = $url
+    WITH z
+    MATCH (m:Map {name: 'Map'})
+    MERGE (m)-[:HAS_ZONE]->(z)
+    RETURN count(z) AS created
+    """
+    result = tx.run(query, zones=zone_data, url=url)
+    return single_value(result, "created")
+
+
+def _create_map_events(
+    tx: neo4j.ManagedTransaction, map_events: list[MapEventInfo], url: str | None = None
+) -> int:
+    """Create MapEvent nodes and Map->MapEvent relationships."""
+    event_data = [
+        {
+            "name": event.name,
+            "description": event.description,
+            "notes": event.notes,
+        }
+        for event in map_events
+    ]
+
+    query = """
+    UNWIND $events AS event
+    MERGE (e:MapEvent {name: event.name})
+    SET e.description = event.description,
+        e.notes = event.notes,
+        e.url = $url
+    WITH e
+    MATCH (m:Map {name: 'Map'})
+    MERGE (m)-[:HAS_MAP_EVENT]->(e)
+    RETURN count(e) AS created
+    """
+    result = tx.run(query, events=event_data, url=url)
+    return single_value(result, "created")
+
+
+def _create_fights_from_slots(
+    tx: neo4j.ManagedTransaction,
+    fight_slots: list[FightSlotInfo],
+    fight_page_mapping: dict[str, str],
+    base_url: str | None = None,
+) -> int:
+    """Create Fight nodes and link them to Zones via HAS_FIGHT.
+
+    The fight_number goes on the relationship so we know which fights
+    are alternatives at the same position in the run.
+
+    Args:
+        tx: Neo4j managed transaction
+        fight_slots: List of FightSlotInfo objects
+        fight_page_mapping: Display name -> wiki page slug for document linking
+        base_url: Wiki base URL for constructing per-fight URLs
+    """
+    fight_data = []
+    for slot in fight_slots:
+        for fight_name in slot.possible_fights:
+            page_name = fight_page_mapping.get(fight_name, fight_name.replace(" ", "_"))
+            fight_url = f"{base_url}/{page_name}" if base_url else None
+            fight_data.append(
+                {
+                    "name": fight_name,
+                    "page_name": page_name,
+                    "url": fight_url,
+                }
+            )
+
+    fight_query = """
+    UNWIND $fights AS fight
+    MERGE (f:Fight {name: fight.name})
+    SET f.page_name = fight.page_name,
+        f.url = fight.url
+    RETURN count(f) AS created
+    """
+    result = tx.run(fight_query, fights=fight_data)
+    fights_created = single_value(result, "created")
+
+    zone_fight_pairs = []
+    for slot in fight_slots:
+        for fight_name in slot.possible_fights:
+            zone_fight_pairs.append(
+                {
+                    "zone_name": slot.zone,
+                    "fight_name": fight_name,
+                    "fight_number": slot.fight_number,
+                }
+            )
+
+    rel_query = """
+    UNWIND $pairs AS pair
+    MATCH (z:Zone {name: pair.zone_name})
+    MATCH (f:Fight {name: pair.fight_name})
+    MERGE (z)-[:HAS_FIGHT {fight_number: pair.fight_number}]->(f)
+    RETURN count(*) AS created
+    """
+    result = tx.run(rel_query, pairs=zone_fight_pairs)
+
+    return fights_created

@@ -24,7 +24,7 @@ from pathlib import Path
 
 import graphviz
 
-SRC_DIR = Path(__file__).parent.parent / "src"
+SRC_DIR = Path(__file__).parent.parent / "src" / "wildfrost_rag"
 
 
 def _top_level_packages(src_dir: Path) -> set[str]:
@@ -76,8 +76,16 @@ def _extract_imports(file_path: Path, src_dir: Path) -> set[str]:
 
 
 def build_package_graph(src_dir: Path) -> dict[str, set[str]]:
-    """Build a package -> {packages it imports} graph, first-party only."""
+    """Build a package -> {packages it imports} graph, first-party only.
+
+    Absolute imports are written relative to src_dir's own parent package
+    (e.g. `from wildfrost_rag.rag...` when src_dir is .../src/wildfrost_rag),
+    so strip that root name before resolving the target package. Relative
+    imports (`from .foo import`) are already resolved relative to src_dir by
+    _resolve_relative_import and never carry that prefix.
+    """
     known_packages = _top_level_packages(src_dir)
+    root_name = src_dir.name
     graph: dict[str, set[str]] = {pkg: set() for pkg in known_packages}
 
     for file_path in src_dir.rglob("*.py"):
@@ -86,7 +94,8 @@ def build_package_graph(src_dir: Path) -> dict[str, set[str]]:
             continue
 
         for module in _extract_imports(file_path, src_dir):
-            target_package = module.split(".")[0]
+            unprefixed = module.removeprefix(f"{root_name}.")
+            target_package = unprefixed.split(".")[0]
             if target_package in known_packages and target_package != source_package:
                 graph[source_package].add(target_package)
 

@@ -18,13 +18,13 @@ from typing import Any
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from rag.evaluation.retrieval_metrics import (
+from wildfrost_rag.rag.evaluation.retrieval_metrics import (
     hit_at_k,
     mrr,
     calculate_precision_at_k,
     calculate_recall_at_k,
 )
-from utils.logger import logger
+from wildfrost_rag.utils.logger import logger
 
 
 DEFAULT_K_VALUES = [1, 3, 5, 10]

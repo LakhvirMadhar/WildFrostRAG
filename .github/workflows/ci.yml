@@ -17,6 +17,7 @@ jobs:
       - run: poetry run ruff check .
       - run: poetry run ruff format --check .
       - run: poetry run mypy src/
+      - run: PYTHONPATH=src poetry run lint-imports
 
   test:
     runs-on: ubuntu-latest

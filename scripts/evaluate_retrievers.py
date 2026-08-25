@@ -32,9 +32,9 @@ from neo4j import GraphDatabase, Driver
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from prompts import get_prompt
-from prompts.prompt_utils import VersionedPrompt
-from rag.retrievers import (
+from wildfrost_rag.prompts import get_prompt
+from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
+from wildfrost_rag.rag.retrievers import (
     Neo4jVectorSearch,
     Neo4jFullTextSearch,
     BM25Retriever,
@@ -46,22 +46,22 @@ from rag.retrievers import (
     VectorThenCypherRetriever,
     FulltextThenCypherRetriever,
 )
-from rag.retrievers.hybrid_retrievers import HybridRetriever
-from core.exceptions import CypherExecutionError
-from embeddings.query_embedders import get_query_embed_fn
-from models.experiment_config import RetrievalConfig
-from models.retrieval import QueryResult, CypherExecution
-from utils.logger import logger
-from utils.config import get_settings
-from utils.experiment_utils import (
+from wildfrost_rag.rag.retrievers.hybrid_retrievers import HybridRetriever
+from wildfrost_rag.core.exceptions import CypherExecutionError
+from wildfrost_rag.embeddings.query_embedders import get_query_embed_fn
+from wildfrost_rag.models.experiment_config import RetrievalConfig
+from wildfrost_rag.models.retrieval import QueryResult, CypherExecution
+from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.utils.experiment_utils import (
     get_next_experiment_id,
     create_retrieval_config,
     save_config,
     save_results,
     save_individual_results,
 )
-from experiment_tracker import ExperimentRegistry
-from gui.auto_annotator import run_auto_annotation
+from wildfrost_rag.experiment_tracker import ExperimentRegistry
+from wildfrost_rag.gui.auto_annotator import run_auto_annotation
 
 # Retriever types that support stop word removal
 SW_QUERY_RETRIEVERS = {

@@ -24,10 +24,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 from neo4j import GraphDatabase, Driver
 from sentence_transformers import SentenceTransformer
 import ollama
-from rag.augmented_generation.openai_client import call_openai_embeddings
-from utils.config import get_settings
-from utils.logger import logger
-from neo4j_kg.vector_store import create_embedding_index
+from wildfrost_rag.rag.augmented_generation.openai_client import call_openai_embeddings
+from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.neo4j_kg.vector_store import create_embedding_index
 
 
 @dataclass
