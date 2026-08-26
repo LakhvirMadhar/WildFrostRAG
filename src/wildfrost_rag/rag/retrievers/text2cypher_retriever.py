@@ -13,7 +13,7 @@ from wildfrost_rag.models.retrieval import RetrievedChunk, to_retrieved_chunks
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
 from wildfrost_rag.prompts.prompt_utils import format_prompt_tuple, VersionedPrompt
-from wildfrost_rag.rag.augmented_generation.openai_client import call_openai_api
+from wildfrost_rag.clients.openai_client import call_openai_api
 from wildfrost_rag.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
 
 

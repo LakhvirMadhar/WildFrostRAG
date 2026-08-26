@@ -1,16 +1,18 @@
-"""Centralized async OpenAI client for WildFrostRAG.
+"""Low-level async OpenAI API client (ACL) for WildFrostRAG.
 
-This module provides:
-- Low-level API calls (call_openai_api, call_openai_api_structured, call_openai_embeddings)
-- High-level generation functions (generate_zero_shot, generate_rag)
-
-All functions are async with built-in rate limiting via semaphore.
+This module wraps the OpenAI SDK with rate limiting (via a shared semaphore)
+and translation of OpenAI SDK errors into this project's typed domain
+exceptions. It carries no business logic — callers (services) decide what to
+do with the raw completions, structured responses, and embeddings returned
+here.
 """
 
 import asyncio
-from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
+
+from openai import APIError, AsyncOpenAI, AuthenticationError, RateLimitError
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
+
 from wildfrost_rag.core.exceptions import (
     EmbeddingError,
     LLMAuthenticationError,
@@ -20,8 +22,6 @@ from wildfrost_rag.core.exceptions import (
 )
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
-from wildfrost_rag.prompts.prompt_utils import VersionedPrompt, format_prompt_tuple
-
 
 # =============================================================================
 # Lazy-initialized client and semaphore
@@ -173,52 +173,3 @@ async def call_openai_embeddings(
         except APIError as e:
             logger.error(f"OpenAI API error in call_openai_embeddings: {e}")
             raise EmbeddingError(provider="openai", reason=str(e)) from e
-
-
-# =============================================================================
-# High-level generation functions
-# =============================================================================
-
-
-async def generate_zero_shot(query: str, system_prompt: VersionedPrompt) -> str:
-    """Generate a zero-shot response (no context).
-
-    Args:
-        query: The user query
-        system_prompt: VersionedPrompt containing the system prompt
-
-    Returns:
-        The generated response text
-    """
-    return await call_openai_api(
-        messages=[
-            {"role": "system", "content": system_prompt.prompt_tuple[0]},
-            {"role": "user", "content": query},
-        ]
-    )
-
-
-async def generate_rag(
-    query: str,
-    context: str,
-    system_prompt: VersionedPrompt,
-    rag_prompt: VersionedPrompt,
-) -> str:
-    """Generate a RAG response using provided context.
-
-    Args:
-        query: The user query
-        context: The retrieved context (concatenated chunks)
-        system_prompt: VersionedPrompt containing the system prompt
-        rag_prompt: VersionedPrompt for formatting the user message with context
-
-    Returns:
-        The generated response text
-    """
-    user_message = format_prompt_tuple(rag_prompt.prompt_tuple, query=query, context=context)
-    return await call_openai_api(
-        messages=[
-            {"role": "system", "content": system_prompt.prompt_tuple[0]},
-            {"role": "user", "content": user_message},
-        ]
-    )

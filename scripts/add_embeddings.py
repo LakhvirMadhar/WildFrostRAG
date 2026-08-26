@@ -24,7 +24,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from neo4j import Driver
 from sentence_transformers import SentenceTransformer
 import ollama
-from wildfrost_rag.rag.augmented_generation.openai_client import call_openai_embeddings
+from wildfrost_rag.clients.openai_client import call_openai_embeddings
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
 from wildfrost_rag.neo4j_kg.driver import neo4j_driver
