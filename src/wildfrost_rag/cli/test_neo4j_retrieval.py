@@ -8,23 +8,19 @@ This script tests different retrieval strategies:
 4. Shows metadata and scores for each chunk
 
 Usage:
-    python -m scripts.test_neo4j_retrieval --retriever vector "What is the Azul Candle?"    # Vector search with default k=5
-    python -m scripts.test_neo4j_retrieval --retriever fulltext "Your query here" --k 10   # Full-text search with custom k
-    python -m scripts.test_neo4j_retrieval --retriever bm25 "Your query here"              # BM25 search
-    python -m scripts.test_neo4j_retrieval --retriever bm25_vector "Your query here"       # BM25+Vector hybrid search
-    python -m scripts.test_neo4j_retrieval --retriever fulltext_vector "Your query here"   # Fulltext+Vector hybrid search
-    python -m scripts.test_neo4j_retrieval --retriever bm25_fulltext_vector "Your query here" # BM25+Fulltext+Vector hybrid search
-    python -m scripts.test_neo4j_retrieval --retriever text2cypher "Your query here"       # Text2Cypher search
+    python -m wildfrost_rag.cli.test_neo4j_retrieval --retriever vector "What is the Azul Candle?"    # Vector search with default k=5
+    python -m wildfrost_rag.cli.test_neo4j_retrieval --retriever fulltext "Your query here" --k 10   # Full-text search with custom k
+    python -m wildfrost_rag.cli.test_neo4j_retrieval --retriever bm25 "Your query here"              # BM25 search
+    python -m wildfrost_rag.cli.test_neo4j_retrieval --retriever bm25_vector "Your query here"       # BM25+Vector hybrid search
+    python -m wildfrost_rag.cli.test_neo4j_retrieval --retriever fulltext_vector "Your query here"   # Fulltext+Vector hybrid search
+    python -m wildfrost_rag.cli.test_neo4j_retrieval --retriever bm25_fulltext_vector "Your query here" # BM25+Fulltext+Vector hybrid search
+    python -m wildfrost_rag.cli.test_neo4j_retrieval --retriever text2cypher "Your query here"       # Text2Cypher search
 """
 
-import sys
-from pathlib import Path
 import argparse
 from typing import Any
 from neo4j import Driver
 
-# Add project root to sys.path
-sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.services.retrieval import (
     Neo4jVectorSearch,

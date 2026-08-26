@@ -9,38 +9,35 @@ This provides convenient shortcuts and automation for running experiments:
 
 Usage:
     # Run retrieval
-    python -m scripts.experiment retrieval --retriever bm25 --description "Baseline BM25"
+    python -m wildfrost_rag.cli.experiment retrieval --retriever bm25 --description "Baseline BM25"
 
     # Run generation with shortcuts
-    python -m scripts.experiment generation --retrieval latest/bm25 --prompt SYSTEM_PROMPT_V1
+    python -m wildfrost_rag.cli.experiment generation --retrieval latest/bm25 --prompt SYSTEM_PROMPT_V1
 
     # List experiments
-    python -m scripts.experiment list
-    python -m scripts.experiment list --type retrieval
-    python -m scripts.experiment list --run 1
+    python -m wildfrost_rag.cli.experiment list
+    python -m wildfrost_rag.cli.experiment list --type retrieval
+    python -m wildfrost_rag.cli.experiment list --run 1
 
     # Search experiments
-    python -m scripts.experiment search --retriever-type bm25
-    python -m scripts.experiment search --chunking no
+    python -m wildfrost_rag.cli.experiment search --retriever-type bm25
+    python -m wildfrost_rag.cli.experiment search --chunking no
 
     # Manage runs
-    python -m scripts.experiment new-run  # Increment to next run number
-    python -m scripts.experiment current  # Show current run number
+    python -m wildfrost_rag.cli.experiment new-run  # Increment to next run number
+    python -m wildfrost_rag.cli.experiment current  # Show current run number
 """
 
 import argparse
 import asyncio
 import sys
-from pathlib import Path
 
-# Add project root to sys.path
-sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.experiment_tracker import ExperimentRegistry
 from wildfrost_rag.models.experiment import GenerationRecord, RetrievalRecord
 from wildfrost_rag.services.retrieval import RetrieverType
-from scripts.evaluate_retrievers import run as run_retrieval
-from scripts.run_llm_generation import run as run_generation
+from wildfrost_rag.cli.evaluate_retrievers import run as run_retrieval
+from wildfrost_rag.cli.run_llm_generation import run as run_generation
 from wildfrost_rag.core.logger import logger
 
 

@@ -3,10 +3,10 @@
 
 Usage:
     # List all available experiments
-    python -m scripts.compare_retrievers --list
+    python -m wildfrost_rag.cli.compare_retrievers --list
 
     # Generate full sectioned report
-    python -m scripts.compare_retrievers --run-num 1 \
+    python -m wildfrost_rag.cli.compare_retrievers --run-num 1 \
         --sections \
             "BM25 Ablation:bm25/003,bm25/002" \
             "Fulltext Ablation:fulltext/002,fulltext/006" \
@@ -15,7 +15,7 @@ Usage:
         --include-all
 
     # Custom output path
-    python -m scripts.compare_retrievers --run-num 1 --sections "..." --output outputs/run_1/my_report.md
+    python -m wildfrost_rag.cli.compare_retrievers --run-num 1 --sections "..." --output outputs/run_1/my_report.md
 """
 
 import argparse
@@ -27,7 +27,6 @@ from typing import Any
 
 from nltk.corpus import stopwords as nltk_stopwords
 
-sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.core.config import get_settings
 

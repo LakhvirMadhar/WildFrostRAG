@@ -7,9 +7,9 @@ This script converts the queries CSV file into a structured JSON format that:
 - Can be updated by the annotation GUI when new relevant sources are found
 
 Usage:
-    python -m scripts.process_queries                           # Use default paths
-    python -m scripts.process_queries --input queries/my.csv    # Custom input
-    python -m scripts.process_queries --output queries/out.json # Custom output
+    python -m wildfrost_rag.cli.process_queries                           # Use default paths
+    python -m wildfrost_rag.cli.process_queries --input queries/my.csv    # Custom input
+    python -m wildfrost_rag.cli.process_queries --output queries/out.json # Custom output
 """
 
 import argparse

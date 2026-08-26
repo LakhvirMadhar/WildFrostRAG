@@ -5,19 +5,16 @@ This script orchestrates running multiple retrieval experiments from a YAML conf
 enabling "go get coffee" workflow for testing multiple retrievers and embedders.
 
 Usage:
-    poetry run python -m scripts.run_batch_retrievals --config experiments_config.yaml
+    poetry run python -m wildfrost_rag.cli.run_batch_retrievals --config experiments_config.yaml
 """
 
 import asyncio
 import argparse
 import yaml
-import sys
 from pathlib import Path
 
-# Add project root to sys.path
-sys.path.append(str(Path(__file__).parent.parent))
 
-from scripts.evaluate_retrievers import run as run_retrieval
+from wildfrost_rag.cli.evaluate_retrievers import run as run_retrieval
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
 
@@ -111,7 +108,9 @@ async def main() -> None:  # noqa: C901
     print("\nNext steps:")
     print("  1. Open annotation_gui.ipynb")
     print("  2. Evaluate retrieval results")
-    print(f"  3. Run: poetry run python -m scripts.calculate_retrieval_metrics --run-num {run_num}")
+    print(
+        f"  3. Run: poetry run python -m wildfrost_rag.cli.calculate_retrieval_metrics --run-num {run_num}"
+    )
 
 
 def experiment_exists(run_num: int, retriever_config: dict[str, str]) -> bool:

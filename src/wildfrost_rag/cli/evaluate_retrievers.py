@@ -8,9 +8,9 @@ This script runs different retrieval strategies and saves raw results for manual
 4. Results can be manually evaluated later using a GUI
 
 Usage:
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever vector --chunking yes
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25 --chunking no
-    python -m scripts.evaluate_retrievers --run-num 1 --retriever text2cypher --chunking no
+    python -m wildfrost_rag.cli.evaluate_retrievers --run-num 1 --retriever vector --chunking yes
+    python -m wildfrost_rag.cli.evaluate_retrievers --run-num 1 --retriever bm25 --chunking no
+    python -m wildfrost_rag.cli.evaluate_retrievers --run-num 1 --retriever text2cypher --chunking no
 """
 
 import asyncio
@@ -29,8 +29,6 @@ from tqdm import tqdm
 import pandas as pd
 from neo4j import Driver
 
-# Add project root to sys.path
-sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.prompts import get_prompt
 from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
