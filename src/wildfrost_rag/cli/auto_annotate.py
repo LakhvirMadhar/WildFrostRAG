@@ -6,15 +6,14 @@ and saves relevance annotations. Useful for re-running auto-annotation
 after updating doc_references in the queries JSON.
 
 Usage:
-    python -m scripts.auto_annotate --experiment-path outputs/run_1/retrievals/bm25/001
-    python -m scripts.auto_annotate --experiment-path outputs/run_1/retrievals/bm25/001 --queries-json queries/custom.json
+    python -m wildfrost_rag.cli.auto_annotate --experiment-path outputs/run_1/retrievals/bm25/001
+    python -m wildfrost_rag.cli.auto_annotate --experiment-path outputs/run_1/retrievals/bm25/001 --queries-json queries/custom.json
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.gui.auto_annotator import run_auto_annotation
 from wildfrost_rag.core.logger import logger

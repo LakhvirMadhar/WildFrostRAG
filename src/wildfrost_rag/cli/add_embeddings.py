@@ -5,21 +5,18 @@ This script allows adding embeddings from multiple providers to the same
 Document nodes, enabling multi-embedder testing without data duplication.
 
 Usage:
-    poetry run python -m scripts.add_embeddings --embedder hf
-    poetry run python -m scripts.add_embeddings --embedder openai
+    poetry run python -m wildfrost_rag.cli.add_embeddings --embedder hf
+    poetry run python -m wildfrost_rag.cli.add_embeddings --embedder openai
 """
 
 import argparse
 import asyncio
 from dataclasses import dataclass
-from pathlib import Path
 import sys
 import time
 
 from tqdm import tqdm
 
-# Add project root to sys.path
-sys.path.append(str(Path(__file__).parent.parent))
 
 from neo4j import Driver
 from sentence_transformers import SentenceTransformer

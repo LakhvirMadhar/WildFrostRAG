@@ -9,10 +9,10 @@ This script orchestrates the LLM generation process:
 
 Usage:
     # Zero-shot mode (baseline - no retrieval)
-    python -m scripts.run_llm_generation --run-num 1 --zero-shot --system-prompt SYSTEM_PROMPT_V1
+    python -m wildfrost_rag.cli.run_llm_generation --run-num 1 --zero-shot --system-prompt SYSTEM_PROMPT_V1
 
     # RAG mode (with retrieval)
-    python -m scripts.run_llm_generation --run-num 1 --retrieval-reference bm25/001 \
+    python -m wildfrost_rag.cli.run_llm_generation --run-num 1 --retrieval-reference bm25/001 \
         --system-prompt SYSTEM_PROMPT_V1 --rag-prompt RAG_PROMPT_V1
 """
 
@@ -22,8 +22,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Add project root to sys.path
-sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.domain.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
 from wildfrost_rag.prompts import get_prompt

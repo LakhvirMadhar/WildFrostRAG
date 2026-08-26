@@ -6,7 +6,7 @@ from an experiment directory, joins on (query_id, chunk_index), and
 computes standard IR metrics (Hit@k, Precision@k, Recall@k, MRR).
 
 Usage:
-    python -m scripts.calculate_retrieval_metrics --experiment-path outputs/run_1/retrievals/bm25/001
+    python -m wildfrost_rag.cli.calculate_retrieval_metrics --experiment-path outputs/run_1/retrievals/bm25/001
 """
 
 import argparse
@@ -16,7 +16,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.services.evaluation.retrieval_metrics import (
     hit_at_k,

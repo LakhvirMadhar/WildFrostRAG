@@ -12,12 +12,12 @@ This script orchestrates the complete ETL pipeline:
 Note: Embeddings are added separately using scripts/add_embeddings.py
 
 Usage:
-    python -m scripts.ingest_data                    # Run full pipeline
-    python -m scripts.ingest_data --skip-scrape      # Skip web scraping
-    python -m scripts.ingest_data --skip-graph       # Skip graph creation
-    python -m scripts.ingest_data --skip-vectors     # Skip document ingestion
-    python -m scripts.ingest_data --no-chunking      # Ingest full documents (no splitting)
-    python -m scripts.ingest_data --clear-db         # Clear database before running
+    python -m wildfrost_rag.cli.ingest_data                    # Run full pipeline
+    python -m wildfrost_rag.cli.ingest_data --skip-scrape      # Skip web scraping
+    python -m wildfrost_rag.cli.ingest_data --skip-graph       # Skip graph creation
+    python -m wildfrost_rag.cli.ingest_data --skip-vectors     # Skip document ingestion
+    python -m wildfrost_rag.cli.ingest_data --no-chunking      # Ingest full documents (no splitting)
+    python -m wildfrost_rag.cli.ingest_data --clear-db         # Clear database before running
 
 All orchestration and business logic lives in GraphBuilderService
 (wildfrost_rag.services.ingestion.graph_builder_service) - this script only parses
