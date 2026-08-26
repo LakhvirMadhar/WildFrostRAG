@@ -4,7 +4,7 @@ import neo4j
 
 from wildfrost_rag.data_processing.tribes import TribeExclusivity
 from wildfrost_rag.repositories.query_utils import single_value
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 def create_tribes(tx: neo4j.ManagedTransaction) -> int:

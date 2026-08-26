@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from wildfrost_rag.gui.experiment_adapters import get_adapter
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 def _load_ground_truth(queries_json_path: Path) -> dict[int, list[str]]:

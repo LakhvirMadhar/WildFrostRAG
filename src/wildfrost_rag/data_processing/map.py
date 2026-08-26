@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from bs4 import BeautifulSoup, Tag
 from bs4.element import ResultSet
 
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 # Maps wiki section heading names to canonical zone names

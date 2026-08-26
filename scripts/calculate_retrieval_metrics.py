@@ -24,7 +24,7 @@ from wildfrost_rag.services.evaluation.retrieval_metrics import (
     calculate_precision_at_k,
     calculate_recall_at_k,
 )
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 DEFAULT_K_VALUES = [1, 3, 5, 10]

@@ -17,8 +17,8 @@ from wildfrost_rag.models.experiment_config import (
     RetrievalConfig,
     Text2CypherConfig,
 )
-from wildfrost_rag.utils.config import get_settings
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 
 
 def get_next_experiment_id(base_path: Path) -> str:

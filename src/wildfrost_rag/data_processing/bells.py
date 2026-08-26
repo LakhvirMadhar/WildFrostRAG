@@ -11,7 +11,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup, Comment, Tag
 
 from wildfrost_rag.data_processing.text_utils import clean_element_text
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 _clean_text = clean_element_text
 

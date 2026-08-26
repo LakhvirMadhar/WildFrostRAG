@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
 
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 @dataclass

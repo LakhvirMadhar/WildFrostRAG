@@ -10,8 +10,8 @@ from neo4j import Driver, ManagedTransaction, Record, Session
 
 from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.domain.retrieval import RetrievedChunk, to_retrieved_chunks
-from wildfrost_rag.utils.config import get_settings
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.prompts.prompt_utils import format_prompt_tuple, VersionedPrompt
 from wildfrost_rag.clients.openai_client import call_openai_api
 from wildfrost_rag.services.retrieval.base_neo4j_retriever import BaseNeo4jRetriever

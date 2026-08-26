@@ -15,7 +15,7 @@ import pytest
 from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.services.retrieval.neo4j_fulltext_search import Neo4jFullTextSearch
 from wildfrost_rag.services.retrieval.neo4j_vector_search import Neo4jVectorSearch
-from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.core.config import get_settings
 
 
 class FakeDocumentRepository(DocumentRepository):

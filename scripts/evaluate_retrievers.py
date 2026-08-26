@@ -53,10 +53,10 @@ from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.clients.query_embedders import get_query_embed_fn
 from wildfrost_rag.models.experiment_config import RetrievalConfig
 from wildfrost_rag.domain.retrieval import QueryResult, CypherExecution
-from wildfrost_rag.utils.logger import logger
-from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.core.logger import logger
+from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.clients.neo4j_driver import neo4j_driver
-from wildfrost_rag.utils.experiment_utils import (
+from wildfrost_rag.experiment_tracker.experiment_utils import (
     get_next_experiment_id,
     create_retrieval_config,
     save_config,

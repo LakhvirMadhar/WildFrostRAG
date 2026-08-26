@@ -17,7 +17,7 @@ from IPython.display import display
 
 from wildfrost_rag.gui.experiment_adapters import ExperimentDataAdapter, QueryResult, get_adapter
 from wildfrost_rag.gui.chunk_widgets import create_chunk_widget, create_chunks_summary
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 # Import query processing functions
 from wildfrost_rag.services.evaluation.query_data import load_queries_json, add_doc_reference

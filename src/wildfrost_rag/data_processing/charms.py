@@ -11,7 +11,7 @@ from typing import Any
 
 from bs4 import BeautifulSoup, Comment, Tag
 
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 @dataclass

@@ -4,7 +4,7 @@ import neo4j
 
 from wildfrost_rag.data_processing.map import ZoneInfo, MapEventInfo, FightSlotInfo
 from wildfrost_rag.repositories.query_utils import single_value
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 def create_map_graph(

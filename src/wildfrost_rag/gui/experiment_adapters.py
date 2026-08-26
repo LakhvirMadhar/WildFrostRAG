@@ -23,8 +23,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from wildfrost_rag.utils.logger import logger
-from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.core.logger import logger
+from wildfrost_rag.core.config import get_settings
 
 
 @dataclass

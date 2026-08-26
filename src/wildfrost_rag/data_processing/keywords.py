@@ -9,7 +9,7 @@ from enum import Enum
 
 from bs4 import BeautifulSoup, Tag
 
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 class KeywordCategory(Enum):

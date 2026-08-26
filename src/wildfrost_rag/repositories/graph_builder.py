@@ -12,7 +12,7 @@ from wildfrost_rag.repositories.cards import (
 from wildfrost_rag.repositories.tribes import create_tribes, create_card_tribe_relationships
 from wildfrost_rag.repositories.stats import create_card_stat_relationships
 from wildfrost_rag.repositories.crowns import create_crowns, create_crown_relationships
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 def clear_database(tx: neo4j.ManagedTransaction) -> None:

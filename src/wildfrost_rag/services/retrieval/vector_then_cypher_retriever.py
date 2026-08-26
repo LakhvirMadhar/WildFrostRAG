@@ -14,7 +14,7 @@ from neo4j import Driver
 
 from wildfrost_rag.domain.retrieval import RetrievedChunk, to_retrieved_chunks
 from wildfrost_rag.repositories.card_repository import CardRepository
-from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.services.retrieval.base_neo4j_retriever import BaseNeo4jRetriever
 
 

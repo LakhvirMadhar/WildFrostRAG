@@ -21,8 +21,8 @@ from wildfrost_rag.services.retrieval.neo4j_vector_search import Neo4jVectorSear
 from wildfrost_rag.services.retrieval.bm25_retriever import BM25Retriever
 from wildfrost_rag.services.retrieval.neo4j_fulltext_search import Neo4jFullTextSearch
 from wildfrost_rag.services.retrieval.text2cypher_retriever import Text2CypherRetriever
-from wildfrost_rag.utils.config import get_settings
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
 
 

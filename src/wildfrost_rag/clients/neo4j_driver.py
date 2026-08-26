@@ -11,7 +11,7 @@ from contextlib import contextmanager
 
 from neo4j import Driver, GraphDatabase
 
-from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.core.config import get_settings
 
 
 @contextmanager

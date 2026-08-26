@@ -1,8 +1,8 @@
 import re
 
 from wildfrost_rag.clients.sitemap_scraper import scrape_multiple_links
-from wildfrost_rag.utils.config import get_settings
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 
 
 def clean_name_for_url(name: str) -> str:

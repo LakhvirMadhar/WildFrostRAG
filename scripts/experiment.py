@@ -41,7 +41,7 @@ from wildfrost_rag.models.experiment import GenerationRecord, RetrievalRecord
 from wildfrost_rag.services.retrieval import RetrieverType
 from scripts.evaluate_retrievers import run as run_retrieval
 from scripts.run_llm_generation import run as run_generation
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 def cmd_retrieval(args: argparse.Namespace) -> None:

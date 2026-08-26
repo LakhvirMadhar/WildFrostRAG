@@ -7,7 +7,7 @@ embeddings from text chunks for use in vector similarity search.
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from langchain_core.documents import Document
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 class EmbeddingGenerator:

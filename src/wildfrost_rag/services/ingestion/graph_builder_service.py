@@ -90,8 +90,8 @@ from wildfrost_rag.clients.domain_scrapers import (
     scrape_stats,
 )
 from wildfrost_rag.clients.wiki_scraper import clean_name_for_url
-from wildfrost_rag.utils.config import get_settings
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.clients.sitemap_scraper import scrape_multiple_links
 
 
