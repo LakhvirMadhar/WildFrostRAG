@@ -24,6 +24,7 @@ import argparse
 import asyncio
 import os
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 from tqdm import tqdm
@@ -562,6 +563,22 @@ def stage_3_populate_graph(data: PipelineData) -> None:
     logger.info("Graph population complete")
 
 
+# (label, linker) pairs for Stage 4's Document-to-node linking step. Each linker takes the
+# active session and returns the number of relationships it created.
+LINKERS: list[tuple[str, Callable[[Session], int]]] = [
+    ("cards", link_documents_to_cards),
+    ("crowns", link_documents_to_crowns),
+    ("stats", link_documents_to_stats),
+    ("charms", link_documents_to_charms),
+    ("shades", link_documents_to_shades),
+    ("map nodes", link_documents_to_map),
+    ("fight nodes", link_documents_to_fights),
+    ("shop nodes", link_documents_to_shops),
+    ("bling", link_documents_to_bling),
+    ("bells", link_documents_to_bells),
+]
+
+
 def stage_4_document_ingestion(pipeline_data: PipelineData, split_text: bool = True) -> None:
     """Stage 4: Document Ingestion.
 
@@ -621,55 +638,11 @@ def stage_4_document_ingestion(pipeline_data: PipelineData, split_text: bool = T
         # Wait for index to populate
         wait_for_index_population(seconds=5)
 
-        # Link Document nodes to Card nodes in the knowledge graph
-        logger.info("Linking documents to cards in knowledge graph...")
-        link_count = link_documents_to_cards(session)
-        logger.info(f"Linked {link_count} documents to cards")
-
-        # Link Document nodes to Crown nodes
-        logger.info("Linking documents to crowns in knowledge graph...")
-        crown_link_count = link_documents_to_crowns(session)
-        logger.info(f"Linked {crown_link_count} documents to crowns")
-
-        # Link Document nodes to Stat nodes
-        logger.info("Linking documents to stats in knowledge graph...")
-        stat_link_count = link_documents_to_stats(session)
-        logger.info(f"Linked {stat_link_count} documents to stats")
-
-        # Link Document nodes to Charm nodes
-        logger.info("Linking documents to charms in knowledge graph...")
-        charm_link_count = link_documents_to_charms(session)
-        logger.info(f"Linked {charm_link_count} documents to charms")
-
-        # Link shade Card nodes to Shades.html overview Document
-        logger.info("Linking shade cards to Shades overview document...")
-        shade_link_count = link_documents_to_shades(session)
-        logger.info(f"Linked {shade_link_count} shade cards to Shades overview document")
-
-        # Link Document nodes to Map nodes (Map, Zone, MapEvent)
-        logger.info("Linking documents to map nodes in knowledge graph...")
-        map_link_count = link_documents_to_map(session)
-        logger.info(f"Linked {map_link_count} documents to map nodes")
-
-        # Link Fight nodes to their individual fight page Documents
-        logger.info("Linking fight nodes to fight page documents...")
-        fight_link_count = link_documents_to_fights(session)
-        logger.info(f"Linked {fight_link_count} fight nodes to their documents")
-
-        # Link Shop nodes to their wiki page Documents
-        logger.info("Linking shop nodes to documents...")
-        shop_link_count = link_documents_to_shops(session)
-        logger.info(f"Linked {shop_link_count} shop nodes to their documents")
-
-        # Link Bling node to its wiki page Document
-        logger.info("Linking bling node to document...")
-        bling_link_count = link_documents_to_bling(session)
-        logger.info(f"Linked {bling_link_count} bling node to its document")
-
-        # Link Bell nodes to their wiki page Document
-        logger.info("Linking bell nodes to document...")
-        bell_link_count = link_documents_to_bells(session)
-        logger.info(f"Linked {bell_link_count} bell nodes to their document")
+        # Link Document nodes to their corresponding domain nodes in the knowledge graph.
+        for label, linker in LINKERS:
+            logger.info(f"Linking documents to {label} in knowledge graph...")
+            link_count = linker(session)
+            logger.info(f"Linked {link_count} documents to {label}")
 
     logger.info("Document ingestion complete")
 
