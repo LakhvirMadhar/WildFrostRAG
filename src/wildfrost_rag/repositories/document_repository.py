@@ -10,7 +10,7 @@ from typing import Any
 
 from neo4j import Driver
 
-from wildfrost_rag.neo4j_kg.record_utils import record_to_dict
+from wildfrost_rag.repositories.record_utils import record_to_dict
 
 
 class DocumentRepository:

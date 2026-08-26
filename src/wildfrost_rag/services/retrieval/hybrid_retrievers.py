@@ -15,12 +15,12 @@ from collections.abc import Callable
 from neo4j import Driver
 from pydantic import BaseModel, Field
 from wildfrost_rag.core.exceptions import WildFrostRAGError
-from wildfrost_rag.models.retrieval import RetrievedChunk
-from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
-from wildfrost_rag.rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
-from wildfrost_rag.rag.retrievers.bm25_retriever import BM25Retriever
-from wildfrost_rag.rag.retrievers.neo4j_fulltext_search import Neo4jFullTextSearch
-from wildfrost_rag.rag.retrievers.text2cypher_retriever import Text2CypherRetriever
+from wildfrost_rag.domain.retrieval import RetrievedChunk
+from wildfrost_rag.repositories.document_repository import DocumentRepository
+from wildfrost_rag.services.retrieval.neo4j_vector_search import Neo4jVectorSearch
+from wildfrost_rag.services.retrieval.bm25_retriever import BM25Retriever
+from wildfrost_rag.services.retrieval.neo4j_fulltext_search import Neo4jFullTextSearch
+from wildfrost_rag.services.retrieval.text2cypher_retriever import Text2CypherRetriever
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
 from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
@@ -30,7 +30,7 @@ class RRFScore(BaseModel):
     """RRF bookkeeping for one document as it's fused across retrievers.
 
     Transient - built and consumed entirely within _apply_rrf(), never
-    serialized to disk (unlike models/retrieval.py's RetrievedChunk).
+    serialized to disk (unlike domain/retrieval.py's RetrievedChunk).
     """
 
     rrf_score: float

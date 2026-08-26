@@ -34,7 +34,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.prompts import get_prompt
 from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
-from wildfrost_rag.rag.retrievers import (
+from wildfrost_rag.services.retrieval import (
     Neo4jVectorSearch,
     Neo4jFullTextSearch,
     BM25Retriever,
@@ -45,15 +45,14 @@ from wildfrost_rag.rag.retrievers import (
     Text2CypherVectorHybridRetriever,
     VectorThenCypherRetriever,
     FulltextThenCypherRetriever,
-    RetrieverType,
 )
-from wildfrost_rag.rag.retrievers.hybrid_retrievers import HybridRetriever
+from wildfrost_rag.services.retrieval.hybrid_retrievers import HybridRetriever
 from wildfrost_rag.core.exceptions import CypherExecutionError
-from wildfrost_rag.neo4j_kg.card_repository import CardRepository
-from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
+from wildfrost_rag.repositories.card_repository import CardRepository
+from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.embeddings.query_embedders import get_query_embed_fn
 from wildfrost_rag.models.experiment_config import RetrievalConfig
-from wildfrost_rag.models.retrieval import QueryResult, CypherExecution
+from wildfrost_rag.domain.retrieval import QueryResult, CypherExecution
 from wildfrost_rag.utils.logger import logger
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.neo4j_kg.driver import neo4j_driver
@@ -69,28 +68,24 @@ from wildfrost_rag.gui.auto_annotator import run_auto_annotation
 
 # Retriever types that support stop word removal
 SW_QUERY_RETRIEVERS = {
-    RetrieverType.BM25,
-    RetrieverType.FULLTEXT,
-    RetrieverType.BM25_VECTOR,
-    RetrieverType.FULLTEXT_VECTOR,
-    RetrieverType.BM25_FULLTEXT_VECTOR,
-    RetrieverType.FULLTEXT_THEN_CYPHER,
+    "bm25",
+    "fulltext",
+    "bm25_vector",
+    "fulltext_vector",
+    "bm25_fulltext_vector",
+    "fulltext_then_cypher",
 }
-SW_DOCS_RETRIEVERS = {
-    RetrieverType.BM25,
-    RetrieverType.BM25_VECTOR,
-    RetrieverType.BM25_FULLTEXT_VECTOR,
-}
+SW_DOCS_RETRIEVERS = {"bm25", "bm25_vector", "bm25_fulltext_vector"}
 
 
 # Retriever types that use vector embeddings
 VECTOR_BASED_RETRIEVERS = [
-    RetrieverType.VECTOR,
-    RetrieverType.BM25_VECTOR,
-    RetrieverType.FULLTEXT_VECTOR,
-    RetrieverType.BM25_FULLTEXT_VECTOR,
-    RetrieverType.VECTOR_THEN_CYPHER,
-    RetrieverType.TEXT2CYPHER_VECTOR,
+    "vector",
+    "bm25_vector",
+    "fulltext_vector",
+    "bm25_fulltext_vector",
+    "vector_then_cypher",
+    "text2cypher_vector",
 ]
 
 
@@ -124,17 +119,17 @@ def get_retriever(
 
     # Non-vector retrievers (embed_fn not needed)
     non_vector_factory: dict[str, Callable[[], Any]] = {
-        RetrieverType.FULLTEXT: lambda: Neo4jFullTextSearch(
+        "fulltext": lambda: Neo4jFullTextSearch(
             driver, document_repository, remove_stopwords=sw_query
         ),
-        RetrieverType.BM25: lambda: BM25Retriever(
+        "bm25": lambda: BM25Retriever(
             driver,
             document_repository,
             remove_stopwords_query=sw_query,
             remove_stopwords_docs=sw_docs,
         ),
-        RetrieverType.TEXT2CYPHER: lambda: Text2CypherRetriever(driver, **kwargs),
-        RetrieverType.FULLTEXT_THEN_CYPHER: lambda: FulltextThenCypherRetriever(
+        "text2cypher": lambda: Text2CypherRetriever(driver, **kwargs),
+        "fulltext_then_cypher": lambda: FulltextThenCypherRetriever(
             driver, card_repository, remove_stopwords=sw_query
         ),
     }
@@ -147,22 +142,20 @@ def get_retriever(
         raise ValueError(f"embed_fn is required for vector-based retriever: {retriever_type}")
 
     vector_factory: dict[str, Callable[[], Any]] = {
-        RetrieverType.VECTOR: lambda: Neo4jVectorSearch(
+        "vector": lambda: Neo4jVectorSearch(
             driver, embed_fn, document_repository, index_name=index_name
         ),
-        RetrieverType.BM25_VECTOR: lambda: BM25VectorHybridRetriever(
-            driver, embed_fn, index_name=index_name
-        ),
-        RetrieverType.FULLTEXT_VECTOR: lambda: FulltextVectorHybridRetriever(
+        "bm25_vector": lambda: BM25VectorHybridRetriever(driver, embed_fn, index_name=index_name),
+        "fulltext_vector": lambda: FulltextVectorHybridRetriever(
             driver, embed_fn, index_name=index_name, remove_stopwords=sw_query
         ),
-        RetrieverType.BM25_FULLTEXT_VECTOR: lambda: BM25FulltextVectorHybridRetriever(
+        "bm25_fulltext_vector": lambda: BM25FulltextVectorHybridRetriever(
             driver, embed_fn, index_name=index_name
         ),
-        RetrieverType.TEXT2CYPHER_VECTOR: lambda: Text2CypherVectorHybridRetriever(
+        "text2cypher_vector": lambda: Text2CypherVectorHybridRetriever(
             driver, embed_fn, index_name=index_name, **kwargs
         ),
-        RetrieverType.VECTOR_THEN_CYPHER: lambda: VectorThenCypherRetriever(
+        "vector_then_cypher": lambda: VectorThenCypherRetriever(
             driver, embed_fn, card_repository, index_name=index_name, **kwargs
         ),
     }
@@ -461,7 +454,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--retriever",
         type=str,
-        choices=[member.value for member in RetrieverType],
+        choices=[
+            "vector",
+            "fulltext",
+            "bm25",
+            "bm25_vector",
+            "fulltext_vector",
+            "bm25_fulltext_vector",
+            "text2cypher",
+            "text2cypher_vector",
+            "vector_then_cypher",
+            "fulltext_then_cypher",
+        ],
         required=True,
         help="Retriever to run",
     )
@@ -581,7 +585,7 @@ async def run(args: argparse.Namespace) -> None:
         retriever_kwargs = {}
         config_kwargs = {}
 
-        if args.retriever in (RetrieverType.TEXT2CYPHER, RetrieverType.TEXT2CYPHER_VECTOR):
+        if args.retriever in ("text2cypher", "text2cypher_vector"):
             prompt = load_text2cypher_prompt(args.text2cypher_prompt)
             retriever_kwargs["text2cypher_prompt"] = prompt
             config_kwargs["text2cypher_prompt_version"] = prompt.prompt_version_name

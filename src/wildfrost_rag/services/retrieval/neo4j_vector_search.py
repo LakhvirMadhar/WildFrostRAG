@@ -7,10 +7,10 @@ This module provides various retrieval strategies using Neo4j:
 
 from collections.abc import Callable
 from neo4j import Driver
-from wildfrost_rag.models.retrieval import RetrievedChunk, to_retrieved_chunks
-from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
+from wildfrost_rag.domain.retrieval import RetrievedChunk, to_retrieved_chunks
+from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.utils.config import get_settings
-from wildfrost_rag.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
+from wildfrost_rag.services.retrieval.base_neo4j_retriever import BaseNeo4jRetriever
 
 
 class Neo4jVectorSearch(BaseNeo4jRetriever):

@@ -38,7 +38,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.experiment_tracker import ExperimentRegistry
 from wildfrost_rag.models.experiment import GenerationRecord, RetrievalRecord
-from wildfrost_rag.rag.retrievers import RetrieverType
+from wildfrost_rag.services.retrieval import RetrieverType
 from scripts.evaluate_retrievers import run as run_retrieval
 from scripts.run_llm_generation import run as run_generation
 from wildfrost_rag.utils.logger import logger

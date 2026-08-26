@@ -7,7 +7,7 @@ import pytest
 from neo4j import Driver
 from testcontainers.community.neo4j import Neo4jContainer
 
-from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
+from wildfrost_rag.repositories.document_repository import DocumentRepository
 
 
 def _docker_available() -> bool:

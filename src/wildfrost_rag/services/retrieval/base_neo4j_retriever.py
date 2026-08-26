@@ -6,7 +6,7 @@ This module provides a common base for different retrieval strategies using Neo4
 from typing import Any
 from urllib.parse import urlparse
 from neo4j import Driver, Record
-from wildfrost_rag.neo4j_kg.record_utils import (
+from wildfrost_rag.repositories.record_utils import (
     Neo4jValue,
     SerializedValue,
     record_to_dict,
@@ -46,7 +46,7 @@ class BaseNeo4jRetriever:
     def _serialize_value(value: Neo4jValue) -> SerializedValue:
         """Convert a Neo4j graph object to a JSON-serializable Python type.
 
-        Delegates to neo4j_kg.record_utils.serialize_value - kept as a thin
+        Delegates to repositories.record_utils.serialize_value - kept as a thin
         wrapper so existing subclasses (e.g. Text2CypherRetriever, which
         isn't repository-backed - its Cypher is LLM-generated at runtime,
         not a fixed query a repository method could own) keep working.
@@ -56,7 +56,7 @@ class BaseNeo4jRetriever:
     def _record_to_dict(self, record: Record) -> dict[str, Any]:
         """Convert any Neo4j record to a flat dictionary.
 
-        Delegates to neo4j_kg.record_utils.record_to_dict - see
+        Delegates to repositories.record_utils.record_to_dict - see
         _serialize_value's docstring for why this wrapper still exists.
         """
         return record_to_dict(record)

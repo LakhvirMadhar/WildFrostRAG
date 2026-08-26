@@ -5,8 +5,8 @@ _select_top_k() (sort + slice), so the RRF math can be exercised directly with
 hand-built RetrievedChunk objects - no Neo4j driver, no live retriever needed.
 """
 
-from wildfrost_rag.models.retrieval import RetrievedChunk
-from wildfrost_rag.rag.retrievers.hybrid_retrievers import HybridRetriever, RRFScore
+from wildfrost_rag.domain.retrieval import RetrievedChunk
+from wildfrost_rag.services.retrieval.hybrid_retrievers import HybridRetriever, RRFScore
 
 
 def _make_chunk(text: str, source_file: str = "Bombom.html", score: float = 1.0) -> RetrievedChunk:

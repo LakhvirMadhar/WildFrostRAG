@@ -12,7 +12,7 @@ from pathlib import Path
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
 from wildfrost_rag.prompts.prompt_utils import format_prompt_tuple
-from wildfrost_rag.rag.augmented_generation.openai_client import call_openai_api
+from wildfrost_rag.clients.openai_client import call_openai_api
 from wildfrost_rag.prompts.taxonomy_prompts import (
     TAXONOMY_SYSTEM_PROMPT_V1,
     TAXONOMY_USER_PROMPT_V1,

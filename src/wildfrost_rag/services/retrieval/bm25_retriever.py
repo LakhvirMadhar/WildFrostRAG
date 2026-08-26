@@ -11,11 +11,11 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from neo4j import Driver
 from rank_bm25 import BM25Okapi
-from wildfrost_rag.models.retrieval import RetrievedChunk, to_retrieved_chunks
-from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
+from wildfrost_rag.domain.retrieval import RetrievedChunk, to_retrieved_chunks
+from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
-from wildfrost_rag.rag.retrievers.base_neo4j_retriever import BaseNeo4jRetriever
+from wildfrost_rag.services.retrieval.base_neo4j_retriever import BaseNeo4jRetriever
 
 
 class BM25Retriever(BaseNeo4jRetriever):

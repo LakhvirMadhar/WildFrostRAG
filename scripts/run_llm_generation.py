@@ -25,12 +25,12 @@ from typing import Any
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from wildfrost_rag.models.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
+from wildfrost_rag.domain.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
 from wildfrost_rag.prompts import get_prompt
 from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
 from wildfrost_rag.utils.logger import logger
 from wildfrost_rag.utils.config import get_settings
-from wildfrost_rag.rag.augmented_generation.openai_client import generate_zero_shot, generate_rag
+from wildfrost_rag.services.generation.generation_service import generate_rag, generate_zero_shot
 from wildfrost_rag.utils.experiment_utils import (
     get_next_experiment_id,
     create_generation_config,
