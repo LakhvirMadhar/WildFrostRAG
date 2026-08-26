@@ -118,6 +118,20 @@ class HybridRetriever:
         Returns:
             List of fused RetrievedChunk objects sorted by RRF score
         """
+        doc_scores = self._score_documents(all_results)
+        return self._select_top_k(doc_scores, k)
+
+    def _score_documents(
+        self, all_results: list[tuple[list[RetrievedChunk], float]]
+    ) -> dict[str, RRFScore]:
+        """Compute and accumulate RRF scores per document across all retrievers.
+
+        Args:
+            all_results: List of (results, weight) tuples from each retriever
+
+        Returns:
+            Map of document identifier -> accumulated RRF bookkeeping
+        """
         # Map document identifier -> RRF bookkeeping for that document
         doc_scores: dict[str, RRFScore] = {}
 
@@ -145,7 +159,18 @@ class HybridRetriever:
                     existing.chunk = chunk
                     existing.source_retriever = retriever_name
 
-        # Sort by RRF score in descending order, return the top k as RetrievedChunks
+        return doc_scores
+
+    def _select_top_k(self, doc_scores: dict[str, RRFScore], k: int) -> list[RetrievedChunk]:
+        """Sort documents by RRF score and select the top k as fused chunks.
+
+        Args:
+            doc_scores: Map of document identifier -> accumulated RRF bookkeeping
+            k: Number of top results to return
+
+        Returns:
+            Top k fused RetrievedChunk objects, sorted by RRF score descending
+        """
         sorted_docs = sorted(doc_scores.values(), key=lambda s: s.rrf_score, reverse=True)
         return [self._to_fused_chunk(score) for score in sorted_docs[:k]]
 
@@ -351,43 +376,64 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
         Returns:
             List of fused RetrievedChunk objects (or vector-only if Text2Cypher fails)
         """
-        all_results: list[tuple[list[RetrievedChunk], float]] = []
-        individual_results: dict[str, list[RetrievedChunk]] = {}
+        text2cypher_results, text2cypher_success = await self._search_text2cypher(query, k)
+        vector_results = self.vector.search(query, k=k * 2)  # Always run, even as fallback
 
-        # Try Text2Cypher (async) with error handling
-        text2cypher_success = False
-        try:
-            text2cypher_results = await self.text2cypher.search(query, k=k * 2)
-            text2cypher_success = True
-            all_results.append((text2cypher_results, self.weights[0]))
-            individual_results["text2cypher"] = text2cypher_results
-        except WildFrostRAGError as e:
-            logger.warning(f"Text2Cypher failed, falling back to vector-only: {e}")
-            individual_results["text2cypher"] = []
-
-        # Vector search (sync) - always run
-        vector_results = self.vector.search(query, k=k * 2)
-        all_results.append((vector_results, self.weights[1]))
-        individual_results["vector"] = vector_results
-
-        # Apply RRF if we have multiple result sets, otherwise just return vector
-        if len(all_results) > 1:
+        if text2cypher_success:
+            all_results = [
+                (text2cypher_results, self.weights[0]),
+                (vector_results, self.weights[1]),
+            ]
             fused_results = self._apply_rrf(all_results, k)
         else:
-            # Vector-only fallback
-            fused_results = [
-                RetrievedChunk(
-                    score=chunk.score,
-                    search_type="text2cypher_vector_fallback",
-                    retrieved_text=chunk.retrieved_text,
-                    source_url=chunk.source_url,
-                    cypher_result=chunk.cypher_result,
-                )
-                for chunk in vector_results[:k]
-            ]
+            fused_results = self._build_vector_fallback(vector_results, k)
 
         # Store individual results for experiment tracking
-        self.last_individual_results = individual_results
+        self.last_individual_results = {
+            "text2cypher": text2cypher_results,
+            "vector": vector_results,
+        }
         self.text2cypher_success = text2cypher_success
 
         return fused_results
+
+    async def _search_text2cypher(self, query: str, k: int) -> tuple[list[RetrievedChunk], bool]:
+        """Attempt the Text2Cypher search, reporting success alongside the results.
+
+        Args:
+            query: Natural language query
+            k: Number of results the caller wants; doubled here to allow for fusion
+
+        Returns:
+            Tuple of (results, success). On a domain-level Text2Cypher failure,
+            returns ([], False) instead of propagating the exception.
+        """
+        try:
+            results = await self.text2cypher.search(query, k=k * 2)
+        except WildFrostRAGError as e:
+            logger.warning(f"Text2Cypher failed, falling back to vector-only: {e}")
+            return [], False
+        return results, True
+
+    def _build_vector_fallback(
+        self, vector_results: list[RetrievedChunk], k: int
+    ) -> list[RetrievedChunk]:
+        """Build vector-only RetrievedChunks for use when Text2Cypher fails.
+
+        Args:
+            vector_results: Results from the vector retriever
+            k: Number of top results to return
+
+        Returns:
+            Top-k vector results re-tagged with search_type "text2cypher_vector_fallback"
+        """
+        return [
+            RetrievedChunk(
+                score=chunk.score,
+                search_type="text2cypher_vector_fallback",
+                retrieved_text=chunk.retrieved_text,
+                source_url=chunk.source_url,
+                cypher_result=chunk.cypher_result,
+            )
+            for chunk in vector_results[:k]
+        ]
