@@ -50,12 +50,12 @@ from wildfrost_rag.services.retrieval.hybrid_retrievers import HybridRetriever
 from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.repositories.card_repository import CardRepository
 from wildfrost_rag.repositories.document_repository import DocumentRepository
-from wildfrost_rag.embeddings.query_embedders import get_query_embed_fn
+from wildfrost_rag.clients.query_embedders import get_query_embed_fn
 from wildfrost_rag.models.experiment_config import RetrievalConfig
 from wildfrost_rag.domain.retrieval import QueryResult, CypherExecution
 from wildfrost_rag.utils.logger import logger
 from wildfrost_rag.utils.config import get_settings
-from wildfrost_rag.neo4j_kg.driver import neo4j_driver
+from wildfrost_rag.clients.neo4j_driver import neo4j_driver
 from wildfrost_rag.utils.experiment_utils import (
     get_next_experiment_id,
     create_retrieval_config,

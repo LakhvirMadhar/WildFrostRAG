@@ -35,7 +35,7 @@ from wildfrost_rag.services.retrieval import (
     BM25FulltextVectorHybridRetriever,
     Text2CypherRetriever,
 )
-from wildfrost_rag.neo4j_kg.driver import neo4j_driver
+from wildfrost_rag.clients.neo4j_driver import neo4j_driver
 from wildfrost_rag.utils.logger import logger
 
 

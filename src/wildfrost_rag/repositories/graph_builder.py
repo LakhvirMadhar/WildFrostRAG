@@ -2,16 +2,16 @@ from typing import Any
 
 import neo4j
 
-from wildfrost_rag.neo4j_kg.query_utils import single_value
-from wildfrost_rag.neo4j_kg.cards import (
+from wildfrost_rag.repositories.query_utils import single_value
+from wildfrost_rag.repositories.cards import (
     create_cards,
     create_phase_relationships,
     create_recruitment_relationships,
     create_card_type_hierarchy,
 )
-from wildfrost_rag.neo4j_kg.tribes import create_tribes, create_card_tribe_relationships
-from wildfrost_rag.neo4j_kg.stats import create_card_stat_relationships
-from wildfrost_rag.neo4j_kg.crowns import create_crowns, create_crown_relationships
+from wildfrost_rag.repositories.tribes import create_tribes, create_card_tribe_relationships
+from wildfrost_rag.repositories.stats import create_card_stat_relationships
+from wildfrost_rag.repositories.crowns import create_crowns, create_crown_relationships
 from wildfrost_rag.utils.logger import logger
 
 

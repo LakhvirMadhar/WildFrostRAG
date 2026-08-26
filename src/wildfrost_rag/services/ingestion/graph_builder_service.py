@@ -30,32 +30,35 @@ from wildfrost_rag.data_processing.keywords import KeywordInfo
 from wildfrost_rag.data_processing.map import FightSlotInfo, MapEventInfo, ZoneInfo
 from wildfrost_rag.data_processing.shades import SummonInfo
 from wildfrost_rag.data_processing.stats import StatInfo
-from wildfrost_rag.neo4j_kg.bells import create_bell_relationships, create_bells_from_parsed
-from wildfrost_rag.neo4j_kg.bling import (
+from wildfrost_rag.repositories.bells import create_bell_relationships, create_bells_from_parsed
+from wildfrost_rag.repositories.bling import (
     create_bling_and_shops,
     create_drops_bling_relationships,
     create_shop_sells_relationships,
 )
-from wildfrost_rag.neo4j_kg.charms import (
+from wildfrost_rag.repositories.charms import (
     create_charm_tribe_relationships,
     create_charms_from_parsed,
 )
-from wildfrost_rag.neo4j_kg.fights import create_fight_enemy_relationships
-from wildfrost_rag.neo4j_kg.graph_builder import (
+from wildfrost_rag.repositories.fights import create_fight_enemy_relationships
+from wildfrost_rag.repositories.graph_builder import (
     clear_database,
     create_neo4j_data,
     create_url_nodes,
 )
-from wildfrost_rag.neo4j_kg.keywords import (
+from wildfrost_rag.repositories.keywords import (
     create_card_keyword_relationships,
     create_charm_keyword_relationships,
     create_keywords_from_parsed,
 )
-from wildfrost_rag.neo4j_kg.map import create_map_graph
-from wildfrost_rag.neo4j_kg.neo4j_indexes import create_fulltext_index, wait_for_index_population
-from wildfrost_rag.neo4j_kg.shades import create_summon_relationships
-from wildfrost_rag.neo4j_kg.stats import add_keyword_label_to_stats, create_stats_from_parsed
-from wildfrost_rag.neo4j_kg.vector_store import (
+from wildfrost_rag.repositories.map import create_map_graph
+from wildfrost_rag.repositories.neo4j_indexes import (
+    create_fulltext_index,
+    wait_for_index_population,
+)
+from wildfrost_rag.repositories.shades import create_summon_relationships
+from wildfrost_rag.repositories.stats import add_keyword_label_to_stats, create_stats_from_parsed
+from wildfrost_rag.repositories.vector_store import (
     ingest_documents_into_neo4j,
     link_documents_to_bells,
     link_documents_to_bling,
@@ -68,7 +71,7 @@ from wildfrost_rag.neo4j_kg.vector_store import (
     link_documents_to_shops,
     link_documents_to_stats,
 )
-from wildfrost_rag.scraping.domain_scrapers import (
+from wildfrost_rag.clients.domain_scrapers import (
     scrape_bells,
     scrape_bling,
     scrape_charms,
@@ -86,10 +89,10 @@ from wildfrost_rag.scraping.domain_scrapers import (
     scrape_shop,
     scrape_stats,
 )
-from wildfrost_rag.scraping.wiki_scraper import clean_name_for_url
+from wildfrost_rag.clients.wiki_scraper import clean_name_for_url
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
-from wildfrost_rag.web_scraper.sitemap_scraper import scrape_multiple_links
+from wildfrost_rag.clients.sitemap_scraper import scrape_multiple_links
 
 
 @dataclass

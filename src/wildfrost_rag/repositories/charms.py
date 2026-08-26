@@ -2,7 +2,7 @@ import neo4j
 
 from wildfrost_rag.data_processing.charms import CharmInfo
 from wildfrost_rag.data_processing.tribes import TribeExclusivity
-from wildfrost_rag.neo4j_kg.query_utils import single_value
+from wildfrost_rag.repositories.query_utils import single_value
 
 
 def create_charms_from_parsed(tx: neo4j.ManagedTransaction, charms: list[CharmInfo]) -> int:

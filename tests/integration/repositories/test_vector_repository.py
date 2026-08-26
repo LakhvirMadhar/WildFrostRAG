@@ -13,7 +13,7 @@ import pytest
 from neo4j import Driver
 from testcontainers.community.neo4j import Neo4jContainer
 
-from wildfrost_rag.neo4j_kg.vector_store import VectorRepository
+from wildfrost_rag.repositories.vector_store import VectorRepository
 
 
 def _docker_available() -> bool:

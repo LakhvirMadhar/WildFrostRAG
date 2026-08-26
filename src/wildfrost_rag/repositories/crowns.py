@@ -1,7 +1,7 @@
 import neo4j
 
 from wildfrost_rag.data_processing.crowns import CROWNS, CROWNABLE_CARD_TYPES
-from wildfrost_rag.neo4j_kg.query_utils import single_value
+from wildfrost_rag.repositories.query_utils import single_value
 
 
 def create_crowns(tx: neo4j.ManagedTransaction, url: str | None = None) -> int:

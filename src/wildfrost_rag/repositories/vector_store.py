@@ -12,7 +12,7 @@ from typing import Any
 from neo4j import Driver, Session
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
-from wildfrost_rag.neo4j_kg.query_utils import single_value
+from wildfrost_rag.repositories.query_utils import single_value
 from wildfrost_rag.utils.logger import logger
 
 
