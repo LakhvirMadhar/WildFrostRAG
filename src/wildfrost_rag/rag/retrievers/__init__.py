@@ -18,6 +18,7 @@ from .text2cypher_retriever import Text2CypherRetriever
 from .graph_rag_retriever import GraphRagRetriever
 from .vector_then_cypher_retriever import VectorThenCypherRetriever
 from .fulltext_then_cypher_retriever import FulltextThenCypherRetriever
+from .retriever_type import RetrieverType
 
 __all__ = [
     "BaseNeo4jRetriever",
@@ -33,4 +34,5 @@ __all__ = [
     "GraphRagRetriever",
     "VectorThenCypherRetriever",
     "FulltextThenCypherRetriever",
+    "RetrieverType",
 ]

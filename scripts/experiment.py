@@ -38,6 +38,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.experiment_tracker import ExperimentRegistry
 from wildfrost_rag.models.experiment import GenerationRecord, RetrievalRecord
+from wildfrost_rag.rag.retrievers import RetrieverType
 from scripts.evaluate_retrievers import run as run_retrieval
 from scripts.run_llm_generation import run as run_generation
 from wildfrost_rag.utils.logger import logger
@@ -201,15 +202,7 @@ def main() -> None:
     retrieval_parser.add_argument(
         "--retriever",
         required=True,
-        choices=[
-            "vector",
-            "fulltext",
-            "bm25",
-            "bm25_vector",
-            "fulltext_vector",
-            "bm25_fulltext_vector",
-            "text2cypher",
-        ],
+        choices=[member.value for member in RetrieverType],
         help="Retriever type",
     )
     retrieval_parser.add_argument(

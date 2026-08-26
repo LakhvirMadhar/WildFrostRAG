@@ -45,6 +45,7 @@ from wildfrost_rag.rag.retrievers import (
     Text2CypherVectorHybridRetriever,
     VectorThenCypherRetriever,
     FulltextThenCypherRetriever,
+    RetrieverType,
 )
 from wildfrost_rag.rag.retrievers.hybrid_retrievers import HybridRetriever
 from wildfrost_rag.core.exceptions import CypherExecutionError
@@ -68,24 +69,28 @@ from wildfrost_rag.gui.auto_annotator import run_auto_annotation
 
 # Retriever types that support stop word removal
 SW_QUERY_RETRIEVERS = {
-    "bm25",
-    "fulltext",
-    "bm25_vector",
-    "fulltext_vector",
-    "bm25_fulltext_vector",
-    "fulltext_then_cypher",
+    RetrieverType.BM25,
+    RetrieverType.FULLTEXT,
+    RetrieverType.BM25_VECTOR,
+    RetrieverType.FULLTEXT_VECTOR,
+    RetrieverType.BM25_FULLTEXT_VECTOR,
+    RetrieverType.FULLTEXT_THEN_CYPHER,
 }
-SW_DOCS_RETRIEVERS = {"bm25", "bm25_vector", "bm25_fulltext_vector"}
+SW_DOCS_RETRIEVERS = {
+    RetrieverType.BM25,
+    RetrieverType.BM25_VECTOR,
+    RetrieverType.BM25_FULLTEXT_VECTOR,
+}
 
 
 # Retriever types that use vector embeddings
 VECTOR_BASED_RETRIEVERS = [
-    "vector",
-    "bm25_vector",
-    "fulltext_vector",
-    "bm25_fulltext_vector",
-    "vector_then_cypher",
-    "text2cypher_vector",
+    RetrieverType.VECTOR,
+    RetrieverType.BM25_VECTOR,
+    RetrieverType.FULLTEXT_VECTOR,
+    RetrieverType.BM25_FULLTEXT_VECTOR,
+    RetrieverType.VECTOR_THEN_CYPHER,
+    RetrieverType.TEXT2CYPHER_VECTOR,
 ]
 
 
@@ -119,17 +124,17 @@ def get_retriever(
 
     # Non-vector retrievers (embed_fn not needed)
     non_vector_factory: dict[str, Callable[[], Any]] = {
-        "fulltext": lambda: Neo4jFullTextSearch(
+        RetrieverType.FULLTEXT: lambda: Neo4jFullTextSearch(
             driver, document_repository, remove_stopwords=sw_query
         ),
-        "bm25": lambda: BM25Retriever(
+        RetrieverType.BM25: lambda: BM25Retriever(
             driver,
             document_repository,
             remove_stopwords_query=sw_query,
             remove_stopwords_docs=sw_docs,
         ),
-        "text2cypher": lambda: Text2CypherRetriever(driver, **kwargs),
-        "fulltext_then_cypher": lambda: FulltextThenCypherRetriever(
+        RetrieverType.TEXT2CYPHER: lambda: Text2CypherRetriever(driver, **kwargs),
+        RetrieverType.FULLTEXT_THEN_CYPHER: lambda: FulltextThenCypherRetriever(
             driver, card_repository, remove_stopwords=sw_query
         ),
     }
@@ -142,20 +147,22 @@ def get_retriever(
         raise ValueError(f"embed_fn is required for vector-based retriever: {retriever_type}")
 
     vector_factory: dict[str, Callable[[], Any]] = {
-        "vector": lambda: Neo4jVectorSearch(
+        RetrieverType.VECTOR: lambda: Neo4jVectorSearch(
             driver, embed_fn, document_repository, index_name=index_name
         ),
-        "bm25_vector": lambda: BM25VectorHybridRetriever(driver, embed_fn, index_name=index_name),
-        "fulltext_vector": lambda: FulltextVectorHybridRetriever(
-            driver, embed_fn, index_name=index_name, remove_stopwords=sw_query
-        ),
-        "bm25_fulltext_vector": lambda: BM25FulltextVectorHybridRetriever(
+        RetrieverType.BM25_VECTOR: lambda: BM25VectorHybridRetriever(
             driver, embed_fn, index_name=index_name
         ),
-        "text2cypher_vector": lambda: Text2CypherVectorHybridRetriever(
+        RetrieverType.FULLTEXT_VECTOR: lambda: FulltextVectorHybridRetriever(
+            driver, embed_fn, index_name=index_name, remove_stopwords=sw_query
+        ),
+        RetrieverType.BM25_FULLTEXT_VECTOR: lambda: BM25FulltextVectorHybridRetriever(
+            driver, embed_fn, index_name=index_name
+        ),
+        RetrieverType.TEXT2CYPHER_VECTOR: lambda: Text2CypherVectorHybridRetriever(
             driver, embed_fn, index_name=index_name, **kwargs
         ),
-        "vector_then_cypher": lambda: VectorThenCypherRetriever(
+        RetrieverType.VECTOR_THEN_CYPHER: lambda: VectorThenCypherRetriever(
             driver, embed_fn, card_repository, index_name=index_name, **kwargs
         ),
     }
@@ -454,18 +461,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--retriever",
         type=str,
-        choices=[
-            "vector",
-            "fulltext",
-            "bm25",
-            "bm25_vector",
-            "fulltext_vector",
-            "bm25_fulltext_vector",
-            "text2cypher",
-            "text2cypher_vector",
-            "vector_then_cypher",
-            "fulltext_then_cypher",
-        ],
+        choices=[member.value for member in RetrieverType],
         required=True,
         help="Retriever to run",
     )
@@ -585,7 +581,7 @@ async def run(args: argparse.Namespace) -> None:
         retriever_kwargs = {}
         config_kwargs = {}
 
-        if args.retriever in ("text2cypher", "text2cypher_vector"):
+        if args.retriever in (RetrieverType.TEXT2CYPHER, RetrieverType.TEXT2CYPHER_VECTOR):
             prompt = load_text2cypher_prompt(args.text2cypher_prompt)
             retriever_kwargs["text2cypher_prompt"] = prompt
             config_kwargs["text2cypher_prompt_version"] = prompt.prompt_version_name
