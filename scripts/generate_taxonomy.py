@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from wildfrost_rag.services.evaluation.taxonomy import generate_taxonomy_from_annotations
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 async def main() -> None:

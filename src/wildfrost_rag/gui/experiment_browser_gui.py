@@ -24,7 +24,7 @@ from IPython.display import display, clear_output
 
 from wildfrost_rag.gui.experiment_adapters import ExperimentRegistry, get_adapter
 from wildfrost_rag.gui.unified_annotation_gui import UnifiedAnnotationGUI
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 class ExperimentBrowserGUI:

@@ -12,7 +12,7 @@ import pandas as pd
 import re
 from wildfrost_rag.data_processing.cards import CardType, CardInfo
 from wildfrost_rag.data_processing.generate_schemas import generate_card_type_html_schema
-from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.core.config import get_settings
 
 
 def clean_name_for_url(name: str) -> str:

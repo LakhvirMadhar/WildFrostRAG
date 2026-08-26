@@ -36,7 +36,7 @@ from wildfrost_rag.services.retrieval import (
     Text2CypherRetriever,
 )
 from wildfrost_rag.clients.neo4j_driver import neo4j_driver
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 def get_retriever(retriever_type: str, driver: Driver) -> Any:  # noqa: ANN401

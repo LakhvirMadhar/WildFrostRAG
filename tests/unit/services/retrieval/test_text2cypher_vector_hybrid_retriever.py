@@ -16,7 +16,7 @@ from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.domain.retrieval import RetrievedChunk
 from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
 from wildfrost_rag.services.retrieval.hybrid_retrievers import Text2CypherVectorHybridRetriever
-from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.core.config import get_settings
 
 
 class FakeText2CypherRetriever:

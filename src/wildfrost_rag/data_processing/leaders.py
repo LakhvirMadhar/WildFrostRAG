@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup, Tag
 
 from wildfrost_rag.data_processing.cards import CardInfo, CardType
 from wildfrost_rag.data_processing.tribes import TribeExclusivity
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 # Map tribe section IDs to TribeExclusivity enum

@@ -7,7 +7,7 @@ import neo4j
 
 from wildfrost_rag.data_processing.keywords import KeywordInfo
 from wildfrost_rag.repositories.query_utils import single_value
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 # Suffixes to check when matching keyword roots against card/charm text.

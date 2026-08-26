@@ -32,7 +32,7 @@ from wildfrost_rag.services.retrieval.text2cypher_retriever import Text2CypherRe
 from wildfrost_rag.services.retrieval.vector_then_cypher_retriever import (
     VectorThenCypherRetriever,
 )
-from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.core.config import get_settings
 
 
 @pytest.fixture(autouse=True)

@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup, Comment
 import aiohttp
 import requests
 from typing import Any
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 def scrape_sitemap(sitemap_url: str) -> list[dict[str, Any]]:

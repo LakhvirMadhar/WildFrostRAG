@@ -12,7 +12,7 @@ from wildfrost_rag.repositories.record_utils import (
     record_to_dict,
     serialize_value,
 )
-from wildfrost_rag.utils.config import get_settings
+from wildfrost_rag.core.config import get_settings
 
 
 class BaseNeo4jRetriever:

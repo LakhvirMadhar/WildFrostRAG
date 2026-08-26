@@ -9,8 +9,8 @@ import time
 
 import neo4j
 from neo4j import GraphDatabase
-from wildfrost_rag.utils.config import get_settings
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 
 
 def create_vector_index(

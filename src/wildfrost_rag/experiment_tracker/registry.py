@@ -12,8 +12,8 @@ from typing import Any
 from wildfrost_rag.experiment_tracker.experiment_repository import ExperimentRepository
 from wildfrost_rag.models.experiment import GenerationRecord, RetrievalRecord
 from wildfrost_rag.models.experiment_config import GenerationConfig, RetrievalConfig
-from wildfrost_rag.utils.config import get_settings
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 
 
 class ExperimentRegistry:

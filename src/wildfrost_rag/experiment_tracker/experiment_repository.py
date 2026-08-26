@@ -5,7 +5,7 @@ from typing import Any
 
 import yaml
 
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 class ExperimentRepository:

@@ -13,7 +13,7 @@ from neo4j import Driver, Session
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
 from wildfrost_rag.repositories.query_utils import single_value
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 
 def ingest_documents_into_neo4j(

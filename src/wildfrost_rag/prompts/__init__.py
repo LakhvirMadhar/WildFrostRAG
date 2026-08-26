@@ -7,7 +7,7 @@ Adding a new prompt to any module automatically registers it.
 from wildfrost_rag.prompts import text2cypher_prompts
 from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
 from wildfrost_rag.prompts import system_prompts, taxonomy_prompts
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 PROMPT_REGISTRY: dict[str, VersionedPrompt] = {}
 

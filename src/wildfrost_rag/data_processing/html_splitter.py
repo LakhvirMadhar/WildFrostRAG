@@ -7,7 +7,7 @@ from langchain_core.documents import Document
 from tqdm import tqdm
 
 from wildfrost_rag.data_processing.text_utils import clean_element_text
-from wildfrost_rag.utils.logger import logger
+from wildfrost_rag.core.logger import logger
 
 # Block markers for text extraction — survive newline-to-space replacement.
 # All intentional line breaks use these; raw \n is a pretty-print artifact.
