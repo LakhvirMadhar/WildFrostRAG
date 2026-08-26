@@ -15,21 +15,21 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from wildfrost_rag.core.exceptions import CypherExecutionError
-from wildfrost_rag.neo4j_kg.card_repository import CardRepository
-from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
+from wildfrost_rag.repositories.card_repository import CardRepository
+from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
-from wildfrost_rag.rag.retrievers.bm25_retriever import BM25Retriever
-from wildfrost_rag.rag.retrievers.fulltext_then_cypher_retriever import (
+from wildfrost_rag.services.retrieval.bm25_retriever import BM25Retriever
+from wildfrost_rag.services.retrieval.fulltext_then_cypher_retriever import (
     FulltextThenCypherRetriever,
 )
-from wildfrost_rag.rag.retrievers.graph_rag_retriever import GraphRagRetriever
-from wildfrost_rag.rag.retrievers.hybrid_retrievers import (
+from wildfrost_rag.services.retrieval.graph_rag_retriever import GraphRagRetriever
+from wildfrost_rag.services.retrieval.hybrid_retrievers import (
     BM25FulltextVectorHybridRetriever,
     BM25VectorHybridRetriever,
     FulltextVectorHybridRetriever,
 )
-from wildfrost_rag.rag.retrievers.text2cypher_retriever import Text2CypherRetriever
-from wildfrost_rag.rag.retrievers.vector_then_cypher_retriever import (
+from wildfrost_rag.services.retrieval.text2cypher_retriever import Text2CypherRetriever
+from wildfrost_rag.services.retrieval.vector_then_cypher_retriever import (
     VectorThenCypherRetriever,
 )
 from wildfrost_rag.utils.config import get_settings
@@ -212,7 +212,7 @@ def _make_versioned_prompt() -> VersionedPrompt:
     )
 
 
-@patch("wildfrost_rag.rag.retrievers.text2cypher_retriever.call_openai_api")
+@patch("wildfrost_rag.services.retrieval.text2cypher_retriever.call_openai_api")
 def test_text2cypher_search_builds_retrieved_chunks_from_mocked_llm_and_driver(
     mock_call_openai_api: MagicMock,
 ) -> None:

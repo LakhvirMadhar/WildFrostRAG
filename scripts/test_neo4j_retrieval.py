@@ -26,7 +26,7 @@ from neo4j import Driver
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from wildfrost_rag.rag.retrievers import (
+from wildfrost_rag.services.retrieval import (
     Neo4jVectorSearch,
     Neo4jFullTextSearch,
     BM25Retriever,

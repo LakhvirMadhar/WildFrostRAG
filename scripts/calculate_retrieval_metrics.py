@@ -18,7 +18,7 @@ from typing import Any
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from wildfrost_rag.rag.evaluation.retrieval_metrics import (
+from wildfrost_rag.services.evaluation.retrieval_metrics import (
     hit_at_k,
     mrr,
     calculate_precision_at_k,

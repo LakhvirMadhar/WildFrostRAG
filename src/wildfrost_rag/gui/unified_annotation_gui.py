@@ -20,7 +20,7 @@ from wildfrost_rag.gui.chunk_widgets import create_chunk_widget, create_chunks_s
 from wildfrost_rag.utils.logger import logger
 
 # Import query processing functions
-from wildfrost_rag.rag.evaluation.query_data import load_queries_json, add_doc_reference
+from wildfrost_rag.services.evaluation.query_data import load_queries_json, add_doc_reference
 
 
 class UnifiedAnnotationGUI:

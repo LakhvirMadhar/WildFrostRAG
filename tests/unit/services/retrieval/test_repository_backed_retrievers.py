@@ -12,9 +12,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from wildfrost_rag.neo4j_kg.document_repository import DocumentRepository
-from wildfrost_rag.rag.retrievers.neo4j_fulltext_search import Neo4jFullTextSearch
-from wildfrost_rag.rag.retrievers.neo4j_vector_search import Neo4jVectorSearch
+from wildfrost_rag.repositories.document_repository import DocumentRepository
+from wildfrost_rag.services.retrieval.neo4j_fulltext_search import Neo4jFullTextSearch
+from wildfrost_rag.services.retrieval.neo4j_vector_search import Neo4jVectorSearch
 from wildfrost_rag.utils.config import get_settings
 
 

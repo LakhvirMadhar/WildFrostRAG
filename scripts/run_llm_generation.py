@@ -25,7 +25,7 @@ from typing import Any
 # Add project root to sys.path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from wildfrost_rag.models.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
+from wildfrost_rag.domain.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
 from wildfrost_rag.prompts import get_prompt
 from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
 from wildfrost_rag.utils.logger import logger

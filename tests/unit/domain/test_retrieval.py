@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from wildfrost_rag.models.retrieval import RetrievedChunk, QueryResult, CypherExecution
+from wildfrost_rag.domain.retrieval import RetrievedChunk, QueryResult, CypherExecution
 
 
 # ---------------------------------------------------------------------------
