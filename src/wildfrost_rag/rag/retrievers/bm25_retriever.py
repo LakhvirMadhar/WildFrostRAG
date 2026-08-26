@@ -22,6 +22,11 @@ class BM25Retriever(BaseNeo4jRetriever):
     """Implements lexical similarity retrieval using true BM25 scoring.
 
     This corresponds to the 'BM25' approach in the research goals.
+
+    Research/ablation use only - loads the entire corpus into process
+    memory and rebuilds the index there, so it doesn't scale. Never wire
+    this into a live-serving path; use Neo4jFullTextSearch (on-disk Lucene,
+    same BM25-family scoring) instead.
     """
 
     _shared_cache: dict[str, Any] = {
