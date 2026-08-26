@@ -1,6 +1,6 @@
 import neo4j
 
-from wildfrost_rag.neo4j_kg.query_utils import single_value
+from wildfrost_rag.repositories.query_utils import single_value
 from wildfrost_rag.utils.logger import logger
 
 

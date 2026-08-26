@@ -4,7 +4,7 @@ import neo4j
 
 from wildfrost_rag.data_processing.cards import CardType
 from wildfrost_rag.data_processing.phase_config import RECRUITABLE_ENEMIES
-from wildfrost_rag.neo4j_kg.query_utils import single_value
+from wildfrost_rag.repositories.query_utils import single_value
 
 
 def _get_all_ancestors(card_type_value: str) -> list[str]:

@@ -22,8 +22,8 @@ from wildfrost_rag.data_processing.map import (
 from wildfrost_rag.data_processing.fights import parse_fight_enemies
 from wildfrost_rag.data_processing.shades import parse_shades_page, SummonInfo
 from wildfrost_rag.data_processing.cards import CardInfo
-from wildfrost_rag.scraping.wiki_scraper import scrape_wiki_page, load_cached_html
-from wildfrost_rag.web_scraper.sitemap_scraper import scrape_multiple_links
+from wildfrost_rag.clients.wiki_scraper import scrape_wiki_page, load_cached_html
+from wildfrost_rag.clients.sitemap_scraper import scrape_multiple_links
 from wildfrost_rag.utils.config import get_settings
 from wildfrost_rag.utils.logger import logger
 

@@ -27,7 +27,7 @@ arguments, constructs the Neo4j driver, and hands off to the service.
 import argparse
 import asyncio
 
-from wildfrost_rag.neo4j_kg.driver import neo4j_driver
+from wildfrost_rag.clients.neo4j_driver import neo4j_driver
 from wildfrost_rag.services.ingestion.graph_builder_service import GraphBuilderService
 
 
