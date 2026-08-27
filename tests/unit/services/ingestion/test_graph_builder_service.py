@@ -12,6 +12,7 @@ asyncio.run() from an ordinary (synchronous) test function.
 """
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -34,17 +35,35 @@ def _make_fake_driver(session: Session) -> Driver:
     return driver
 
 
-def _make_service(monkeypatch: pytest.MonkeyPatch, session: Session) -> GraphBuilderService:
+@dataclass
+class _ServiceWithMocks:
+    """A GraphBuilderService plus typed handles to its stubbed-out stage methods.
+
+    Asserting via these fields (not service.stage_X) keeps mypy happy: accessed
+    through the service, stage_X's static type is the real bound method, which
+    has no assert_* attributes.
+    """
+
+    service: GraphBuilderService
+    stage_1: AsyncMock
+    stage_2: MagicMock
+    stage_3: MagicMock
+    stage_4: MagicMock
+
+
+def _make_service(monkeypatch: pytest.MonkeyPatch, session: Session) -> _ServiceWithMocks:
     """Build a GraphBuilderService with every stage method stubbed out."""
     driver = _make_fake_driver(session)
     service = GraphBuilderService(driver=driver)
 
-    monkeypatch.setattr(
-        service, "stage_1_scrape_cards", AsyncMock(return_value=PipelineData(page_urls={}))
-    )
-    monkeypatch.setattr(service, "stage_2_enrich_data", MagicMock())
-    monkeypatch.setattr(service, "stage_3_populate_graph", MagicMock())
-    monkeypatch.setattr(service, "stage_4_document_ingestion", MagicMock())
+    stage_1 = AsyncMock(return_value=PipelineData(page_urls={}))
+    stage_2 = MagicMock()
+    stage_3 = MagicMock()
+    stage_4 = MagicMock()
+    monkeypatch.setattr(service, "stage_1_scrape_cards", stage_1)
+    monkeypatch.setattr(service, "stage_2_enrich_data", stage_2)
+    monkeypatch.setattr(service, "stage_3_populate_graph", stage_3)
+    monkeypatch.setattr(service, "stage_4_document_ingestion", stage_4)
 
     fake_settings = MagicMock()
     monkeypatch.setattr(
@@ -52,7 +71,7 @@ def _make_service(monkeypatch: pytest.MonkeyPatch, session: Session) -> GraphBui
         lambda: fake_settings,
     )
 
-    return service
+    return _ServiceWithMocks(service, stage_1, stage_2, stage_3, stage_4)
 
 
 def _run(service: GraphBuilderService, **kwargs: bool) -> None:
@@ -72,10 +91,10 @@ def test_constructor_stores_the_injected_driver_without_constructing_one() -> No
 def test_run_always_calls_stage_1_and_stage_2(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stage 1 (scrape) and Stage 2 (enrich) run regardless of the skip flags."""
     fake_session = MagicMock(spec=Session)
-    service = _make_service(monkeypatch, fake_session)
+    built = _make_service(monkeypatch, fake_session)
 
     _run(
-        service,
+        built.service,
         skip_scrape=True,
         skip_graph=True,
         skip_vectors=True,
@@ -83,17 +102,17 @@ def test_run_always_calls_stage_1_and_stage_2(monkeypatch: pytest.MonkeyPatch) -
         no_chunking=False,
     )
 
-    service.stage_1_scrape_cards.assert_awaited_once_with(skip_scrape=True)
-    service.stage_2_enrich_data.assert_called_once()
+    built.stage_1.assert_awaited_once_with(skip_scrape=True)
+    built.stage_2.assert_called_once()
 
 
 def test_run_calls_stage_3_when_skip_graph_is_false(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stage 3 (graph population) runs when --skip-graph is not set."""
     fake_session = MagicMock(spec=Session)
-    service = _make_service(monkeypatch, fake_session)
+    built = _make_service(monkeypatch, fake_session)
 
     _run(
-        service,
+        built.service,
         skip_scrape=False,
         skip_graph=False,
         skip_vectors=True,
@@ -101,16 +120,16 @@ def test_run_calls_stage_3_when_skip_graph_is_false(monkeypatch: pytest.MonkeyPa
         no_chunking=False,
     )
 
-    service.stage_3_populate_graph.assert_called_once()
+    built.stage_3.assert_called_once()
 
 
 def test_run_skips_stage_3_when_skip_graph_is_true(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stage 3 (graph population) is skipped when --skip-graph is set."""
     fake_session = MagicMock(spec=Session)
-    service = _make_service(monkeypatch, fake_session)
+    built = _make_service(monkeypatch, fake_session)
 
     _run(
-        service,
+        built.service,
         skip_scrape=False,
         skip_graph=True,
         skip_vectors=True,
@@ -118,7 +137,7 @@ def test_run_skips_stage_3_when_skip_graph_is_true(monkeypatch: pytest.MonkeyPat
         no_chunking=False,
     )
 
-    service.stage_3_populate_graph.assert_not_called()
+    built.stage_3.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -130,10 +149,10 @@ def test_run_calls_stage_4_with_split_text_derived_from_no_chunking(
 ) -> None:
     """--no-chunking flips split_text to False; its absence keeps chunking on."""
     fake_session = MagicMock(spec=Session)
-    service = _make_service(monkeypatch, fake_session)
+    built = _make_service(monkeypatch, fake_session)
 
     _run(
-        service,
+        built.service,
         skip_scrape=False,
         skip_graph=True,
         skip_vectors=False,
@@ -141,17 +160,17 @@ def test_run_calls_stage_4_with_split_text_derived_from_no_chunking(
         no_chunking=no_chunking,
     )
 
-    args, kwargs = service.stage_4_document_ingestion.call_args
+    args, kwargs = built.stage_4.call_args
     assert kwargs.get("split_text", args[-1] if args else None) == expected_split_text
 
 
 def test_run_skips_stage_4_when_skip_vectors_is_true(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stage 4 (document ingestion) is skipped when --skip-vectors is set."""
     fake_session = MagicMock(spec=Session)
-    service = _make_service(monkeypatch, fake_session)
+    built = _make_service(monkeypatch, fake_session)
 
     _run(
-        service,
+        built.service,
         skip_scrape=False,
         skip_graph=True,
         skip_vectors=True,
@@ -159,16 +178,16 @@ def test_run_skips_stage_4_when_skip_vectors_is_true(monkeypatch: pytest.MonkeyP
         no_chunking=False,
     )
 
-    service.stage_4_document_ingestion.assert_not_called()
+    built.stage_4.assert_not_called()
 
 
 def test_run_clears_the_database_when_clear_db_is_true(monkeypatch: pytest.MonkeyPatch) -> None:
     """--clear-db runs clear_database against the injected driver's session."""
     fake_session = MagicMock(spec=Session)
-    service = _make_service(monkeypatch, fake_session)
+    built = _make_service(monkeypatch, fake_session)
 
     _run(
-        service,
+        built.service,
         skip_scrape=True,
         skip_graph=True,
         skip_vectors=True,
@@ -186,10 +205,10 @@ def test_run_does_not_touch_the_database_when_clear_db_is_false(
 ) -> None:
     """Without --clear-db, run() never opens a session to clear anything."""
     fake_session = MagicMock(spec=Session)
-    service = _make_service(monkeypatch, fake_session)
+    built = _make_service(monkeypatch, fake_session)
 
     _run(
-        service,
+        built.service,
         skip_scrape=True,
         skip_graph=True,
         skip_vectors=True,
