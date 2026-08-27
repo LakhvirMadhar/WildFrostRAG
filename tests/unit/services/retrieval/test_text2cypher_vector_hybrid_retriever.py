@@ -16,34 +16,48 @@ from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.domain.retrieval import RetrievedChunk
 from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
 from wildfrost_rag.services.retrieval.hybrid_retrievers import Text2CypherVectorHybridRetriever
+from wildfrost_rag.services.retrieval.neo4j_vector_search import Neo4jVectorSearch
+from wildfrost_rag.services.retrieval.text2cypher_retriever import Text2CypherRetriever
 from wildfrost_rag.core.config import get_settings
 
 
-class FakeText2CypherRetriever:
-    """Test double standing in for Text2CypherRetriever.search()."""
+class FakeText2CypherRetriever(Text2CypherRetriever):
+    """Test double subclassing Text2CypherRetriever - overrides search(), no real LLM/driver call.
+
+    Subclassing (rather than duck-typing) lets retriever.text2cypher hold this
+    fake without a mypy assignment error, since the attribute is typed as the
+    real Text2CypherRetriever.
+    """
 
     def __init__(
         self, results: list[RetrievedChunk] | None = None, error: Exception | None = None
     ) -> None:
         """Store either the canned results to return, or the error to raise."""
+        super().__init__(
+            driver=MagicMock(),
+            text2cypher_prompt=VersionedPrompt(prompt_version_name="FAKE", prompt_tuple=("fake",)),
+        )
         self._results = results or []
         self._error = error
 
-    async def search(self, query: str, k: int) -> list[RetrievedChunk]:
+    async def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Raise the configured error, or return the canned results."""
         if self._error is not None:
             raise self._error
         return self._results
 
 
-class FakeVectorRetriever:
-    """Test double standing in for Neo4jVectorSearch.search()."""
+class FakeVectorRetriever(Neo4jVectorSearch):
+    """Test double subclassing Neo4jVectorSearch - overrides search(), no real driver call."""
 
     def __init__(self, results: list[RetrievedChunk]) -> None:
         """Store the canned results this fake will return."""
+        super().__init__(
+            driver=MagicMock(), embed_fn=lambda _query: [0.0], document_repository=MagicMock()
+        )
         self._results = results
 
-    def search(self, query: str, k: int) -> list[RetrievedChunk]:
+    def search(self, query: str, k: int = 5) -> list[RetrievedChunk]:
         """Return the canned results, no real query executed."""
         return self._results
 
