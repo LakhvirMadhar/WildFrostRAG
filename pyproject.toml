@@ -85,6 +85,20 @@ name = "No import cycles within wildfrost_rag's packages/submodules"
 type = "acyclic_siblings"
 ancestors = ["wildfrost_rag"]
 
+[[tool.importlinter.contracts]]
+name = "Layered architecture"
+type = "layers"
+layers = [
+    "cli",
+    "gui",
+    "services",
+    "clients | repositories",
+    "data_processing | experiment_tracker | prompts",
+    "core | domain | models | main",
+]
+containers = ["wildfrost_rag"]
+exhaustive = true
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
