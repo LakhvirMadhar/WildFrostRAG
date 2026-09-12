@@ -56,8 +56,7 @@ packages = [
 mypy = "1.20.0"
 pytest = "^9.0.2"
 pre-commit = "^4.0.0"
-graphviz = "^0.21"
-import-linter = "^2.13"
+import-linter = {extras = ["ui"], version = "^2.15"}
 testcontainers = {extras = ["neo4j"], version = "^4.15.0"}
 
 [virtualenvs]
@@ -87,6 +86,22 @@ root_package = "wildfrost_rag"
 name = "No import cycles within wildfrost_rag's packages/submodules"
 type = "acyclic_siblings"
 ancestors = ["wildfrost_rag"]
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture"
+type = "layers"
+layers = [
+    "definitions",
+    "cli",
+    "gui",
+    "defs",
+    "services",
+    "clients | repositories",
+    "data_processing | experiment_tracker | prompts",
+    "core | domain | models | main",
+]
+containers = ["wildfrost_rag"]
+exhaustive = true
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -21,3 +21,10 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      - id: lint-imports
+        name: import-linter
+        entry: bash -c 'PYTHONPATH=src poetry run lint-imports'
+        language: system
+        pass_filenames: false
+        always_run: true
