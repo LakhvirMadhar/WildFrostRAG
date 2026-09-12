@@ -1085,23 +1085,6 @@ test-full = ["adlfs", "aiohttp (!=4.0.0a0,!=4.0.0a1)", "cloudpickle", "dask", "d
 tqdm = ["tqdm"]
 
 [[package]]
-name = "graphviz"
-version = "0.21"
-description = "Simple Python interface for Graphviz"
-optional = false
-python-versions = ">=3.9"
-groups = ["dev"]
-files = [
-    {file = "graphviz-0.21-py3-none-any.whl", hash = "sha256:54f33de9f4f911d7e84e4191749cac8cc5653f815b06738c54db9a15ab8b1e42"},
-    {file = "graphviz-0.21.tar.gz", hash = "sha256:20743e7183be82aaaa8ad6c93f8893c923bd6658a04c32ee115edb3c8a835f78"},
-]
-
-[package.extras]
-dev = ["Flake8-pyproject", "build", "flake8", "pep8-naming", "tox (>=3)", "twine", "wheel"]
-docs = ["sphinx (>=5,<7)", "sphinx-autodoc-typehints", "sphinx-rtd-theme (>=0.2.5)"]
-test = ["coverage", "pytest (>=7,<8.1)", "pytest-cov", "pytest-mock (>=3)"]
-
-[[package]]
 name = "greenlet"
 version = "3.3.0"
 description = "Lightweight in-process concurrent programming"
@@ -6754,4 +6737,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "ff35c6b60e759b5b7b4a85bb5f94a198d6cfaa94f9d78bbaebf7010b31365bd8"
+content-hash = "1ec0caa3738bb3e73ea59685c134386be0a73ed9514e373db65e7576928be305"
