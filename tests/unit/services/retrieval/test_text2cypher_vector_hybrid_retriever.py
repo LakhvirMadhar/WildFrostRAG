@@ -1,4 +1,4 @@
-"""Unit tests for Text2CypherVectorHybridRetriever.search() (T5.3).
+"""Unit tests for Text2CypherVectorHybridRetriever.search().
 
 search() is decomposed into _search_text2cypher (async, catches
 WildFrostRAGError) and _build_vector_fallback (sync). These tests inject fake

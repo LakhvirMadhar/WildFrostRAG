@@ -1,7 +1,7 @@
 """Repository for reading Document nodes from Neo4j.
 
 Owns the raw index-search Cypher queries that used to live inline in
-Neo4jVectorSearch, Neo4jFullTextSearch, and BM25Retriever (T4.3) - each of
+Neo4jVectorSearch, Neo4jFullTextSearch, and BM25Retriever - each of
 those retrievers now depends on this repository instead of executing Cypher
 itself, matching the DI pattern already used for the driver.
 """

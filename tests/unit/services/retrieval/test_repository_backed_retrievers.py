@@ -1,4 +1,4 @@
-"""Retriever tests using fake repositories instead of a live driver (T4.3).
+"""Retriever tests using fake repositories instead of a live driver.
 
 The point of pushing Cypher execution into DocumentRepository/CardRepository:
 a retriever's search() logic (building RetrievedChunk objects, applying

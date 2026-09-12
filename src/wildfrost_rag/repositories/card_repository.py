@@ -1,7 +1,7 @@
 """Repository for Document reads enriched with Card/entity graph data.
 
 Owns the graph-traversal-enriched Cypher queries that used to live inline in
-VectorThenCypherRetriever and FulltextThenCypherRetriever (T4.3). Each query
+VectorThenCypherRetriever and FulltextThenCypherRetriever. Each query
 is a single atomic Cypher statement (index lookup piped directly into
 GRAPH_TRAVERSAL_QUERY), so it stays one repository call per search rather
 than two separate round trips.

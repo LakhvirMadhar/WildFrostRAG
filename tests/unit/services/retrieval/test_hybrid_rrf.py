@@ -1,4 +1,4 @@
-"""Unit tests for HybridRetriever's Reciprocal Rank Fusion math (T5.2).
+"""Unit tests for HybridRetriever's Reciprocal Rank Fusion math.
 
 _apply_rrf() was decomposed into _score_documents() (accumulation loop) and
 _select_top_k() (sort + slice), so the RRF math can be exercised directly with

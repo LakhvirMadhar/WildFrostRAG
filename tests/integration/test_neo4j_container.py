@@ -1,4 +1,4 @@
-"""Proves a real Neo4j instance is reachable from this test suite (T4.0).
+"""Proves a real Neo4j instance is reachable from this test suite.
 
 Starts a disposable Neo4j container via testcontainers-python - works
 identically on a developer's own machine (if Docker is running) and in CI,
