@@ -1,4 +1,4 @@
-"""Unit tests for GraphBuilderService's run() orchestration (T6.2).
+"""Unit tests for GraphBuilderService's run() orchestration.
 
 GraphBuilderService.run() reproduces what scripts/ingest_data.py's main() used to do
 directly: clear the database when asked, always run Stage 1 and Stage 2, and run

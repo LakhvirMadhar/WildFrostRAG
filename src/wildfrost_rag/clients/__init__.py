@@ -1,4 +1,4 @@
-"""clients layer for WildFrostRAG (scaffolded in T7.1, populated by later Epic 7 tickets)."""
+"""clients layer for WildFrostRAG - external API/service wrappers (ACLs), no business logic."""
 
 from wildfrost_rag.clients.generator import (
     EmbeddingGenerator,

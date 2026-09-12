@@ -1,10 +1,11 @@
 """Unit tests for the retriever types not covered by test_repository_backed_retrievers.py.
 
-Covers (T5.4): BM25Retriever, Text2CypherRetriever, GraphRagRetriever,
+Covers: BM25Retriever, Text2CypherRetriever, GraphRagRetriever,
 VectorThenCypherRetriever, FulltextThenCypherRetriever, and construction/wiring
 for the three non-Text2Cypher hybrid retrievers. RRF fusion math and the
 Text2Cypher-vs-vector fallback logic in hybrid_retrievers.py are covered by
-T5.2/T5.3's own test files, not duplicated here.
+test_hybrid_rrf.py and test_text2cypher_vector_hybrid_retriever.py, not
+duplicated here.
 """
 
 import asyncio

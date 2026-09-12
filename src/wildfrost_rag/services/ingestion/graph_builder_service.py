@@ -1,9 +1,9 @@
 """Orchestration and business logic for the WildFrostRAG data ingestion pipeline.
 
-Extracted from scripts/ingest_data.py (T6.2) so the CLI script is a thin wrapper
-around a unit-testable service: argument parsing and Neo4j driver construction stay
-in the script; everything else - scraping, enrichment, graph population, and
-document ingestion - lives here.
+Extracted from the CLI ingestion entry point so it's a thin wrapper around a
+unit-testable service: argument parsing and Neo4j driver construction stay
+in the CLI script; everything else - scraping, enrichment, graph population,
+and document ingestion - lives here.
 
 Follows the same dependency-injection pattern as CardRepository, DocumentRepository,
 and BaseNeo4jRetriever: the Neo4j Driver is constructed once by the caller and passed

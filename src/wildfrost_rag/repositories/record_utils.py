@@ -1,8 +1,8 @@
 """Shared Neo4j record-flattening helpers.
 
-Extracted from BaseNeo4jRetriever so repositories (which now own query
-execution, per T4.3) and the retriever base class share one implementation
-instead of two copies.
+Extracted from BaseNeo4jRetriever so repositories (which own query
+execution) and the retriever base class share one implementation instead
+of two copies.
 """
 
 from typing import Any

@@ -1,4 +1,4 @@
-"""Integration tests for DocumentRepository against a real Neo4j container (T4.3)."""
+"""Integration tests for DocumentRepository against a real Neo4j container."""
 
 from collections.abc import Iterator
 

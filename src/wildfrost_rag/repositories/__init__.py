@@ -1,1 +1,1 @@
-"""repositories layer for WildFrostRAG (scaffolded in T7.1, populated by later Epic 7 tickets)."""
+"""repositories layer for WildFrostRAG - Neo4j data access, one repository per aggregate."""

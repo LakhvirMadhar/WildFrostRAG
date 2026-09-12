@@ -1,4 +1,4 @@
-"""Proves VectorRepository (T4.1) uses only its injected driver.
+"""Proves VectorRepository uses only its injected driver.
 
 Starts a disposable Neo4j container via testcontainers-python, same pattern
 as test_neo4j_container.py. Skipped automatically when Docker isn't running.
