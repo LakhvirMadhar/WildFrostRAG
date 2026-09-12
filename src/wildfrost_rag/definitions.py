@@ -6,4 +6,12 @@ Launch locally with:
 
 from dagster import Definitions
 
-defs = Definitions(assets=[], resources={})
+from wildfrost_rag.defs.resources import Neo4jResource, OpenAIResource
+
+defs = Definitions(
+    assets=[],
+    resources={
+        "neo4j": Neo4jResource(),
+        "openai": OpenAIResource(),
+    },
+)
