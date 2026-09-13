@@ -4,11 +4,11 @@ Parses the Bells wiki page to extract Sun Bells, Storm Bells, and Modifier Bells
 """
 
 import re
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
 from bs4 import BeautifulSoup, Comment, Tag
+from pydantic import BaseModel, Field
 
 from wildfrost_rag.data_processing.text_utils import clean_element_text
 from wildfrost_rag.core.logger import logger
@@ -24,15 +24,14 @@ class BellCategory(Enum):
     MODIFIER = "modifier"
 
 
-@dataclass
-class BellInfo:
+class BellInfo(BaseModel):
     """Represents a Bell from the game."""
 
-    name: str
+    name: str = Field(min_length=1)
     category: BellCategory
-    description: str
+    description: str = Field(min_length=1)
     notes: str | None = None
-    storm_strength: int | None = None
+    storm_strength: int | None = Field(default=None, ge=0)
     url: str | None = None
     bell_html: str | None = None
 

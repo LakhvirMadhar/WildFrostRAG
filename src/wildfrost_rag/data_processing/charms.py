@@ -4,22 +4,21 @@ Parses the Charms wiki page to extract regular and cursed charms.
 """
 
 import re
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
 from bs4 import BeautifulSoup, Comment, Tag
+from pydantic import BaseModel, Field
 
 from wildfrost_rag.core.logger import logger
 
 
-@dataclass
-class CharmInfo:
+class CharmInfo(BaseModel):
     """Represents a Charm from the game."""
 
-    name: str
-    description: str
+    name: str = Field(min_length=1)
+    description: str = Field(min_length=1)
     is_cursed: bool
     url: str | None = None
     charm_html: str | None = None
