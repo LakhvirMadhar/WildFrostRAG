@@ -1,10 +1,8 @@
 """Embedding generation and vector-index creation for Document nodes.
 
-Extracted from cli/add_embeddings.py so it's unit-testable and reusable from
-the Dagster asset chain, and fixes a resume bug along the way: the original
-script checked "does *any* Document already have this property" and skipped
-the whole run if so, so a run that died partway through could never finish
-the remaining documents on retry. This service checks per-document instead.
+Safe to re-run after a partial failure: only Documents still missing the
+target property are processed, rather than skipping the whole run if any
+document already has it.
 
 All Neo4j reads/writes are delegated to VectorRepository - this service only
 does provider selection, model loading, and batch orchestration.

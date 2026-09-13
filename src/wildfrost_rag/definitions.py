@@ -14,6 +14,7 @@ from wildfrost_rag.defs.ingestion.assets import (
     scraped_cards,
 )
 from wildfrost_rag.defs.resources import Neo4jResource, OpenAIResource
+from wildfrost_rag.defs.retrieval.assets import retrieval_results
 
 defs = Definitions(
     assets=[
@@ -23,6 +24,7 @@ defs = Definitions(
         neo4j_documents,
         card_embeddings,
         vector_index,
+        retrieval_results,
     ],
     resources={
         "neo4j": Neo4jResource(),
