@@ -3,8 +3,7 @@
 card_embeddings depends on neo4j_documents (not neo4j_graph) because
 Document nodes - the things being embedded - are created in stage 4
 (neo4j_documents), not stage 3 (neo4j_graph, which only creates
-Card/Tribe/CardType/etc. nodes). The migration plan's ticket text said
-"downstream of neo4j_graph"; that was imprecise and is corrected here.
+Card/Tribe/CardType/etc. nodes).
 """
 
 from dagster import Backoff, Config, Jitter, RetryPolicy, asset

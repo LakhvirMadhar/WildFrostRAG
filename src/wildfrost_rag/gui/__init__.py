@@ -9,7 +9,7 @@ Usage:
     browser = browse_experiments()
 """
 
-from wildfrost_rag.gui.experiment_adapters import (
+from wildfrost_rag.services.evaluation.experiment_adapters import (
     ExperimentDataAdapter,
     ExperimentRegistry,
     QueryResult,
