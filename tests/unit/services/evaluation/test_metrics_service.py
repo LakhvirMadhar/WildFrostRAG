@@ -4,9 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+import mlflow
 import pytest
 
-from wildfrost_rag.services.evaluation.metrics_service import calculate_metrics
+from wildfrost_rag.services.evaluation import mlflow_tracking
+from wildfrost_rag.services.evaluation.metrics_service import calculate_metrics, save_metrics
 
 
 def _write_experiment(
@@ -79,3 +81,25 @@ def test_calculate_metrics_reads_retriever_type_from_config(tmp_path: Path) -> N
     metrics_data = calculate_metrics(experiment_path)
 
     assert metrics_data["retriever_type"] == "bm25"
+
+
+def test_save_metrics_logs_to_a_real_mlflow_run_with_at_sanitized_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """MLflow metric names reject '@' - "avg_hit@1" must become "avg_hit_at_1", not fail outright.
+
+    Uses a real, isolated MLflow backend rather than mocking mlflow.log_metrics -
+    a mock would have hidden the exact bug this test exists to catch (MLflow's own
+    name-validation rejecting the raw "@k" keys already used throughout this codebase).
+    """
+    monkeypatch.setattr(mlflow_tracking, "TRACKING_URI", f"sqlite:///{tmp_path}/test_mlflow.db")
+    experiment_dir = tmp_path / "bm25" / "001"
+    experiment_dir.mkdir(parents=True)
+    metrics_data = {"aggregate_metrics": {"avg_hit@1": 0.9, "avg_mrr": 0.8}}
+
+    save_metrics(experiment_dir, metrics_data)
+
+    with mlflow_tracking.get_or_create_run("bm25/001") as run:
+        run_id = run.info.run_id
+    logged = mlflow.get_run(run_id).data.metrics
+    assert logged == {"avg_hit_at_1": 0.9, "avg_mrr": 0.8}

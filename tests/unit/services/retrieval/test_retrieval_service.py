@@ -10,12 +10,15 @@ import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import mlflow
 import pandas as pd
 import pytest
 from neo4j import Driver
 
 from wildfrost_rag.domain.retriever_type import RetrieverType
+from wildfrost_rag.models.experiment_config import EmbeddingConfig, QueryStats, RetrievalConfig
 from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
+from wildfrost_rag.services.evaluation import mlflow_tracking
 from wildfrost_rag.services.retrieval.bm25_retriever import BM25Retriever
 from wildfrost_rag.services.retrieval.neo4j_vector_search import Neo4jVectorSearch
 from wildfrost_rag.services.retrieval.retrieval_service import RetrievalService
@@ -148,3 +151,45 @@ def test_run_experiment_records_stop_word_settings_only_for_relevant_retrievers(
 
     assert "sw_query" not in fake_run_with_retriever.call_args.kwargs
     assert "sw_docs" not in fake_run_with_retriever.call_args.kwargs
+
+
+def test_save_experiment_artifacts_logs_to_real_mlflow_with_none_embedding_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BM25 has no embedder - embedding_provider/vector_index_name are None.
+
+    Uses a real, isolated MLflow backend rather than mocking mlflow.log_params -
+    a mock would hide whether MLflow's own param validation actually accepts None
+    values (it does), the same class of bug the metric-name "@" case caught.
+    """
+    monkeypatch.setattr(mlflow_tracking, "TRACKING_URI", f"sqlite:///{tmp_path}/test_mlflow.db")
+    config = RetrievalConfig(
+        retrieval_id="bm25/001",
+        run_number=1,
+        timestamp="2026-01-01T00:00:00",
+        retriever_type="bm25",
+        chunking=False,
+        k=10,
+        description="test run",
+        query_stats=QueryStats(total=1, successful=1, failed=0),
+        embedding=EmbeddingConfig(model="all-MiniLM-L6-v2", provider=None, vector_index_name=None),
+    )
+    service = RetrievalService()
+
+    with patch(f"{_MODULE}.ExperimentRegistry"):
+        service._save_experiment_artifacts(
+            experiment_dir=tmp_path,
+            config=config,
+            results=[],
+            individual_results=[],
+            retriever=MagicMock(),
+            retriever_type=RetrieverType.BM25,
+            experiment_id="001",
+            run_num=1,
+        )
+
+    with mlflow_tracking.get_or_create_run("bm25/001") as run:
+        run_id = run.info.run_id
+    logged_params = mlflow.get_run(run_id).data.params
+    assert logged_params["embedding_provider"] == "None"
+    assert logged_params["description"] == "test run"
