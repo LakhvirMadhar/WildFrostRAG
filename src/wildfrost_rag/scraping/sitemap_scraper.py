@@ -116,10 +116,14 @@ async def scrape_single_link(
             return None
 
 
-async def scrape_multiple_links(urls: list[str], max_concurrent: int = 5) -> list[str]:
+async def scrape_multiple_links(
+    session: aiohttp.ClientSession, urls: list[str], max_concurrent: int = 5
+) -> list[str]:
     """Scrape multiple URLs asynchronously with concurrent request limiting.
 
     Args:
+        session: Shared HTTP session (constructed and owned by the caller) used
+            for every request in this batch.
         urls: List of URL strings to scrape
         max_concurrent: Maximum number of simultaneous requests (default: 5)
 
@@ -135,14 +139,13 @@ async def scrape_multiple_links(urls: list[str], max_concurrent: int = 5) -> lis
 
     semaphore = Semaphore(max_concurrent)
 
-    async with aiohttp.ClientSession() as session:
-        tasks = [scrape_single_link(session, semaphore, url) for url in urls]
-        results = await asyncio.gather(*tasks)
+    tasks = [scrape_single_link(session, semaphore, url) for url in urls]
+    results = await asyncio.gather(*tasks)
 
-        successful_scrapes = sum(1 for result in results if result is not None)
-        logger.info(f"Batch scrape completed: {successful_scrapes}/{len(urls)} URLs successful")
+    successful_scrapes = sum(1 for result in results if result is not None)
+    logger.info(f"Batch scrape completed: {successful_scrapes}/{len(urls)} URLs successful")
 
-        return [r for r in results if r is not None]
+    return [r for r in results if r is not None]
 
 
 def process_raw_html_output(html_output: str, sub_directory: str = "raw_htmls") -> str | None:

@@ -87,10 +87,13 @@ class Neo4jFullTextSearch(BaseNeo4jRetriever):
 
         # Perform full-text search (index must already exist)
         try:
-            results = self._document_repository.fulltext_search(
+            search_results = self._document_repository.fulltext_search(
                 self.index_name, search_query_text, k
             )
             self.last_cypher_query = self._document_repository.last_cypher_query
+            # Flatten the validated models back to dicts for the generic,
+            # shape-agnostic result-formatting pipeline (shared by every retriever).
+            results = [result.model_dump(exclude_none=True) for result in search_results]
             return to_retrieved_chunks(self._add_metadata(results, "fulltext"))
         except Exception as e:
             logger.error(

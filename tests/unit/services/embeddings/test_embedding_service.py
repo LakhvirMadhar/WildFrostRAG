@@ -17,7 +17,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from wildfrost_rag.core.config import get_settings
-from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
+from wildfrost_rag.domain.repository_results import MissingEmbeddingDocument
+from wildfrost_rag.core.embedder_type import EmbedderType
 from wildfrost_rag.services.embeddings.embedding_service import EmbeddingService
 
 _MODULE = "wildfrost_rag.services.embeddings.embedding_service"
@@ -34,7 +35,7 @@ def _fake_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     get_settings.cache_clear()
 
 
-def _fake_repository(missing_docs: list[tuple[str, str]]) -> MagicMock:
+def _fake_repository(missing_docs: list[MissingEmbeddingDocument]) -> MagicMock:
     repository = MagicMock()
     repository.documents_missing_property.return_value = missing_docs
     repository.set_document_embeddings.side_effect = (
@@ -80,7 +81,10 @@ class _FakeSentenceTransformer:
 
 def test_add_embeddings_only_processes_documents_missing_the_property() -> None:
     """The resume fix: repository is asked for missing docs, not all docs."""
-    missing = [("first text", "id-1"), ("second text", "id-2")]
+    missing = [
+        MissingEmbeddingDocument(text="first text", element_id="id-1"),
+        MissingEmbeddingDocument(text="second text", element_id="id-2"),
+    ]
     repository = _fake_repository(missing)
 
     with (
@@ -105,7 +109,7 @@ def test_add_embeddings_openai_delegates_to_call_openai_embeddings(
     monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
     get_settings.cache_clear()
 
-    missing = [("some text", "id-1")]
+    missing = [MissingEmbeddingDocument(text="some text", element_id="id-1")]
     repository = _fake_repository(missing)
 
     async def _fake_call_openai_embeddings(
@@ -136,7 +140,7 @@ def test_add_embeddings_openai_raises_when_api_key_missing(
     from wildfrost_rag.core.exceptions import EmbeddingError
 
     monkeypatch.setattr(get_settings().openai, "api_key", None)
-    repository = _fake_repository([("some text", "id-1")])
+    repository = _fake_repository([MissingEmbeddingDocument(text="some text", element_id="id-1")])
 
     with patch(f"{_MODULE}.VectorRepository", return_value=repository):
         with pytest.raises(EmbeddingError):
@@ -145,7 +149,7 @@ def test_add_embeddings_openai_raises_when_api_key_missing(
 
 def test_add_embeddings_gemma_delegates_to_ollama_async_client() -> None:
     """The gemma branch calls ollama.AsyncClient().embed(), never a local model."""
-    missing = [("some text", "id-1")]
+    missing = [MissingEmbeddingDocument(text="some text", element_id="id-1")]
     repository = _fake_repository(missing)
     fake_async_client = MagicMock()
 

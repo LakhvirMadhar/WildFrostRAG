@@ -33,7 +33,7 @@ from wildfrost_rag.models.experiment_config import RetrievalConfig
 from wildfrost_rag.prompts import load_prompt
 from wildfrost_rag.repositories.card_repository import CardRepository
 from wildfrost_rag.repositories.document_repository import DocumentRepository
-from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
+from wildfrost_rag.core.embedder_type import EmbedderType
 from wildfrost_rag.services.evaluation.mlflow_tracking import get_or_create_run
 from wildfrost_rag.services.evaluation.auto_annotator import run_auto_annotation
 from wildfrost_rag.services.retrieval import (
@@ -95,8 +95,8 @@ class RetrievalService:
         if retriever_type not in VECTOR_BASED_RETRIEVERS:
             return None
 
-        embedder_config = get_settings().embedding.embedding_configs[embedder.value]
-        index_name: str = embedder_config["index_name"]
+        embedder_config = get_settings().embedding.embedding_configs[embedder]
+        index_name = embedder_config.index_name
         logger.info(f"Using embedder '{embedder.value}' with index '{index_name}'")
         return index_name
 
@@ -110,8 +110,8 @@ class RetrievalService:
         if retriever_type not in VECTOR_BASED_RETRIEVERS:
             return None, None, None
 
-        embedder_cfg = get_settings().embedding.embedding_configs[embedder.value]
-        return embedder.value, embedder_cfg["model"], embedder_cfg["index_name"]
+        embedder_cfg = get_settings().embedding.embedding_configs[embedder]
+        return embedder.value, embedder_cfg.model, embedder_cfg.index_name
 
     def get_retriever(
         self,

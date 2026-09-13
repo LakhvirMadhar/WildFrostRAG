@@ -8,10 +8,10 @@ injection — the caller (ingest_data.py) manages driver lifecycle.
 """
 
 from pathlib import Path
-from typing import Any
 from neo4j import Driver, Session
 from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
+from wildfrost_rag.domain.repository_results import DocumentSearchResult, MissingEmbeddingDocument
 from wildfrost_rag.repositories.query_utils import single_value
 from wildfrost_rag.core.logger import logger
 
@@ -133,14 +133,15 @@ class VectorRepository:
             session.run(create_index_query)
             logger.info(f"Vector index '{index_name}' created successfully")
 
-    def documents_missing_property(self, property_name: str) -> list[tuple[str, str]]:
-        """Fetch (text, element_id) for every Document that doesn't yet have this property.
+    def documents_missing_property(self, property_name: str) -> list[MissingEmbeddingDocument]:
+        """Fetch every Document that doesn't yet have this embedding property.
 
         Args:
             property_name: Embedding property to check for (e.g. "hf_embedding")
 
         Returns:
-            List of (text, element_id) tuples for Documents missing the property
+            List of MissingEmbeddingDocument (text + element_id) for Documents
+            missing the property
         """
         with self.driver.session() as session:
             find_missing_query = f"""
@@ -150,7 +151,10 @@ class VectorRepository:
             ORDER BY element_id
             """
             results = session.run(find_missing_query)
-            return [(record["text"], record["element_id"]) for record in results]
+            return [
+                MissingEmbeddingDocument(text=record["text"], element_id=record["element_id"])
+                for record in results
+            ]
 
     def set_document_embeddings(
         self,
@@ -186,7 +190,7 @@ class VectorRepository:
         embedding_model: SentenceTransformer,
         index_name: str = "document-embeddings",
         k: int = 5,
-    ) -> list[dict[str, Any]]:
+    ) -> list[DocumentSearchResult]:
         """Retrieve the top-k most relevant document chunks using vector search.
 
         Args:
@@ -196,7 +200,7 @@ class VectorRepository:
             k: Number of results to return
 
         Returns:
-            List of dictionaries containing retrieved chunks with their metadata and scores
+            List of validated Document search results (node properties + score)
         """
         logger.info(f"Retrieving top-{k} chunks for query: '{query}'")
 
@@ -219,21 +223,16 @@ class VectorRepository:
                 k=k,
             )
 
-            # Extract results
-            retrieved_chunks = []
-            for record in results:
-                node = record["node"]
-                # Start with score
-                chunk_dict = {
-                    "score": record["score"],
-                }
-                # Flatten all node properties into the dict
-                # This includes 'text', 'source_file', etc.
-                for key, value in node.items():
-                    if key != "embedding":  # Exclude the large vector
-                        chunk_dict[key] = value
-
-                retrieved_chunks.append(chunk_dict)
+            # Extract results: node properties (minus the large embedding vector) + score
+            retrieved_chunks = [
+                DocumentSearchResult(
+                    score=record["score"],
+                    **{
+                        prop: value for prop, value in record["node"].items() if prop != "embedding"
+                    },
+                )
+                for record in results
+            ]
 
             logger.info(f"Retrieved {len(retrieved_chunks)} chunks")
             return retrieved_chunks

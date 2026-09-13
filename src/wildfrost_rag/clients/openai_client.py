@@ -21,6 +21,7 @@ from wildfrost_rag.core.exceptions import (
     LLMRateLimitError,
 )
 from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.embedder_type import EmbedderType
 from wildfrost_rag.core.logger import logger
 
 # =============================================================================
@@ -159,14 +160,16 @@ async def call_openai_embeddings(
     Args:
         texts: List of texts to embed
         model: Embedding model name (defaults to
-            settings.embedding.embedding_configs["openai"]["model"])
+            settings.embedding.embedding_configs[EmbedderType.OPENAI].model)
 
     Returns:
         List of embedding vectors
     """
     async with _get_semaphore():
         client = _get_client()
-        resolved_model = model or get_settings().embedding.embedding_configs["openai"]["model"]
+        resolved_model = (
+            model or get_settings().embedding.embedding_configs[EmbedderType.OPENAI].model
+        )
         try:
             response = await client.embeddings.create(input=texts, model=resolved_model)
             return [item.embedding for item in response.data]

@@ -14,7 +14,7 @@ import asyncio
 
 from wildfrost_rag.clients.neo4j_driver import neo4j_driver
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
+from wildfrost_rag.core.embedder_type import EmbedderType
 from wildfrost_rag.services.embeddings.embedding_service import EmbeddingService
 
 

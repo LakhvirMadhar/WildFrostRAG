@@ -10,6 +10,7 @@ from typing import Any
 
 from neo4j import Driver
 
+from wildfrost_rag.domain.repository_results import DocumentProperties, DocumentSearchResult
 from wildfrost_rag.repositories.record_utils import record_to_dict
 
 
@@ -27,15 +28,15 @@ class DocumentRepository:
         self.neo4j_database = neo4j_database
         self.last_cypher_query: str | None = None
 
-    def _run(self, query: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+    def _run(self, query: str, params: dict[str, Any]) -> list[DocumentSearchResult]:
         self.last_cypher_query = query
         with self.driver.session(database=self.neo4j_database) as session:
             results = session.run(query, params)
-            return [record_to_dict(record) for record in results]
+            return [DocumentSearchResult(**record_to_dict(record)) for record in results]
 
     def vector_search(
         self, index_name: str, query_embedding: list[float], k: int
-    ) -> list[dict[str, Any]]:
+    ) -> list[DocumentSearchResult]:
         """Vector similarity search against a Document vector index.
 
         Args:
@@ -44,7 +45,7 @@ class DocumentRepository:
             k: Number of top results to return
 
         Returns:
-            List of raw result dicts (node properties + score)
+            List of validated Document search results (node properties + score)
         """
         query = """
         CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
@@ -55,7 +56,9 @@ class DocumentRepository:
         params = {"index_name": index_name, "query_embedding": query_embedding, "k": k}
         return self._run(query, params)
 
-    def fulltext_search(self, index_name: str, query_text: str, k: int) -> list[dict[str, Any]]:
+    def fulltext_search(
+        self, index_name: str, query_text: str, k: int
+    ) -> list[DocumentSearchResult]:
         """Lucene-based full-text search against a Document fulltext index.
 
         Args:
@@ -64,7 +67,7 @@ class DocumentRepository:
             k: Number of top results to return
 
         Returns:
-            List of raw result dicts (node properties + score)
+            List of validated Document search results (node properties + score)
         """
         query = """
         CALL db.index.fulltext.queryNodes($index_name, $query)
@@ -76,11 +79,11 @@ class DocumentRepository:
         params = {"index_name": index_name, "query": query_text, "k": k}
         return self._run(query, params)
 
-    def load_all_documents(self, label: str) -> list[tuple[str, dict[str, Any]]]:
+    def load_all_documents(self, label: str) -> list[tuple[str, DocumentProperties]]:
         """Load every Document (or Document-labeled) node's text and properties.
 
         Used by BM25Retriever to build its in-memory index - loads the whole
-        corpus rather than searching, so it returns raw (text, node_properties)
+        corpus rather than searching, so it returns raw (text, properties)
         pairs instead of the score-annotated shape the search methods return.
 
         Args:
@@ -88,7 +91,7 @@ class DocumentRepository:
                 the label it queries, e.g. "Document")
 
         Returns:
-            List of (text, node_properties_without_embedding) tuples
+            List of (text, DocumentProperties) pairs
         """
         query = f"""
         MATCH (d:{label})
@@ -99,6 +102,11 @@ class DocumentRepository:
         with self.driver.session(database=self.neo4j_database) as session:
             results = session.run(query)
             return [
-                (record["text"], {k: v for k, v in record["d"].items() if k != "embedding"})
+                (
+                    record["text"],
+                    DocumentProperties(
+                        **{k: v for k, v in record["d"].items() if k != "embedding"}
+                    ),
+                )
                 for record in results
             ]

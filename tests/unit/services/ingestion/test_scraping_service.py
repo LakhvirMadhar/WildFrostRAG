@@ -13,7 +13,7 @@ with asyncio.run() from an ordinary (synchronous) test function.
 
 import asyncio
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -39,22 +39,22 @@ def _make_patches(fight_page_mapping: dict[str, str]) -> dict[str, Any]:
         )
 
     return {
-        "scrape_leaders": lambda: _pair(["leader_card"], "leaders"),
-        "scrape_crowns": lambda: _pair("discarded", "crowns"),
-        "scrape_getting_started": lambda: _pair("discarded", "getting_started"),
-        "scrape_stats": lambda: _pair(["a_stat"], "stats"),
-        "scrape_individual_stat_pages": lambda stats: _urls_only("individual_stats"),
-        "scrape_keywords": lambda: _pair(["a_keyword"], "keywords"),
-        "scrape_bling": lambda bosses, minibosses: _pair(["a_bling_drop"], "bling"),
-        "scrape_shop": lambda name, category: _pair([f"{name}_listing"], f"shop_{name}"),
-        "scrape_clunker_prices": lambda: _pair(["a_clunker_price"], "clunker"),
-        "scrape_bells": lambda: _pair(["a_bell"], "bells"),
-        "scrape_individual_bell_pages": lambda bells: _urls_only("individual_bells"),
-        "scrape_charms": lambda: _pair(["a_charm"], "charms"),
-        "scrape_individual_charm_pages": lambda charms: _urls_only("individual_charms"),
-        "scrape_shades": lambda: _pair(["a_summon"], "shades"),
-        "scrape_map": lambda: _map_result(),
-        "scrape_fight_pages": lambda mapping: _pair({"boss": ["enemy"]}, "fight_pages"),
+        "scrape_leaders": lambda session: _pair(["leader_card"], "leaders"),
+        "scrape_crowns": lambda session: _pair("discarded", "crowns"),
+        "scrape_getting_started": lambda session: _pair("discarded", "getting_started"),
+        "scrape_stats": lambda session: _pair(["a_stat"], "stats"),
+        "scrape_individual_stat_pages": lambda session, stats: _urls_only("individual_stats"),
+        "scrape_keywords": lambda session: _pair(["a_keyword"], "keywords"),
+        "scrape_bling": lambda session, bosses, minibosses: _pair(["a_bling_drop"], "bling"),
+        "scrape_shop": lambda session, name, category: _pair([f"{name}_listing"], f"shop_{name}"),
+        "scrape_clunker_prices": lambda session: _pair(["a_clunker_price"], "clunker"),
+        "scrape_bells": lambda session: _pair(["a_bell"], "bells"),
+        "scrape_individual_bell_pages": lambda session, bells: _urls_only("individual_bells"),
+        "scrape_charms": lambda session: _pair(["a_charm"], "charms"),
+        "scrape_individual_charm_pages": lambda session, charms: _urls_only("individual_charms"),
+        "scrape_shades": lambda session: _pair(["a_summon"], "shades"),
+        "scrape_map": lambda session: _map_result(),
+        "scrape_fight_pages": lambda session, mapping: _pair({"boss": ["enemy"]}, "fight_pages"),
     }
 
 
@@ -70,7 +70,7 @@ def test_scrape_domain_pages_calls_every_scraper_and_merges_urls(has_fights: boo
         # Any reflects that this test verifies wiring/sequencing, not domain-object
         # fidelity, which the fakes deliberately don't provide.
         result: Any = asyncio.run(
-            service._scrape_domain_pages({"bosses": ["Boss"], "minibosses": []})
+            service._scrape_domain_pages(MagicMock(), {"bosses": ["Boss"], "minibosses": []})
         )
 
     assert result.cards == ["leader_card"]

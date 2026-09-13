@@ -17,7 +17,7 @@ from neo4j import Driver
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.defs.embeddings.assets import EmbeddingConfig, card_embeddings, vector_index
 from wildfrost_rag.defs.resources import Neo4jResource
-from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
+from wildfrost_rag.core.embedder_type import EmbedderType
 
 
 @pytest.fixture(autouse=True)

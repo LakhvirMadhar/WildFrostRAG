@@ -7,11 +7,11 @@ connection needed at all.
 """
 
 from collections.abc import Iterator
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
+from wildfrost_rag.domain.repository_results import DocumentSearchResult
 from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.services.retrieval.neo4j_fulltext_search import Neo4jFullTextSearch
 from wildfrost_rag.services.retrieval.neo4j_vector_search import Neo4jVectorSearch
@@ -27,7 +27,7 @@ class FakeDocumentRepository(DocumentRepository):
     machinery is never exercised.
     """
 
-    def __init__(self, canned_results: list[dict[str, Any]]) -> None:
+    def __init__(self, canned_results: list[DocumentSearchResult]) -> None:
         """Store the canned results this fake will return from any query method."""
         super().__init__(driver=MagicMock())
         self._canned_results = canned_results
@@ -36,13 +36,15 @@ class FakeDocumentRepository(DocumentRepository):
 
     def vector_search(
         self, index_name: str, query_embedding: list[float], k: int
-    ) -> list[dict[str, Any]]:
+    ) -> list[DocumentSearchResult]:
         """Record the call and return the canned results, no real query executed."""
         self.vector_search_calls.append((index_name, query_embedding, k))
         self.last_cypher_query = "FAKE VECTOR QUERY"
         return self._canned_results
 
-    def fulltext_search(self, index_name: str, query_text: str, k: int) -> list[dict[str, Any]]:
+    def fulltext_search(
+        self, index_name: str, query_text: str, k: int
+    ) -> list[DocumentSearchResult]:
         """Record the call and return the canned results, no real query executed."""
         self.fulltext_search_calls.append((index_name, query_text, k))
         self.last_cypher_query = "FAKE FULLTEXT QUERY"
@@ -67,7 +69,11 @@ def _fake_neo4j_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 def test_vector_search_builds_retrieved_chunks_from_fake_repository() -> None:
     """Neo4jVectorSearch.search() correctly builds RetrievedChunk from canned repo output."""
-    canned = [{"text": "Bombom deals damage.", "source_url": "https://wiki/Bombom", "score": 0.95}]
+    canned = [
+        DocumentSearchResult(
+            text="Bombom deals damage.", source_url="https://wiki/Bombom", score=0.95
+        )
+    ]
     fake_repository = FakeDocumentRepository(canned)
     driver = MagicMock()
     retriever = Neo4jVectorSearch(
@@ -89,7 +95,11 @@ def test_vector_search_builds_retrieved_chunks_from_fake_repository() -> None:
 
 def test_fulltext_search_builds_retrieved_chunks_from_fake_repository() -> None:
     """Neo4jFullTextSearch.search() correctly builds RetrievedChunk from canned repo output."""
-    canned = [{"text": "Foxee has high attack.", "source_url": "https://wiki/Foxee", "score": 2.1}]
+    canned = [
+        DocumentSearchResult(
+            text="Foxee has high attack.", source_url="https://wiki/Foxee", score=2.1
+        )
+    ]
     fake_repository = FakeDocumentRepository(canned)
     driver = MagicMock()
     retriever = Neo4jFullTextSearch(driver, document_repository=fake_repository, index_name="idx")

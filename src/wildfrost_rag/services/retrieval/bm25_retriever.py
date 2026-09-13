@@ -11,6 +11,7 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from neo4j import Driver
 from rank_bm25 import BM25Okapi
+from wildfrost_rag.domain.repository_results import DocumentProperties
 from wildfrost_rag.domain.retrieval import RetrievedChunk, to_retrieved_chunks
 from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.core.config import get_settings
@@ -74,7 +75,7 @@ class BM25Retriever(BaseNeo4jRetriever):
         )
         self.bm25_model: BM25Okapi | None = None
         self.documents: list[list[str]] = []
-        self.node_data: list[dict[str, Any]] = []
+        self.node_data: list[DocumentProperties] = []
         self._initialize_nltk()
 
     def _initialize_nltk(self) -> None:
@@ -131,10 +132,10 @@ class BM25Retriever(BaseNeo4jRetriever):
         self.documents = []
         self.node_data = []
 
-        for text, node_properties in raw_documents:
+        for text, document_properties in raw_documents:
             tokens = self._tokenize(text, self.remove_stopwords_docs)
             self.documents.append(tokens)
-            self.node_data.append(node_properties)
+            self.node_data.append(document_properties)
 
         self.bm25_model = BM25Okapi(self.documents)
 
@@ -171,7 +172,7 @@ class BM25Retriever(BaseNeo4jRetriever):
         results = []
         for idx in top_indices:
             score = float(scores[idx])
-            node_data = self.node_data[idx].copy()
+            node_data = self.node_data[idx].model_dump(exclude_none=True)
             node_data["score"] = score
             results.append(node_data)
 

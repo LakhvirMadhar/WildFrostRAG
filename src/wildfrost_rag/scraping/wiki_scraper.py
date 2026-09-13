@@ -1,5 +1,7 @@
 import re
 
+import aiohttp
+
 from wildfrost_rag.scraping.sitemap_scraper import scrape_multiple_links
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
@@ -10,10 +12,13 @@ def clean_name_for_url(name: str) -> str:
     return re.sub(r"\s+", "_", name)
 
 
-async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
+async def scrape_wiki_page(
+    session: aiohttp.ClientSession, page_name: str, output_subdir: str
+) -> str | None:
     """Scrape a wiki page and save HTML.
 
     Args:
+        session: Shared HTTP session (constructed and owned by the caller).
         page_name: Name of the wiki page (e.g., "Crowns", "Leaders", "Stats")
         output_subdir: Subdirectory under structured_outputs_dir to save the HTML
 
@@ -23,7 +28,7 @@ async def scrape_wiki_page(page_name: str, output_subdir: str) -> str | None:
     logger.info(f"Scraping {page_name} page...")
     settings = get_settings()
     url = f"{settings.scraping.wildfrost_wiki_base_url}/{page_name}"
-    html_list = await scrape_multiple_links([url], max_concurrent=1)
+    html_list = await scrape_multiple_links(session, [url], max_concurrent=1)
     html = html_list[0] if html_list else None
 
     if not html:

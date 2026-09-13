@@ -11,6 +11,7 @@ from typing import Any
 
 from neo4j import Driver
 
+from wildfrost_rag.domain.repository_results import GraphTraversalResult
 from wildfrost_rag.repositories.record_utils import record_to_dict
 from wildfrost_rag.repositories.traversal_patterns import GRAPH_TRAVERSAL_QUERY
 
@@ -29,15 +30,17 @@ class CardRepository:
         self.neo4j_database = neo4j_database
         self.last_cypher_query: str | None = None
 
-    def _run(self, query: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+    def _run(self, query: str, params: dict[str, Any]) -> list[GraphTraversalResult]:
         self.last_cypher_query = query
         with self.driver.session(database=self.neo4j_database) as session:
             results = session.run(query, params)
-            return [record_to_dict(record) for record in results]
+            return [
+                GraphTraversalResult.from_flat_dict(record_to_dict(record)) for record in results
+            ]
 
     def vector_search_with_enrichment(
         self, index_name: str, query_embedding: list[float], k: int
-    ) -> list[dict[str, Any]]:
+    ) -> list[GraphTraversalResult]:
         """Vector search against a Document index, enriched with graph data.
 
         Args:
@@ -46,7 +49,7 @@ class CardRepository:
             k: Number of top results to return
 
         Returns:
-            List of raw result dicts (doc + score + enrichment fields)
+            List of validated graph-traversal results (doc + score + enrichment fields)
         """
         query = f"""
         CALL db.index.vector.queryNodes($index_name, $k, $query_embedding)
@@ -58,7 +61,7 @@ class CardRepository:
 
     def fulltext_search_with_enrichment(
         self, index_name: str, query_text: str, k: int
-    ) -> list[dict[str, Any]]:
+    ) -> list[GraphTraversalResult]:
         """Fulltext search against a Document index, enriched with graph data.
 
         Args:
@@ -67,7 +70,7 @@ class CardRepository:
             k: Number of top results to return
 
         Returns:
-            List of raw result dicts (doc + score + enrichment fields)
+            List of validated graph-traversal results (doc + score + enrichment fields)
         """
         query = f"""
         CALL db.index.fulltext.queryNodes($index_name, $query)

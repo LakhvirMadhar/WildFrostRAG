@@ -60,6 +60,13 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
         query_embedding = self._embed_fn(query)
 
         # Step 2: Perform vector similarity search
-        results = self._document_repository.vector_search(self.index_name, query_embedding, k)
+        search_results = self._document_repository.vector_search(
+            self.index_name, query_embedding, k
+        )
         self.last_cypher_query = self._document_repository.last_cypher_query
+
+        # Step 3: Hand off to the generic result-formatting pipeline, which is
+        # intentionally shape-agnostic (shared by every retriever) - flatten
+        # the validated model back to a dict at this boundary.
+        results = [result.model_dump(exclude_none=True) for result in search_results]
         return to_retrieved_chunks(self._add_metadata(results, "vector"))

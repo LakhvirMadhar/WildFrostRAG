@@ -1,5 +1,7 @@
 import os
 
+import aiohttp
+
 from wildfrost_rag.data_processing.leaders import parse_leaders_page
 from wildfrost_rag.data_processing.stats import parse_stats_page, StatInfo
 from wildfrost_rag.data_processing.keywords import parse_keywords_page, KeywordInfo
@@ -29,7 +31,9 @@ from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.scraping_types import FightEnemies, FightPageMapping, PageUrls
 
 
-async def _get_html(page_name: str, output_subdir: str) -> tuple[str | None, PageUrls]:
+async def _get_html(
+    session: aiohttp.ClientSession, page_name: str, output_subdir: str
+) -> tuple[str | None, PageUrls]:
     """Load HTML from cache if available, otherwise scrape it.
 
     Returns:
@@ -41,12 +45,12 @@ async def _get_html(page_name: str, output_subdir: str) -> tuple[str | None, Pag
     html = load_cached_html(page_name, output_subdir)
     if html:
         return html, urls
-    return await scrape_wiki_page(page_name, output_subdir), urls
+    return await scrape_wiki_page(session, page_name, output_subdir), urls
 
 
-async def scrape_leaders() -> tuple[list[CardInfo], PageUrls]:
+async def scrape_leaders(session: aiohttp.ClientSession) -> tuple[list[CardInfo], PageUrls]:
     """Parse the Leaders page (from cache or web)."""
-    html, urls = await _get_html("Leaders", "leaders")
+    html, urls = await _get_html(session, "Leaders", "leaders")
     if not html:
         return [], urls
 
@@ -55,9 +59,9 @@ async def scrape_leaders() -> tuple[list[CardInfo], PageUrls]:
     return leader_cards, urls
 
 
-async def scrape_stats() -> tuple[list[StatInfo], PageUrls]:
+async def scrape_stats(session: aiohttp.ClientSession) -> tuple[list[StatInfo], PageUrls]:
     """Parse the Stats page (from cache or web)."""
-    html, urls = await _get_html("Stats", "stats")
+    html, urls = await _get_html(session, "Stats", "stats")
     if not html:
         return [], urls
 
@@ -66,13 +70,16 @@ async def scrape_stats() -> tuple[list[StatInfo], PageUrls]:
     return stats, urls
 
 
-async def scrape_individual_stat_pages(stats: list[StatInfo]) -> PageUrls:
+async def scrape_individual_stat_pages(
+    session: aiohttp.ClientSession, stats: list[StatInfo]
+) -> PageUrls:
     """Scrape individual stat wiki pages for per-stat Document content.
 
     Checks cache first (via stat.save_path()), scrapes any missing pages.
     Each stat's HTML is saved to data/structured_outputs/stats/{name}.html.
 
     Args:
+        session: Shared HTTP session (constructed and owned by the caller).
         stats: List of StatInfo objects (already parsed from summary page with url set)
 
     Returns:
@@ -98,7 +105,7 @@ async def scrape_individual_stat_pages(stats: list[StatInfo]) -> PageUrls:
     if stats_to_scrape:
         urls = [s.url for s in stats_to_scrape if s.url is not None]
         htmls = await scrape_multiple_links(
-            urls, max_concurrent=get_settings().scraping.max_concurrent_requests
+            session, urls, max_concurrent=get_settings().scraping.max_concurrent_requests
         )
 
         for stat, html in zip(stats_to_scrape, htmls, strict=False):
@@ -111,9 +118,9 @@ async def scrape_individual_stat_pages(stats: list[StatInfo]) -> PageUrls:
     return page_urls
 
 
-async def scrape_keywords() -> tuple[list[KeywordInfo], PageUrls]:
+async def scrape_keywords(session: aiohttp.ClientSession) -> tuple[list[KeywordInfo], PageUrls]:
     """Parse the Keywords page (from cache or web)."""
-    html, urls = await _get_html("Keywords", "keywords")
+    html, urls = await _get_html(session, "Keywords", "keywords")
     if not html:
         return [], urls
 
@@ -122,9 +129,9 @@ async def scrape_keywords() -> tuple[list[KeywordInfo], PageUrls]:
     return keywords, urls
 
 
-async def scrape_charms() -> tuple[list[CharmInfo], PageUrls]:
+async def scrape_charms(session: aiohttp.ClientSession) -> tuple[list[CharmInfo], PageUrls]:
     """Parse the Charms page (from cache or web)."""
-    html, urls = await _get_html("Charms", "charms")
+    html, urls = await _get_html(session, "Charms", "charms")
     if not html:
         return [], urls
 
@@ -133,13 +140,16 @@ async def scrape_charms() -> tuple[list[CharmInfo], PageUrls]:
     return charms, urls
 
 
-async def scrape_individual_charm_pages(charms: list[CharmInfo]) -> PageUrls:
+async def scrape_individual_charm_pages(
+    session: aiohttp.ClientSession, charms: list[CharmInfo]
+) -> PageUrls:
     """Scrape individual charm wiki pages for per-charm Document content.
 
     Checks cache first (via charm.save_path()), scrapes any missing pages.
     Each charm's HTML is saved to data/structured_outputs/charms/{name}.html.
 
     Args:
+        session: Shared HTTP session (constructed and owned by the caller).
         charms: List of CharmInfo objects (already parsed from summary page with url set)
 
     Returns:
@@ -165,7 +175,7 @@ async def scrape_individual_charm_pages(charms: list[CharmInfo]) -> PageUrls:
     if charms_to_scrape:
         urls = [c.url for c in charms_to_scrape if c.url is not None]
         htmls = await scrape_multiple_links(
-            urls, max_concurrent=get_settings().scraping.max_concurrent_requests
+            session, urls, max_concurrent=get_settings().scraping.max_concurrent_requests
         )
 
         for charm, html in zip(charms_to_scrape, htmls, strict=False):
@@ -178,9 +188,9 @@ async def scrape_individual_charm_pages(charms: list[CharmInfo]) -> PageUrls:
     return page_urls
 
 
-async def scrape_shades() -> tuple[list[SummonInfo], PageUrls]:
+async def scrape_shades(session: aiohttp.ClientSession) -> tuple[list[SummonInfo], PageUrls]:
     """Parse the Shades page for summoning relationships (from cache or web)."""
-    html, urls = await _get_html("Shades", "shades")
+    html, urls = await _get_html(session, "Shades", "shades")
     if not html:
         return [], urls
 
@@ -189,11 +199,11 @@ async def scrape_shades() -> tuple[list[SummonInfo], PageUrls]:
     return summons, urls
 
 
-async def scrape_map() -> tuple[
-    list[ZoneInfo], list[MapEventInfo], list[FightSlotInfo], FightPageMapping, PageUrls
-]:
+async def scrape_map(
+    session: aiohttp.ClientSession,
+) -> tuple[list[ZoneInfo], list[MapEventInfo], list[FightSlotInfo], FightPageMapping, PageUrls]:
     """Parse the Map page (from cache or web)."""
-    html, urls = await _get_html("Map", "maps")
+    html, urls = await _get_html(session, "Map", "maps")
     if not html:
         return [], [], [], {}, urls
 
@@ -207,7 +217,7 @@ async def scrape_map() -> tuple[
 
 
 async def scrape_fight_pages(
-    fight_page_mapping: FightPageMapping,
+    session: aiohttp.ClientSession, fight_page_mapping: FightPageMapping
 ) -> tuple[FightEnemies, PageUrls]:
     """Parse individual fight pages and extract enemy names (from cache or web).
 
@@ -220,7 +230,7 @@ async def scrape_fight_pages(
     fight_enemies = {}
     page_urls: PageUrls = {}
     for page_slug in page_slugs:
-        html, slug_urls = await _get_html(page_slug, "fights")
+        html, slug_urls = await _get_html(session, page_slug, "fights")
         if html:
             enemies = parse_fight_enemies(html)
             fight_enemies[page_slug] = enemies
@@ -233,10 +243,10 @@ async def scrape_fight_pages(
 
 
 async def scrape_bling(
-    boss_names: list[str], miniboss_names: list[str]
+    session: aiohttp.ClientSession, boss_names: list[str], miniboss_names: list[str]
 ) -> tuple[list[EnemyBlingDrop], PageUrls]:
     """Parse the Bling page for enemy drop values (from cache or web)."""
-    html, urls = await _get_html("Bling", "bling")
+    html, urls = await _get_html(session, "Bling", "bling")
     if not html:
         return [], urls
 
@@ -245,9 +255,11 @@ async def scrape_bling(
     return drops, urls
 
 
-async def scrape_shop(page_name: str, subdir: str) -> tuple[list[ShopListing], PageUrls]:
+async def scrape_shop(
+    session: aiohttp.ClientSession, page_name: str, subdir: str
+) -> tuple[list[ShopListing], PageUrls]:
     """Parse a shop page for item/charm listings (from cache or web)."""
-    html, urls = await _get_html(page_name, subdir)
+    html, urls = await _get_html(session, page_name, subdir)
     if not html:
         return [], urls
 
@@ -256,9 +268,11 @@ async def scrape_shop(page_name: str, subdir: str) -> tuple[list[ShopListing], P
     return listings, urls
 
 
-async def scrape_clunker_prices() -> tuple[list[ShopListing], PageUrls]:
+async def scrape_clunker_prices(
+    session: aiohttp.ClientSession,
+) -> tuple[list[ShopListing], PageUrls]:
     """Parse the Clunkers page for clunker shop prices (from cache or web)."""
-    html, urls = await _get_html("Clunkers", "clunkers_page")
+    html, urls = await _get_html(session, "Clunkers", "clunkers_page")
     if not html:
         return [], urls
 
@@ -267,9 +281,9 @@ async def scrape_clunker_prices() -> tuple[list[ShopListing], PageUrls]:
     return listings, urls
 
 
-async def scrape_bells() -> tuple[list[BellInfo], PageUrls]:
+async def scrape_bells(session: aiohttp.ClientSession) -> tuple[list[BellInfo], PageUrls]:
     """Parse the Bells page (from cache or web)."""
-    html, urls = await _get_html("Bells", "bells")
+    html, urls = await _get_html(session, "Bells", "bells")
     if not html:
         return [], urls
 
@@ -278,13 +292,16 @@ async def scrape_bells() -> tuple[list[BellInfo], PageUrls]:
     return bells, urls
 
 
-async def scrape_individual_bell_pages(bells: list[BellInfo]) -> PageUrls:
+async def scrape_individual_bell_pages(
+    session: aiohttp.ClientSession, bells: list[BellInfo]
+) -> PageUrls:
     """Scrape individual bell wiki pages for per-bell Document content.
 
     Only bells with real wiki pages (not red links) get scraped.
     Each bell's HTML is saved to data/structured_outputs/bells/{name}.html.
 
     Args:
+        session: Shared HTTP session (constructed and owned by the caller).
         bells: List of BellInfo objects (already parsed from summary page with url set)
 
     Returns:
@@ -310,7 +327,7 @@ async def scrape_individual_bell_pages(bells: list[BellInfo]) -> PageUrls:
     if bells_to_scrape:
         urls = [b.url for b in bells_to_scrape if b.url is not None]
         htmls = await scrape_multiple_links(
-            urls, max_concurrent=get_settings().scraping.max_concurrent_requests
+            session, urls, max_concurrent=get_settings().scraping.max_concurrent_requests
         )
 
         for bell, html in zip(bells_to_scrape, htmls, strict=False):
@@ -323,13 +340,13 @@ async def scrape_individual_bell_pages(bells: list[BellInfo]) -> PageUrls:
     return page_urls
 
 
-async def scrape_crowns() -> tuple[None, PageUrls]:
+async def scrape_crowns(session: aiohttp.ClientSession) -> tuple[None, PageUrls]:
     """Fetch the Crowns page (from cache or web). No structured parsing."""
-    _, urls = await _get_html("Crowns", "crowns")
+    _, urls = await _get_html(session, "Crowns", "crowns")
     return None, urls
 
 
-async def scrape_getting_started() -> tuple[None, PageUrls]:
+async def scrape_getting_started(session: aiohttp.ClientSession) -> tuple[None, PageUrls]:
     """Fetch the Getting Started page (from cache or web). No structured parsing."""
-    _, urls = await _get_html("Getting_Started", "getting_started")
+    _, urls = await _get_html(session, "Getting_Started", "getting_started")
     return None, urls

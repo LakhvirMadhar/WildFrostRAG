@@ -16,7 +16,7 @@ from sentence_transformers import SentenceTransformer
 from wildfrost_rag.core.exceptions import EmbeddingError
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
+from wildfrost_rag.core.embedder_type import EmbedderType
 
 
 class _EmbedderCache:
@@ -45,8 +45,8 @@ def get_query_embed_fn(embedder: str) -> Callable[[str], list[float]]:
         available = [member.value for member in EmbedderType]
         raise ValueError(f"Unknown embedder: {embedder}. Available: {available}") from exc
 
-    config = get_settings().embedding.embedding_configs[embedder_type.value]
-    model_name = config["model"]
+    config = get_settings().embedding.embedding_configs[embedder_type]
+    model_name = config.model
 
     if embedder_type is EmbedderType.HF:
         return _make_hf_embed_fn(model_name)

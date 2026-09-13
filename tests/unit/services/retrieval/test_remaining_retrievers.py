@@ -10,13 +10,13 @@ duplicated here.
 
 import asyncio
 from collections.abc import Callable, Iterator
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 from mlflow.entities.model_registry.prompt_version import PromptVersion
 
 from wildfrost_rag.core.exceptions import CypherExecutionError
+from wildfrost_rag.domain.repository_results import DocumentProperties, GraphTraversalResult
 from wildfrost_rag.repositories.card_repository import CardRepository
 from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.services.retrieval.bm25_retriever import BM25Retriever
@@ -50,13 +50,13 @@ def _fake_neo4j_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 class FakeDocumentRepository(DocumentRepository):
     """Test double for DocumentRepository used by BM25Retriever's bulk-load path."""
 
-    def __init__(self, canned_documents: list[tuple[str, dict[str, Any]]]) -> None:
+    def __init__(self, canned_documents: list[tuple[str, DocumentProperties]]) -> None:
         """Store the (text, properties) pairs load_all_documents() should return."""
         super().__init__(driver=MagicMock())
         self._canned_documents = canned_documents
         self.load_all_documents_calls: list[str] = []
 
-    def load_all_documents(self, index_name: str) -> list[tuple[str, dict[str, Any]]]:
+    def load_all_documents(self, index_name: str) -> list[tuple[str, DocumentProperties]]:
         """Record the call and return the canned documents, no real query executed."""
         self.load_all_documents_calls.append(index_name)
         return self._canned_documents
@@ -65,7 +65,7 @@ class FakeDocumentRepository(DocumentRepository):
 class FakeCardRepository(CardRepository):
     """Test double for CardRepository - returns canned enriched rows, executes nothing."""
 
-    def __init__(self, canned_results: list[dict[str, Any]]) -> None:
+    def __init__(self, canned_results: list[GraphTraversalResult]) -> None:
         """Store the canned results this fake will return from any query method."""
         super().__init__(driver=MagicMock())
         self._canned_results = canned_results
@@ -74,7 +74,7 @@ class FakeCardRepository(CardRepository):
 
     def vector_search_with_enrichment(
         self, index_name: str, query_embedding: list[float], k: int
-    ) -> list[dict[str, Any]]:
+    ) -> list[GraphTraversalResult]:
         """Record the call and return the canned results, no real query executed."""
         self.vector_calls.append((index_name, query_embedding, k))
         self.last_cypher_query = "FAKE ENRICHED VECTOR QUERY"
@@ -82,7 +82,7 @@ class FakeCardRepository(CardRepository):
 
     def fulltext_search_with_enrichment(
         self, index_name: str, query_text: str, k: int
-    ) -> list[dict[str, Any]]:
+    ) -> list[GraphTraversalResult]:
         """Record the call and return the canned results, no real query executed."""
         self.fulltext_calls.append((index_name, query_text, k))
         self.last_cypher_query = "FAKE ENRICHED FULLTEXT QUERY"
@@ -92,8 +92,14 @@ class FakeCardRepository(CardRepository):
 def test_bm25_search_builds_retrieved_chunks_from_fake_repository() -> None:
     """BM25Retriever.search() ranks canned documents and builds RetrievedChunk objects."""
     canned_documents = [
-        ("Bombom deals heavy damage.", {"source_url": "https://wiki/Bombom"}),
-        ("Foxee is a fast leader.", {"source_url": "https://wiki/Foxee"}),
+        (
+            "Bombom deals heavy damage.",
+            DocumentProperties(text="Bombom deals heavy damage.", source_url="https://wiki/Bombom"),
+        ),
+        (
+            "Foxee is a fast leader.",
+            DocumentProperties(text="Foxee is a fast leader.", source_url="https://wiki/Foxee"),
+        ),
     ]
     fake_repository = FakeDocumentRepository(canned_documents)
     driver = MagicMock()
@@ -110,7 +116,12 @@ def test_bm25_search_builds_retrieved_chunks_from_fake_repository() -> None:
 
 def test_bm25_search_uses_cache_on_second_instance() -> None:
     """BM25Retriever's class-level cache avoids a second document load for the same index."""
-    canned_documents = [("Bombom deals damage.", {"source_url": "https://wiki/Bombom"})]
+    canned_documents = [
+        (
+            "Bombom deals damage.",
+            DocumentProperties(text="Bombom deals damage.", source_url="https://wiki/Bombom"),
+        )
+    ]
     driver = MagicMock()
 
     first_repository = FakeDocumentRepository(canned_documents)
@@ -138,12 +149,12 @@ def test_graph_rag_retriever_returns_empty_placeholder() -> None:
 def test_vector_then_cypher_search_builds_retrieved_chunks_from_fake_repository() -> None:
     """VectorThenCypherRetriever.search() builds RetrievedChunk from canned enriched rows."""
     canned = [
-        {
-            "text": "Bombom deals damage.",
-            "source_url": "https://wiki/Bombom",
-            "score": 0.9,
-            "card_name": "Bombom",
-        }
+        GraphTraversalResult(
+            doc_text="Bombom deals damage.",
+            doc_source_url="https://wiki/Bombom",
+            score=0.9,
+            entity_fields={"card_name": "Bombom"},
+        )
     ]
     fake_repository = FakeCardRepository(canned)
     driver = MagicMock()
@@ -167,12 +178,12 @@ def test_vector_then_cypher_search_builds_retrieved_chunks_from_fake_repository(
 def test_fulltext_then_cypher_search_builds_retrieved_chunks_from_fake_repository() -> None:
     """FulltextThenCypherRetriever.search() builds RetrievedChunk from canned enriched rows."""
     canned = [
-        {
-            "text": "Foxee has high attack.",
-            "source_url": "https://wiki/Foxee",
-            "score": 2.5,
-            "card_name": "Foxee",
-        }
+        GraphTraversalResult(
+            doc_text="Foxee has high attack.",
+            doc_source_url="https://wiki/Foxee",
+            score=2.5,
+            entity_fields={"card_name": "Foxee"},
+        )
     ]
     fake_repository = FakeCardRepository(canned)
     driver = MagicMock()
