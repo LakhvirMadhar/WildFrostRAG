@@ -15,6 +15,7 @@ import pytest
 from git import InvalidGitRepositoryError, Repo
 from mlflow.utils.mlflow_tags import MLFLOW_GIT_COMMIT
 
+from wildfrost_rag.domain.experiment_type import ExperimentType
 from wildfrost_rag.services.evaluation import mlflow_tracking
 
 
@@ -99,3 +100,51 @@ def test_get_or_create_run_skips_the_tag_when_not_in_a_git_repo() -> None:
             run_id = run.info.run_id
 
     assert MLFLOW_GIT_COMMIT not in mlflow.get_run(run_id).data.tags
+
+
+def _log_retrieval_run(run_name: str, run_number: int, retriever_type: str) -> None:
+    with mlflow.start_run(run_name=run_name):
+        mlflow.log_params({"run_number": run_number, "retriever_type": retriever_type})
+
+
+def _log_generation_run(run_name: str, run_number: int) -> None:
+    with mlflow.start_run(run_name=run_name):
+        mlflow.log_params({"run_number": run_number, "retrieval_reference": "bm25/001"})
+
+
+def test_search_experiments_filters_by_retriever_type() -> None:
+    """retriever_type='bm25' matches only the bm25 run, not the vector_hf one."""
+    mlflow.set_tracking_uri(mlflow_tracking.TRACKING_URI)
+    mlflow.set_experiment(mlflow_tracking.EXPERIMENT_NAME)
+    _log_retrieval_run("bm25/010", run_number=1, retriever_type="bm25")
+    _log_retrieval_run("vector_hf/010", run_number=1, retriever_type="vector_hf")
+
+    runs = mlflow_tracking.search_experiments(retriever_type="bm25")
+
+    assert runs["tags.mlflow.runName"].tolist() == ["bm25/010"]
+
+
+def test_search_experiments_distinguishes_retrieval_from_generation() -> None:
+    """Generation runs never log retriever_type; retrieval runs always do."""
+    mlflow.set_tracking_uri(mlflow_tracking.TRACKING_URI)
+    mlflow.set_experiment(mlflow_tracking.EXPERIMENT_NAME)
+    _log_retrieval_run("bm25/011", run_number=1, retriever_type="bm25")
+    _log_generation_run("gen/011", run_number=1)
+
+    retrieval_runs = mlflow_tracking.search_experiments(experiment_type=ExperimentType.RETRIEVAL)
+    generation_runs = mlflow_tracking.search_experiments(experiment_type=ExperimentType.GENERATION)
+
+    assert retrieval_runs["tags.mlflow.runName"].tolist() == ["bm25/011"]
+    assert generation_runs["tags.mlflow.runName"].tolist() == ["gen/011"]
+
+
+def test_search_experiments_filters_by_run_number() -> None:
+    """run_number=1 matches only runs logged under this project's run 1."""
+    mlflow.set_tracking_uri(mlflow_tracking.TRACKING_URI)
+    mlflow.set_experiment(mlflow_tracking.EXPERIMENT_NAME)
+    _log_retrieval_run("bm25/012", run_number=1, retriever_type="bm25")
+    _log_retrieval_run("bm25/013", run_number=2, retriever_type="bm25")
+
+    runs = mlflow_tracking.search_experiments(run_number=1)
+
+    assert runs["tags.mlflow.runName"].tolist() == ["bm25/012"]
