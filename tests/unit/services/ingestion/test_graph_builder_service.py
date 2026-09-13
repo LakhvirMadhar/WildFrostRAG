@@ -19,10 +19,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from neo4j import Driver, Session
 
-from wildfrost_rag.services.ingestion.graph_builder_service import (
-    GraphBuilderService,
-    PipelineData,
-)
+from wildfrost_rag.services.ingestion.graph_builder_service import GraphBuilderService
+from wildfrost_rag.services.ingestion.pipeline_data import PipelineData
 
 
 def _make_fake_driver(session: Session) -> Driver:
