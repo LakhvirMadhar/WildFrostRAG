@@ -8,7 +8,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import mlflow
+
 from wildfrost_rag.core.logger import logger
+from wildfrost_rag.services.evaluation.mlflow_tracking import get_or_create_run
 from wildfrost_rag.services.evaluation.retrieval_metrics import (
     calculate_precision_at_k,
     calculate_recall_at_k,
@@ -143,9 +146,27 @@ def calculate_metrics(  # noqa: C901
 
 
 def save_metrics(experiment_path: Path, metrics_data: dict[str, Any]) -> Path:
-    """Save metrics.json to the experiment directory. Returns the path written."""
+    """Save metrics.json to the experiment directory, and log the aggregate metrics to MLflow.
+
+    Reuses the MLflow run the same experiment's retrieval_results already
+    created (matched by run name, e.g. "bm25/007") rather than starting a new one.
+
+    Returns the path written.
+    """
     output_path = experiment_path / "metrics.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(metrics_data, f, indent=2, default=str)
     logger.info(f"Metrics saved to {output_path}")
+
+    run_name = "/".join(experiment_path.parts[-2:])
+    with get_or_create_run(run_name):
+        # MLflow metric names allow only alphanumerics/_/-/./space//, not "@" -
+        # "avg_hit@1" -> "avg_hit_at_1". The JSON file keeps the original "@k" keys.
+        mlflow_metrics = {
+            name.replace("@", "_at_"): value
+            for name, value in metrics_data["aggregate_metrics"].items()
+        }
+        mlflow.log_metrics(mlflow_metrics)
+        mlflow.log_artifact(str(output_path))
+
     return output_path

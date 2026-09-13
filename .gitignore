@@ -6,6 +6,10 @@ docs/*
 !docs/retrieval_comparison_run1.md
 commit_message.md
 
+# MLflow local tracking store
+mlflow.db
+mlruns/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

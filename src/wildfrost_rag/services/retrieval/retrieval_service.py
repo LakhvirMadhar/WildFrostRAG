@@ -1,6 +1,8 @@
 """Runs a retrieval experiment end to end: build a retriever, run every query, save results.
 
-Experiment tracking (experiment_tracker's registry/experiments.yaml) is used as-is.
+Experiment tracking is dual-written for now: experiment_tracker's registry/
+experiments.yaml (unchanged) and MLflow (new). MLflow will fully replace the
+hand-rolled tracker once Epic 9 finishes.
 """
 
 import inspect
@@ -11,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Callable
 
+import mlflow
 import pandas as pd
 from neo4j import Driver
 from tqdm import tqdm
@@ -35,6 +38,7 @@ from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
 from wildfrost_rag.repositories.card_repository import CardRepository
 from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
+from wildfrost_rag.services.evaluation.mlflow_tracking import get_or_create_run
 from wildfrost_rag.services.evaluation.auto_annotator import run_auto_annotation
 from wildfrost_rag.services.retrieval import (
     BM25FulltextVectorHybridRetriever,
@@ -287,7 +291,11 @@ class RetrievalService:
         experiment_id: str,
         run_num: int,
     ) -> None:
-        """Save config.json, results.json, and (for hybrid retrievers) individual_results.json."""
+        """Save config.json, results.json, and (for hybrid retrievers) individual_results.json.
+
+        Also logs to MLflow (params + config.json/results.json as artifacts) - kept
+        alongside the on-disk files for now, not a replacement for them yet.
+        """
         save_config(config, experiment_dir)
 
         registry = ExperimentRegistry()
@@ -295,6 +303,32 @@ class RetrievalService:
 
         results_dicts = [r.to_dict() for r in results]
         save_results(results_dicts, experiment_dir / "results.json")
+
+        run_name = f"{retriever_type.value}/{experiment_id}"
+        with get_or_create_run(run_name):
+            mlflow.log_params(
+                {
+                    "run_number": config.run_number,
+                    "retriever_type": config.retriever_type,
+                    "chunking": config.chunking,
+                    "k": config.k,
+                    "description": config.description,
+                    "dataset": config.dataset,
+                    "embedding_model": config.embedding.model,
+                    "embedding_provider": config.embedding.provider,
+                    "vector_index_name": config.embedding.vector_index_name,
+                    **config.additional_metadata,
+                }
+            )
+            mlflow.log_metrics(
+                {
+                    "total_queries": config.query_stats.total,
+                    "successful_queries": config.query_stats.successful,
+                    "failed_queries": config.query_stats.failed,
+                }
+            )
+            mlflow.log_artifact(str(experiment_dir / "config.json"))
+            mlflow.log_artifact(str(experiment_dir / "results.json"))
 
         if isinstance(retriever, HybridRetriever) and individual_results:
             metadata = {
