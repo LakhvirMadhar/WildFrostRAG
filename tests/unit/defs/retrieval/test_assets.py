@@ -7,6 +7,7 @@ of a live connection.
 
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -19,6 +20,7 @@ from wildfrost_rag.defs.resources import Neo4jResource
 from wildfrost_rag.defs.retrieval.assets import RetrievalRunConfig, retrieval_results
 from wildfrost_rag.domain.retriever_type import RetrieverType
 from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
+from wildfrost_rag.services.retrieval.retrieval_service import RetrievalExperimentResult
 
 
 @pytest.fixture(autouse=True)
@@ -43,8 +45,12 @@ class _FakeNeo4jResource(Neo4jResource):
         return _fake_driver_context()
 
 
-def test_retrieval_results_materializes_and_returns_query_count() -> None:
-    """The asset materializes, passes config through, and returns the result count."""
+def test_retrieval_results_materializes_and_returns_the_experiment_dir() -> None:
+    """The asset materializes, passes config through, and returns the experiment dir path."""
+    fake_experiment = RetrievalExperimentResult(
+        results=[MagicMock(), MagicMock()],
+        experiment_dir=Path("outputs/run_1/retrievals/bm25/001"),
+    )
     with (
         patch(
             "wildfrost_rag.defs.retrieval.assets.RetrievalService.load_and_filter_queries",
@@ -52,7 +58,7 @@ def test_retrieval_results_materializes_and_returns_query_count() -> None:
         ),
         patch(
             "wildfrost_rag.defs.retrieval.assets.RetrievalService.run_experiment",
-            return_value=[object(), object()],
+            return_value=fake_experiment,
         ) as fake_run_experiment,
     ):
         result = materialize(
@@ -64,7 +70,7 @@ def test_retrieval_results_materializes_and_returns_query_count() -> None:
         )
 
     assert result.success
-    assert result.output_for_node("retrieval_results") == 2
+    assert result.output_for_node("retrieval_results") == str(fake_experiment.experiment_dir)
     called_kwargs = fake_run_experiment.call_args.kwargs
     assert called_kwargs["retriever_type"] is RetrieverType.BM25
     assert called_kwargs["run_num"] == 1

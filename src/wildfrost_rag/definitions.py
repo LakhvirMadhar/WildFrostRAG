@@ -7,6 +7,7 @@ Launch locally with:
 from dagster import Definitions
 
 from wildfrost_rag.defs.embeddings.assets import card_embeddings, vector_index
+from wildfrost_rag.defs.evaluation.assets import generation_taxonomy, retrieval_metrics
 from wildfrost_rag.defs.ingestion.assets import (
     enriched_cards,
     neo4j_documents,
@@ -25,6 +26,8 @@ defs = Definitions(
         card_embeddings,
         vector_index,
         retrieval_results,
+        retrieval_metrics,
+        generation_taxonomy,
     ],
     resources={
         "neo4j": Neo4jResource(),

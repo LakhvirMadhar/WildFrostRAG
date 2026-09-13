@@ -130,7 +130,7 @@ async def run(args: argparse.Namespace) -> None:
     queries_json = Path(args.queries_json) if args.queries_json else None
 
     with neo4j_driver() as driver:
-        results = await service.run_experiment(
+        experiment = await service.run_experiment(
             driver=driver,
             df=df,
             retriever_type=retriever_type,
@@ -145,7 +145,7 @@ async def run(args: argparse.Namespace) -> None:
             queries_json_path=queries_json,
         )
 
-        if results:
+        if experiment.results:
             logger.info(
                 "Retriever run completed successfully! Results saved for manual evaluation."
             )
