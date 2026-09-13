@@ -28,6 +28,7 @@ import sys
 
 import pandas as pd
 
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE
 from wildfrost_rag.experiment_tracker.experiment_utils import (
     list_available_retrievals,
     resolve_retrieval_reference,
@@ -52,7 +53,7 @@ def cmd_retrieval(args: argparse.Namespace) -> None:
         query_ids=getattr(args, "query_ids", None),
         exclude_query_ids=getattr(args, "exclude_query_ids", None),
         k=args.k,
-        file="queries/simple_reference_based_queries.csv",
+        file=DEFAULT_QUERIES_FILE,
         embedder="hf",
         queries_json=None,
         sw_query="yes",

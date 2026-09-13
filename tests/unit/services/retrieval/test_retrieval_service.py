@@ -15,6 +15,7 @@ import pandas as pd
 import pytest
 from neo4j import Driver
 
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE
 from wildfrost_rag.domain.retriever_type import RetrieverType
 from wildfrost_rag.models.experiment_config import EmbeddingConfig, QueryStats, RetrievalConfig
 from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
@@ -184,6 +185,8 @@ def test_save_experiment_artifacts_logs_to_real_mlflow_with_none_embedding_field
         retriever=MagicMock(),
         retriever_type=RetrieverType.BM25,
         experiment_id="001",
+        df=pd.DataFrame({"query_id": [1], "query": ["q"]}),
+        dataset_path="queries/simple_reference_based_queries.csv",
     )
 
     with mlflow_tracking.get_or_create_run("bm25/001") as run:
@@ -191,3 +194,48 @@ def test_save_experiment_artifacts_logs_to_real_mlflow_with_none_embedding_field
     logged_params = mlflow.get_run(run_id).data.params
     assert logged_params["embedding_provider"] == "None"
     assert logged_params["description"] == "test run"
+
+
+def test_save_experiment_artifacts_logs_the_query_dataset_as_a_real_mlflow_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The query DataFrame is logged as a real MLflow dataset input, not just a param.
+
+    Uses a real MLflow backend so the assertion reflects mlflow.log_input's actual
+    behavior (digest computed from content, source recorded) rather than a mock.
+    """
+    monkeypatch.setattr(mlflow_tracking, "TRACKING_URI", f"sqlite:///{tmp_path}/test_mlflow.db")
+    config = RetrievalConfig(
+        retrieval_id="bm25/002",
+        run_number=1,
+        timestamp="2026-01-01T00:00:00",
+        retriever_type="bm25",
+        chunking=False,
+        k=10,
+        description="dataset logging test",
+        query_stats=QueryStats(total=2, successful=2, failed=0),
+        embedding=EmbeddingConfig(model="all-MiniLM-L6-v2", provider=None, vector_index_name=None),
+    )
+    service = RetrievalService()
+    df = pd.DataFrame({"query_id": [1, 2], "query": ["a", "b"]})
+
+    service._save_experiment_artifacts(
+        experiment_dir=tmp_path,
+        config=config,
+        results=[],
+        individual_results=[],
+        retriever=MagicMock(),
+        retriever_type=RetrieverType.BM25,
+        experiment_id="002",
+        df=df,
+        dataset_path=DEFAULT_QUERIES_FILE,
+    )
+
+    with mlflow_tracking.get_or_create_run("bm25/002") as run:
+        run_id = run.info.run_id
+    inputs = mlflow.get_run(run_id).inputs
+    assert inputs is not None
+    dataset_inputs = inputs.dataset_inputs
+    assert len(dataset_inputs) == 1
+    assert dataset_inputs[0].dataset.name == "query_dataset"
+    assert "simple_reference_based_queries.csv" in dataset_inputs[0].dataset.source

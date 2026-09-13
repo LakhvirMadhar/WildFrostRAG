@@ -29,7 +29,7 @@ from mlflow.entities.model_registry.prompt_version import PromptVersion
 from wildfrost_rag.domain.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
 from wildfrost_rag.prompts import load_prompt
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
 from wildfrost_rag.services.evaluation.mlflow_tracking import get_or_create_run
 from wildfrost_rag.services.generation.generation_service import generate_rag, generate_zero_shot
 from wildfrost_rag.experiment_tracker.experiment_utils import (
@@ -131,9 +131,7 @@ def load_queries_for_zero_shot() -> list[RetrievalQueryResult]:
     """Load queries from the base query CSV for zero-shot mode."""
     import pandas as pd
 
-    queries_path = (
-        get_settings().paths.project_root / "queries" / "simple_reference_based_queries.csv"
-    )
+    queries_path = get_settings().paths.project_root / DEFAULT_QUERIES_FILE
     if not queries_path.exists():
         logger.error(f"Queries file not found: {queries_path}")
         sys.exit(1)

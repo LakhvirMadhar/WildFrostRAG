@@ -4,6 +4,7 @@ from pathlib import Path
 
 from dagster import Config, asset
 
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE
 from wildfrost_rag.defs.embeddings.assets import vector_index
 from wildfrost_rag.defs.ingestion.assets import neo4j_documents
 from wildfrost_rag.defs.resources import Neo4jResource
@@ -28,7 +29,7 @@ class RetrievalRunConfig(Config):
     exclude_query_ids: list[int] | None = None
     text2cypher_prompt_name: str = PromptName.TEXT2CYPHER_PROMPT
     queries_json: str | None = None
-    file: str = "queries/simple_reference_based_queries.csv"
+    file: str = DEFAULT_QUERIES_FILE
 
 
 @asset(deps=[neo4j_documents, vector_index])
@@ -56,6 +57,7 @@ async def retrieval_results(config: RetrievalRunConfig, neo4j: Neo4jResource) ->
             sw_docs=config.sw_docs,
             text2cypher_prompt_name=config.text2cypher_prompt_name,
             queries_json_path=queries_json_path,
+            dataset_path=config.file,
         )
 
     return str(experiment.experiment_dir)

@@ -10,6 +10,14 @@ from typing import Any
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEFAULT_QUERIES_FILE = "queries/simple_reference_based_queries.csv"
+"""Relative path to the project's default query dataset.
+
+A fixed project convention, not environment-specific configuration, so it's
+a plain constant rather than a Settings field - it never needs to vary by
+deployment the way Neo4j credentials or the OpenAI key do.
+"""
+
 
 class Neo4jSettings(BaseSettings):
     """Neo4j connection configuration."""
