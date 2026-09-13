@@ -7,6 +7,7 @@ without depending on any Neo4j resources - this stage never touches a driver.
 
 import json
 import os
+from collections.abc import Awaitable
 
 from tqdm import tqdm
 
@@ -34,6 +35,7 @@ from wildfrost_rag.clients.wiki_scraper import clean_name_for_url
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.clients.sitemap_scraper import scrape_multiple_links
+from wildfrost_rag.domain.scraping_types import FightEnemies, PageUrls
 from wildfrost_rag.services.ingestion.pipeline_data import PipelineData
 
 
@@ -164,6 +166,18 @@ class ScrapingService:
         )
         return all_cards, card_type_schema
 
+    async def _scrape_and_collect_urls[T](
+        self, coro: Awaitable[tuple[T, PageUrls]], page_urls: PageUrls
+    ) -> T:
+        """Await a scraper returning (value, urls); merge urls, return the value."""
+        value, urls = await coro
+        page_urls.update(urls)
+        return value
+
+    async def _merge_urls(self, coro: Awaitable[PageUrls], page_urls: PageUrls) -> None:
+        """Await a scraper returning urls only; merge them."""
+        page_urls.update(await coro)
+
     async def _scrape_domain_pages(self, card_type_schema: dict[str, list[str]]) -> PipelineData:
         """Scrape all domain pages (leaders, stats, keywords, shops, etc.).
 
@@ -173,64 +187,50 @@ class ScrapingService:
             card_type_schema: Schema dict used to extract boss/miniboss names for
                 bling scraping
         """
-        page_urls = {}
+        page_urls: PageUrls = {}
 
-        leader_cards, leader_urls = await scrape_leaders()
-        page_urls.update(leader_urls)
+        leader_cards = await self._scrape_and_collect_urls(scrape_leaders(), page_urls)
+        await self._scrape_and_collect_urls(scrape_crowns(), page_urls)
+        await self._scrape_and_collect_urls(scrape_getting_started(), page_urls)
 
-        _, crowns_urls = await scrape_crowns()
-        page_urls.update(crowns_urls)
+        stats = await self._scrape_and_collect_urls(scrape_stats(), page_urls)
+        # Individual stat pages, for per-stat Documents (detailed mechanics)
+        await self._merge_urls(scrape_individual_stat_pages(stats), page_urls)
 
-        _, getting_started_urls = await scrape_getting_started()
-        page_urls.update(getting_started_urls)
-
-        stats, stats_urls = await scrape_stats()
-        page_urls.update(stats_urls)
-
-        # Scrape individual stat pages for per-stat Documents (detailed mechanics)
-        individual_stat_urls = await scrape_individual_stat_pages(stats)
-        page_urls.update(individual_stat_urls)
-
-        keywords, keywords_urls = await scrape_keywords()
-        page_urls.update(keywords_urls)
+        keywords = await self._scrape_and_collect_urls(scrape_keywords(), page_urls)
 
         boss_names = card_type_schema.get("bosses", [])
         miniboss_names = card_type_schema.get("minibosses", [])
-        bling_drops, bling_urls = await scrape_bling(boss_names, miniboss_names)
-        page_urls.update(bling_urls)
+        bling_drops = await self._scrape_and_collect_urls(
+            scrape_bling(boss_names, miniboss_names), page_urls
+        )
 
-        woolly_snail_listings, woolly_urls = await scrape_shop("The_Woolly_Snail", "shops")
-        page_urls.update(woolly_urls)
-        charm_merchant_listings, charm_merchant_urls = await scrape_shop("Charm_Merchant", "shops")
-        page_urls.update(charm_merchant_urls)
+        woolly_snail_listings = await self._scrape_and_collect_urls(
+            scrape_shop("The_Woolly_Snail", "shops"), page_urls
+        )
+        charm_merchant_listings = await self._scrape_and_collect_urls(
+            scrape_shop("Charm_Merchant", "shops"), page_urls
+        )
+        clunker_prices = await self._scrape_and_collect_urls(scrape_clunker_prices(), page_urls)
 
-        clunker_prices, clunker_urls = await scrape_clunker_prices()
-        page_urls.update(clunker_urls)
+        bells = await self._scrape_and_collect_urls(scrape_bells(), page_urls)
+        # Individual bell pages, for per-bell Documents
+        await self._merge_urls(scrape_individual_bell_pages(bells), page_urls)
 
-        bells, bell_urls = await scrape_bells()
-        page_urls.update(bell_urls)
+        charms = await self._scrape_and_collect_urls(scrape_charms(), page_urls)
+        # Individual charm pages, for per-charm Documents (Strategy sections, etc.)
+        await self._merge_urls(scrape_individual_charm_pages(charms), page_urls)
 
-        # Scrape individual bell pages for per-bell Documents
-        individual_bell_urls = await scrape_individual_bell_pages(bells)
-        page_urls.update(individual_bell_urls)
-
-        charms, charm_urls = await scrape_charms()
-        page_urls.update(charm_urls)
-
-        # Scrape individual charm pages for per-charm Documents (Strategy sections, etc.)
-        individual_charm_urls = await scrape_individual_charm_pages(charms)
-        page_urls.update(individual_charm_urls)
-
-        summons, shades_urls = await scrape_shades()
-        page_urls.update(shades_urls)
+        summons = await self._scrape_and_collect_urls(scrape_shades(), page_urls)
 
         zones, map_events, fight_slots, fight_page_mapping, map_urls = await scrape_map()
         page_urls.update(map_urls)
 
-        fight_enemies: dict[str, list[str]] = {}
+        fight_enemies: FightEnemies = {}
         if fight_page_mapping:
-            fight_enemies, fight_urls = await scrape_fight_pages(fight_page_mapping)
-            page_urls.update(fight_urls)
+            fight_enemies = await self._scrape_and_collect_urls(
+                scrape_fight_pages(fight_page_mapping), page_urls
+            )
 
         return PipelineData(
             cards=leader_cards,
