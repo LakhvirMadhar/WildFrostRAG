@@ -19,6 +19,7 @@ from wildfrost_rag.models.experiment_config import (
 )
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
+from wildfrost_rag.domain.retriever_type import RetrieverType
 
 
 def get_next_experiment_id(base_path: Path) -> str:
@@ -44,7 +45,7 @@ def get_next_experiment_id(base_path: Path) -> str:
 
 def create_retrieval_config(
     run_num: int,
-    retriever_type: str,
+    retriever_type: RetrieverType,
     experiment_id: str,
     chunking: bool,
     total_queries: int,
@@ -90,7 +91,7 @@ def create_retrieval_config(
     settings = get_settings()
 
     text2cypher = None
-    if retriever_type == "text2cypher":
+    if retriever_type is RetrieverType.TEXT2CYPHER:
         text2cypher = Text2CypherConfig(
             prompt_version=text2cypher_prompt_version or "V1",
             llm_model=text2cypher_llm_model or settings.openai.text2cypher_model,
@@ -104,10 +105,10 @@ def create_retrieval_config(
         )
 
     return RetrievalConfig(
-        retrieval_id=f"{retriever_type}/{experiment_id}",
+        retrieval_id=f"{retriever_type.value}/{experiment_id}",
         run_number=run_num,
         timestamp=datetime.now().isoformat(),
-        retriever_type=retriever_type,
+        retriever_type=retriever_type.value,
         chunking=chunking,
         k=k,
         description=description,
