@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from wildfrost_rag.data_processing.cards import CardInfo, CardType
 from wildfrost_rag.data_processing.generate_schemas import generate_card_type_html_schema
-from wildfrost_rag.clients.domain_scrapers import (
+from wildfrost_rag.scraping.domain_scrapers import (
     scrape_bells,
     scrape_bling,
     scrape_charms,
@@ -31,10 +31,10 @@ from wildfrost_rag.clients.domain_scrapers import (
     scrape_shop,
     scrape_stats,
 )
-from wildfrost_rag.clients.wiki_scraper import clean_name_for_url
+from wildfrost_rag.scraping.wiki_scraper import clean_name_for_url
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.clients.sitemap_scraper import scrape_multiple_links
+from wildfrost_rag.scraping.sitemap_scraper import scrape_multiple_links
 from wildfrost_rag.domain.scraping_types import FightEnemies, PageUrls
 from wildfrost_rag.services.ingestion.pipeline_data import PipelineData
 

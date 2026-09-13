@@ -96,7 +96,7 @@ layers = [
     "gui",
     "defs",
     "services",
-    "clients | repositories",
+    "clients | repositories | scraping",
     "data_processing | experiment_tracker | prompts",
     "core | domain | models | main",
 ]

@@ -1,6 +1,6 @@
 import re
 
-from wildfrost_rag.clients.sitemap_scraper import scrape_multiple_links
+from wildfrost_rag.scraping.sitemap_scraper import scrape_multiple_links
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
 

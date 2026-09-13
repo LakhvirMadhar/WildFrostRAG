@@ -48,7 +48,7 @@ from wildfrost_rag.services.retrieval.hybrid_retrievers import HybridRetriever
 from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.repositories.card_repository import CardRepository
 from wildfrost_rag.repositories.document_repository import DocumentRepository
-from wildfrost_rag.clients.query_embedders import get_query_embed_fn
+from wildfrost_rag.services.retrieval.get_query_embedder import get_query_embed_fn
 from wildfrost_rag.models.experiment_config import RetrievalConfig
 from wildfrost_rag.domain.retrieval import QueryResult, CypherExecution
 from wildfrost_rag.core.logger import logger
