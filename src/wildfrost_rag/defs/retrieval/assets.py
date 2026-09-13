@@ -31,17 +31,18 @@ class RetrievalRunConfig(Config):
 
 
 @asset(deps=[neo4j_documents, vector_index])
-async def retrieval_results(config: RetrievalRunConfig, neo4j: Neo4jResource) -> int:
+async def retrieval_results(config: RetrievalRunConfig, neo4j: Neo4jResource) -> str:
     """Run a configured retriever over the query set and save the experiment artifacts.
 
-    Returns the number of queries successfully processed.
+    Returns the experiment directory the results were saved to, so downstream
+    evaluation assets (e.g. retrieval_metrics) know exactly where to read from.
     """
     service = RetrievalService()
     df = service.load_and_filter_queries(config.file, config.query_ids, config.exclude_query_ids)
     queries_json_path = Path(config.queries_json) if config.queries_json else None
 
     with neo4j.get_driver() as driver:
-        results = await service.run_experiment(
+        experiment = await service.run_experiment(
             driver=driver,
             df=df,
             retriever_type=config.retriever_type,
@@ -56,4 +57,4 @@ async def retrieval_results(config: RetrievalRunConfig, neo4j: Neo4jResource) ->
             queries_json_path=queries_json_path,
         )
 
-    return len(results)
+    return str(experiment.experiment_dir)

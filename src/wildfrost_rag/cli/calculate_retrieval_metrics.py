@@ -10,154 +10,15 @@ Usage:
 """
 
 import argparse
-import json
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import Any
 
-
-from wildfrost_rag.services.evaluation.retrieval_metrics import (
-    hit_at_k,
-    mrr,
-    calculate_precision_at_k,
-    calculate_recall_at_k,
-)
 from wildfrost_rag.core.logger import logger
-
-
-DEFAULT_K_VALUES = [1, 3, 5, 10]
-
-
-def _build_relevance_map(annotations: dict[str, Any], query_id: int) -> dict[int, bool]:
-    """Build chunk_index -> is_relevant map from annotations for a single query.
-
-    Returns:
-        Dict mapping chunk_index to is_relevant bool
-    """
-    query_ann = annotations.get(str(query_id), {})
-    relevance_list = query_ann.get("relevance_annotations", [])
-    return {
-        ann["chunk_index"]: ann.get("is_relevant", False)
-        for ann in relevance_list
-        if "chunk_index" in ann
-    }
-
-
-def calculate_metrics(  # noqa: C901
-    experiment_path: Path, k_values: list[int] | None = None
-) -> dict[str, Any]:
-    """Calculate retrieval metrics for an experiment.
-
-    Args:
-        experiment_path: Path to experiment directory containing results.json and annotations.json
-        k_values: List of k values for hit/precision/recall metrics
-
-    Returns:
-        Metrics dict with aggregate and per-query metrics
-    """
-    results_path = experiment_path / "results.json"
-    annotations_path = experiment_path / "annotations.json"
-    config_path = experiment_path / "config.json"
-
-    if not results_path.exists():
-        logger.error(f"results.json not found at {experiment_path}")
-        sys.exit(1)
-
-    if not annotations_path.exists():
-        logger.error(f"annotations.json not found at {experiment_path}")
-        logger.error("Run auto-annotation or manual annotation first.")
-        sys.exit(1)
-
-    # Load flat results array
-    with open(results_path, encoding="utf-8") as f:
-        results = json.load(f)
-
-    # Load annotations
-    with open(annotations_path, encoding="utf-8") as f:
-        annotations = json.load(f)
-
-    # Load config for metadata
-    config = {}
-    if config_path.exists():
-        with open(config_path, encoding="utf-8") as f:
-            config = json.load(f)
-
-    if k_values is None:
-        k_values = DEFAULT_K_VALUES
-
-    # Calculate per-query metrics
-    per_query_metrics = []
-    unannotated_queries = []
-
-    for result in results:
-        query_id = result.get("query_id")
-        query = result.get("query", "")
-        chunks = result.get("retrieved_chunks", [])
-        n_chunks = len(chunks)
-
-        # Build relevance map from annotations
-        relevance_map = _build_relevance_map(annotations, query_id)
-
-        if not relevance_map:
-            unannotated_queries.append(query_id)
-
-        # retrieved_ids = chunk indices in rank order
-        retrieved_ids = list(range(n_chunks))
-        # relevant_ids = indices of chunks annotated as relevant
-        # Unannotated queries get an empty list -> all metrics = 0 (treated as failure)
-        relevant_ids = [idx for idx in range(n_chunks) if relevance_map.get(idx, False)]
-
-        query_metrics = {
-            "query_id": query_id,
-            "query": query,
-            "n_chunks": n_chunks,
-            "n_relevant": len(relevant_ids),
-            "metrics": {},
-        }
-
-        for k in k_values:
-            query_metrics["metrics"][f"hit@{k}"] = hit_at_k(retrieved_ids, relevant_ids, k)
-            query_metrics["metrics"][f"precision@{k}"] = calculate_precision_at_k(
-                retrieved_ids, relevant_ids, k
-            )
-            query_metrics["metrics"][f"recall@{k}"] = calculate_recall_at_k(
-                retrieved_ids, relevant_ids, k
-            )
-
-        query_metrics["metrics"]["mrr"] = mrr(retrieved_ids, relevant_ids)
-        per_query_metrics.append(query_metrics)
-
-    if unannotated_queries:
-        logger.warning(
-            f"Skipped {len(unannotated_queries)} unannotated queries: {unannotated_queries}"
-        )
-
-    # Calculate aggregate metrics
-    aggregate_metrics = {}
-    if per_query_metrics:
-        metric_names = []
-        for k in k_values:
-            metric_names.extend([f"hit@{k}", f"precision@{k}", f"recall@{k}"])
-        metric_names.append("mrr")
-
-        for name in metric_names:
-            values = [qm["metrics"][name] for qm in per_query_metrics]
-            aggregate_metrics[f"avg_{name}"] = sum(values) / len(values)
-
-    # Build output
-    metrics_data = {
-        "experiment_path": str(experiment_path),
-        "retriever_type": config.get("retriever_type", "unknown"),
-        "timestamp": datetime.now().isoformat(),
-        "total_queries": len(results),
-        "annotated_queries": len(per_query_metrics),
-        "unannotated_queries": len(unannotated_queries),
-        "aggregate_metrics": aggregate_metrics,
-        "per_query_metrics": per_query_metrics,
-    }
-
-    return metrics_data
+from wildfrost_rag.services.evaluation.metrics_service import (
+    DEFAULT_K_VALUES,
+    calculate_metrics,
+    save_metrics,
+)
 
 
 def main() -> None:
@@ -184,16 +45,14 @@ def main() -> None:
         logger.error(f"Experiment path does not exist: {experiment_path}")
         sys.exit(1)
 
-    metrics_data = calculate_metrics(experiment_path, k_values)
+    try:
+        metrics_data = calculate_metrics(experiment_path, k_values)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        sys.exit(1)
 
-    # Save metrics
-    output_path = experiment_path / "metrics.json"
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(metrics_data, f, indent=2, default=str)
+    save_metrics(experiment_path, metrics_data)
 
-    logger.info(f"Metrics saved to {output_path}")
-
-    # Print summary
     agg = metrics_data["aggregate_metrics"]
     print(f"\nMetrics for {experiment_path}")
     print(

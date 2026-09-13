@@ -5,6 +5,7 @@ Experiment tracking (experiment_tracker's registry/experiments.yaml) is used as-
 
 import inspect
 import os
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -74,6 +75,14 @@ VECTOR_BASED_RETRIEVERS = {
     RetrieverType.VECTOR_THEN_CYPHER,
     RetrieverType.TEXT2CYPHER_VECTOR,
 }
+
+
+@dataclass
+class RetrievalExperimentResult:
+    """Outcome of one retrieval experiment run."""
+
+    results: list[QueryResult]
+    experiment_dir: Path
 
 
 class RetrievalService:
@@ -313,7 +322,7 @@ class RetrievalService:
         sw_docs: bool = True,
         text2cypher_prompt_name: str = "TEXT2CYPHER_PROMPT_V1",
         queries_json_path: Path | None = None,
-    ) -> list[QueryResult]:
+    ) -> RetrievalExperimentResult:
         """Build the configured retriever and run a full experiment with it.
 
         The single entry point both the CLI and the Dagster asset call: resolves
@@ -370,7 +379,7 @@ class RetrievalService:
         embedder: EmbedderType = EmbedderType.HF,
         queries_json_path: Path | None = None,
         **kwargs: Any,  # noqa: ANN401
-    ) -> list[QueryResult]:
+    ) -> RetrievalExperimentResult:
         """Run an already-built retriever on the provided dataset and save raw results.
 
         Args:
@@ -386,7 +395,7 @@ class RetrievalService:
             **kwargs: Additional metadata (e.g., text2cypher_prompt_version)
 
         Returns:
-            List of retrieval results
+            The results and the experiment directory they were saved to
         """
         retriever_dir_name = retriever_type.value
         if retriever_type in VECTOR_BASED_RETRIEVERS:
@@ -451,7 +460,7 @@ class RetrievalService:
         logger.info(f"Retrieval ID: {retriever_type.value}/{experiment_id}")
         logger.info(f"Results saved to {experiment_dir}")
 
-        return results
+        return RetrievalExperimentResult(results=results, experiment_dir=experiment_dir)
 
     def load_text2cypher_prompt(self, prompt_name: str) -> VersionedPrompt:
         """Load text2cypher prompt by name from the registry."""
