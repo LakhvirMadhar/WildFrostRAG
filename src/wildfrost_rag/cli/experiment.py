@@ -32,10 +32,12 @@ import argparse
 import asyncio
 import sys
 
+import pandas as pd
 
 from wildfrost_rag.experiment_tracker import ExperimentRegistry
-from wildfrost_rag.models.experiment import GenerationRecord, RetrievalRecord
+from wildfrost_rag.domain.experiment_type import ExperimentType
 from wildfrost_rag.domain.retriever_type import RetrieverType
+from wildfrost_rag.services.evaluation.mlflow_tracking import search_experiments
 from wildfrost_rag.cli.evaluate_retrievers import run as run_retrieval
 from wildfrost_rag.cli.run_llm_generation import run as run_generation
 from wildfrost_rag.core.logger import logger
@@ -95,79 +97,67 @@ def cmd_generation(args: argparse.Namespace) -> None:
     asyncio.run(run_generation(generation_args))
 
 
+def _print_run_row(row: pd.Series) -> None:
+    """Print one MLflow run row in the shape both cmd_list and cmd_search share."""
+    run_name = row.get("tags.mlflow.runName", "?")
+    print(f"  {run_name:<20} {row.get('params.description', '')}")
+    if pd.notna(row.get("params.retriever_type")):
+        print(
+            f"    Retriever: {row['params.retriever_type']}, Chunking: {row.get('params.chunking')}"
+        )
+    elif pd.notna(row.get("params.retrieval_reference")):
+        print(f"    Retrieval: {row['params.retrieval_reference']}")
+        print(f"    Prompt: {row.get('params.system_prompt_version')}")
+    successful = row.get("metrics.successful_queries")
+    total = row.get("metrics.total_queries")
+    if pd.notna(successful) and pd.notna(total):
+        print(f"    Queries: {int(successful)}/{int(total)}")
+    print()
+
+
 def cmd_list(args: argparse.Namespace) -> None:
-    """List experiments."""
+    """List experiments for one run number, from MLflow."""
     registry = ExperimentRegistry()
     run_num = args.run if args.run != "current" else registry.get_current_run()
+    experiment_type = ExperimentType(args.type) if args.type else None
+
+    runs = search_experiments(experiment_type=experiment_type, run_number=run_num)
 
     print(f"\n{'=' * 80}")
     print(f"Experiments for Run {run_num}")
     print(f"{'=' * 80}\n")
 
-    if args.type in [None, "retrieval"]:
-        print("RETRIEVAL EXPERIMENTS")
-        print("-" * 80)
-        retrievals = registry.list_retrievals(run_num)
-        if retrievals:
-            for ret in retrievals:
-                print(f"  {ret.reference:<20} {ret.description}")
-                print(f"    Retriever: {ret.retriever_type}, Chunking: {ret.chunking}")
-                print(f"    Queries: {ret.successful_queries}/{ret.total_queries}")
-                print(f"    Time: {ret.timestamp}")
-                print()
-        else:
-            print("  No retrieval experiments found.\n")
+    if runs.empty:
+        print("  No experiments found.\n")
+        return
 
-    if args.type in [None, "generation"]:
-        print("GENERATION EXPERIMENTS")
-        print("-" * 80)
-        generations = registry.list_generations(run_num)
-        if generations:
-            for gen in generations:
-                print(f"  {gen.reference:<20} {gen.description}")
-                print(f"    Retrieval: {gen.retrieval_reference}")
-                print(f"    Prompt: {gen.system_prompt_version}")
-                print(f"    Queries: {gen.successful_queries}/{gen.total_queries}")
-                print(f"    Time: {gen.timestamp}")
-                print()
-        else:
-            print("  No generation experiments found.\n")
+    for _, row in runs.iterrows():
+        _print_run_row(row)
 
 
 def cmd_search(args: argparse.Namespace) -> None:
-    """Search for experiments."""
-    registry = ExperimentRegistry()
+    """Search for experiments across all runs, from MLflow."""
+    experiment_type = ExperimentType(args.type) if args.type else None
+    chunking = args.chunking == "yes" if args.chunking else None
 
-    # Build filter dict
-    filters = {}
-    if args.retriever_type:
-        filters["retriever_type"] = args.retriever_type
-    if args.chunking:
-        filters["chunking"] = args.chunking == "yes"
-
-    results = registry.search_experiments(
-        run_num=None,  # Search all runs
-        experiment_type=args.type,
-        **filters,
+    runs = search_experiments(
+        experiment_type=experiment_type,
+        retriever_type=args.retriever_type,
+        chunking=chunking,
     )
 
     print(f"\n{'=' * 80}")
-    print(f"Search Results ({len(results)} matches)")
+    print(f"Search Results ({len(runs)} matches)")
     print(f"{'=' * 80}\n")
 
-    if results:
-        for exp in results:
-            print(f"  Run {exp.run_num} - {exp.reference}")
-            print(f"    Type: {exp.type}")
-            print(f"    Description: {exp.description}")
-            if isinstance(exp, RetrievalRecord):
-                print(f"    Retriever: {exp.retriever_type}, Chunking: {exp.chunking}")
-            elif isinstance(exp, GenerationRecord):
-                print(f"    Retrieval: {exp.retrieval_reference}")
-                print(f"    Prompt: {exp.system_prompt_version}")
-            print()
-    else:
+    if runs.empty:
         print("  No matching experiments found.\n")
+        return
+
+    for _, row in runs.iterrows():
+        run_num = row.get("params.run_number", "?")
+        print(f"  Run {run_num}")
+        _print_run_row(row)
 
 
 def cmd_new_run(args: argparse.Namespace) -> None:
@@ -243,11 +233,15 @@ def main() -> None:
     # List command
     list_parser = subparsers.add_parser("list", help="List experiments")
     list_parser.add_argument("--run", default="current", help="Run number (default: current)")
-    list_parser.add_argument("--type", choices=["retrieval", "generation"], help="Filter by type")
+    list_parser.add_argument(
+        "--type", choices=[member.value for member in ExperimentType], help="Filter by type"
+    )
 
     # Search command
     search_parser = subparsers.add_parser("search", help="Search experiments")
-    search_parser.add_argument("--type", choices=["retrieval", "generation"], help="Filter by type")
+    search_parser.add_argument(
+        "--type", choices=[member.value for member in ExperimentType], help="Filter by type"
+    )
     search_parser.add_argument("--retriever-type", help="Filter by retriever type")
     search_parser.add_argument("--chunking", choices=["yes", "no"], help="Filter by chunking")
 
