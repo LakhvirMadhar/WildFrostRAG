@@ -9,6 +9,7 @@ import json
 import os
 from collections.abc import Awaitable
 
+import aiohttp
 from tqdm import tqdm
 
 from wildfrost_rag.data_processing.cards import CardInfo, CardType
@@ -105,7 +106,7 @@ class ScrapingService:
         return all_cards, cards_to_scrape, successful_pages
 
     async def _scrape_missing_cards(
-        self, cards_to_scrape: list[CardInfo]
+        self, session: aiohttp.ClientSession, cards_to_scrape: list[CardInfo]
     ) -> tuple[list[CardInfo], int]:
         """Scrape and parse cards not found in cache.
 
@@ -115,7 +116,7 @@ class ScrapingService:
         logger.info(f"Scraping {len(cards_to_scrape)} missing card pages...")
         urls = [card.url for card in cards_to_scrape]
         html_outputs = await scrape_multiple_links(
-            urls, max_concurrent=get_settings().scraping.max_concurrent_requests
+            session, urls, max_concurrent=get_settings().scraping.max_concurrent_requests
         )
 
         new_cards: list[CardInfo] = []
@@ -140,7 +141,7 @@ class ScrapingService:
         return new_cards, successful
 
     async def _load_card_pages(
-        self, skip_scrape: bool
+        self, session: aiohttp.ClientSession, skip_scrape: bool
     ) -> tuple[list[CardInfo], dict[str, list[str]]]:
         """Generate card type schema and load/scrape individual card pages.
 
@@ -152,7 +153,7 @@ class ScrapingService:
         all_cards, cards_to_scrape, successful_pages = self._load_cached_cards(card_infos)
 
         if cards_to_scrape and not skip_scrape:
-            new_cards, new_successes = await self._scrape_missing_cards(cards_to_scrape)
+            new_cards, new_successes = await self._scrape_missing_cards(session, cards_to_scrape)
             all_cards.extend(new_cards)
             successful_pages += new_successes
         elif cards_to_scrape:
@@ -178,58 +179,63 @@ class ScrapingService:
         """Await a scraper returning urls only; merge them."""
         page_urls.update(await coro)
 
-    async def _scrape_domain_pages(self, card_type_schema: dict[str, list[str]]) -> PipelineData:
+    async def _scrape_domain_pages(
+        self, session: aiohttp.ClientSession, card_type_schema: dict[str, list[str]]
+    ) -> PipelineData:
         """Scrape all domain pages (leaders, stats, keywords, shops, etc.).
 
         Collects parsed data and page URLs from each scraper into PipelineData.
 
         Args:
+            session: Shared HTTP session (constructed and owned by the caller).
             card_type_schema: Schema dict used to extract boss/miniboss names for
                 bling scraping
         """
         page_urls: PageUrls = {}
 
-        leader_cards = await self._scrape_and_collect_urls(scrape_leaders(), page_urls)
-        await self._scrape_and_collect_urls(scrape_crowns(), page_urls)
-        await self._scrape_and_collect_urls(scrape_getting_started(), page_urls)
+        leader_cards = await self._scrape_and_collect_urls(scrape_leaders(session), page_urls)
+        await self._scrape_and_collect_urls(scrape_crowns(session), page_urls)
+        await self._scrape_and_collect_urls(scrape_getting_started(session), page_urls)
 
-        stats = await self._scrape_and_collect_urls(scrape_stats(), page_urls)
+        stats = await self._scrape_and_collect_urls(scrape_stats(session), page_urls)
         # Individual stat pages, for per-stat Documents (detailed mechanics)
-        await self._merge_urls(scrape_individual_stat_pages(stats), page_urls)
+        await self._merge_urls(scrape_individual_stat_pages(session, stats), page_urls)
 
-        keywords = await self._scrape_and_collect_urls(scrape_keywords(), page_urls)
+        keywords = await self._scrape_and_collect_urls(scrape_keywords(session), page_urls)
 
         boss_names = card_type_schema.get("bosses", [])
         miniboss_names = card_type_schema.get("minibosses", [])
         bling_drops = await self._scrape_and_collect_urls(
-            scrape_bling(boss_names, miniboss_names), page_urls
+            scrape_bling(session, boss_names, miniboss_names), page_urls
         )
 
         woolly_snail_listings = await self._scrape_and_collect_urls(
-            scrape_shop("The_Woolly_Snail", "shops"), page_urls
+            scrape_shop(session, "The_Woolly_Snail", "shops"), page_urls
         )
         charm_merchant_listings = await self._scrape_and_collect_urls(
-            scrape_shop("Charm_Merchant", "shops"), page_urls
+            scrape_shop(session, "Charm_Merchant", "shops"), page_urls
         )
-        clunker_prices = await self._scrape_and_collect_urls(scrape_clunker_prices(), page_urls)
+        clunker_prices = await self._scrape_and_collect_urls(
+            scrape_clunker_prices(session), page_urls
+        )
 
-        bells = await self._scrape_and_collect_urls(scrape_bells(), page_urls)
+        bells = await self._scrape_and_collect_urls(scrape_bells(session), page_urls)
         # Individual bell pages, for per-bell Documents
-        await self._merge_urls(scrape_individual_bell_pages(bells), page_urls)
+        await self._merge_urls(scrape_individual_bell_pages(session, bells), page_urls)
 
-        charms = await self._scrape_and_collect_urls(scrape_charms(), page_urls)
+        charms = await self._scrape_and_collect_urls(scrape_charms(session), page_urls)
         # Individual charm pages, for per-charm Documents (Strategy sections, etc.)
-        await self._merge_urls(scrape_individual_charm_pages(charms), page_urls)
+        await self._merge_urls(scrape_individual_charm_pages(session, charms), page_urls)
 
-        summons = await self._scrape_and_collect_urls(scrape_shades(), page_urls)
+        summons = await self._scrape_and_collect_urls(scrape_shades(session), page_urls)
 
-        zones, map_events, fight_slots, fight_page_mapping, map_urls = await scrape_map()
+        zones, map_events, fight_slots, fight_page_mapping, map_urls = await scrape_map(session)
         page_urls.update(map_urls)
 
         fight_enemies: FightEnemies = {}
         if fight_page_mapping:
             fight_enemies = await self._scrape_and_collect_urls(
-                scrape_fight_pages(fight_page_mapping), page_urls
+                scrape_fight_pages(session, fight_page_mapping), page_urls
             )
 
         return PipelineData(
@@ -270,10 +276,11 @@ class ScrapingService:
             logger.info("STAGE 1: WEB SCRAPING")
         logger.info("=" * 60)
 
-        all_cards, card_type_schema = await self._load_card_pages(skip_scrape)
+        async with aiohttp.ClientSession() as session:
+            all_cards, card_type_schema = await self._load_card_pages(session, skip_scrape)
 
-        # Domain pages (leaders, stats, keywords, shops, etc.)
-        pipeline_data = await self._scrape_domain_pages(card_type_schema)
+            # Domain pages (leaders, stats, keywords, shops, etc.)
+            pipeline_data = await self._scrape_domain_pages(session, card_type_schema)
 
         # Merge card pages into pipeline data
         # Leader cards come from _scrape_domain_pages, all other cards from _load_card_pages

@@ -18,7 +18,7 @@ from neo4j import Driver
 from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE
 from wildfrost_rag.domain.retriever_type import RetrieverType
 from wildfrost_rag.models.experiment_config import EmbeddingConfig, QueryStats, RetrievalConfig
-from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
+from wildfrost_rag.core.embedder_type import EmbedderType
 from wildfrost_rag.services.evaluation import mlflow_tracking
 from wildfrost_rag.services.retrieval.bm25_retriever import BM25Retriever
 from wildfrost_rag.services.retrieval.neo4j_vector_search import Neo4jVectorSearch

@@ -9,7 +9,6 @@ does provider selection, model loading, and batch orchestration.
 """
 
 import time
-from dataclasses import dataclass
 
 import ollama
 from neo4j import Driver
@@ -17,39 +16,21 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 from wildfrost_rag.clients.openai_client import call_openai_embeddings
-from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.config import EmbedderProviderConfig, get_settings
 from wildfrost_rag.core.exceptions import EmbeddingError
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.repositories.vector_store import VectorRepository
-from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
+from wildfrost_rag.core.embedder_type import EmbedderType
 
 _BATCH_SIZE = 50
-
-
-@dataclass
-class EmbedderConfig:
-    """Configuration for an embedding provider."""
-
-    name: EmbedderType
-    property_name: str
-    index_name: str
-    model_name: str
-    dimension: int
 
 
 class EmbeddingService:
     """Generates embeddings for Document nodes and builds their vector index."""
 
-    def _get_embedder_config(self, embedder: EmbedderType) -> EmbedderConfig:
+    def _get_embedder_config(self, embedder: EmbedderType) -> EmbedderProviderConfig:
         """Look up an embedder's configuration from settings."""
-        config = get_settings().embedding.embedding_configs[embedder.value]
-        return EmbedderConfig(
-            name=embedder,
-            property_name=config["property_name"],
-            index_name=config["index_name"],
-            model_name=config["model"],
-            dimension=config["dimension"],
-        )
+        return get_settings().embedding.embedding_configs[embedder]
 
     def _load_embedding_model(
         self, embedder: EmbedderType, model_name: str
@@ -109,7 +90,7 @@ class EmbeddingService:
             Number of Document nodes updated.
         """
         config = self._get_embedder_config(embedder)
-        logger.info(f"Embedding provider: {config.name.value}, model: {config.model_name}")
+        logger.info(f"Embedding provider: {embedder.value}, model: {config.model}")
 
         repository = VectorRepository(driver)
         documents = repository.documents_missing_property(config.property_name)
@@ -118,19 +99,19 @@ class EmbeddingService:
             return 0
         logger.info(f"{len(documents)} documents need '{config.property_name}'")
 
-        model = self._load_embedding_model(config.name, config.model_name)
-        async_client = ollama.AsyncClient() if config.name is EmbedderType.GEMMA else None
+        model = self._load_embedding_model(embedder, config.model)
+        async_client = ollama.AsyncClient() if embedder is EmbedderType.GEMMA else None
 
         total_updated = 0
         with tqdm(total=len(documents), desc="Embedding documents", unit="doc") as pbar:
             for i in range(0, len(documents), _BATCH_SIZE):
                 batch = documents[i : i + _BATCH_SIZE]
-                batch_texts = [doc[0] for doc in batch]
-                batch_ids = [doc[1] for doc in batch]
+                batch_texts = [doc.text for doc in batch]
+                batch_ids = [doc.element_id for doc in batch]
 
                 batch_start = time.time()
                 embeddings = await self._generate_batch_embeddings(
-                    config.name, model, config.model_name, batch_texts, async_client
+                    embedder, model, config.model, batch_texts, async_client
                 )
                 batch_time = time.time() - batch_start
                 rate = len(batch_texts) / batch_time if batch_time > 0 else float("inf")

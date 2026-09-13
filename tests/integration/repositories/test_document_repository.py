@@ -64,8 +64,7 @@ def test_load_all_documents_returns_seeded_nodes(
     assert "Bombom is a Companion card that deals damage." in texts
     assert "Foxee is a Leader card with high attack." in texts
     for _, properties in results:
-        assert "embedding" not in properties
-        assert "source_file" in properties
+        assert properties.source_file is not None
 
 
 @pytest.mark.skipif(not _docker_available(), reason="Docker is not running")
@@ -78,5 +77,5 @@ def test_fulltext_search_finds_matching_document(
     results = repository.fulltext_search("test_document_fulltext", "Bombom", k=5)
 
     assert len(results) == 1
-    assert results[0]["text"] == "Bombom is a Companion card that deals damage."
+    assert results[0].text == "Bombom is a Companion card that deals damage."
     assert repository.last_cypher_query is not None

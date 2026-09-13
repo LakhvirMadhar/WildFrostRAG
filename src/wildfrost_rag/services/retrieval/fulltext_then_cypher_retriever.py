@@ -86,8 +86,12 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
             search_query_text = self._preprocess_query(query)
             logger.debug(f"Fulltext query after stop word removal: '{search_query_text}'")
 
-        results = self._card_repository.fulltext_search_with_enrichment(
+        traversal_results = self._card_repository.fulltext_search_with_enrichment(
             self.index_name, search_query_text, k
         )
         self.last_cypher_query = self._card_repository.last_cypher_query
+
+        # Flatten the validated models back to dicts for the generic,
+        # shape-agnostic result-formatting pipeline (shared by every retriever).
+        results = [result.to_flat_dict() for result in traversal_results]
         return to_retrieved_chunks(self._add_metadata(results, "fulltext_then_cypher"))

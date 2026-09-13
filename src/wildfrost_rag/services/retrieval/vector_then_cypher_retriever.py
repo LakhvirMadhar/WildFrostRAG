@@ -66,8 +66,12 @@ class VectorThenCypherRetriever(BaseNeo4jRetriever):
         """
         query_embedding = self._embed_fn(query)
 
-        results = self._card_repository.vector_search_with_enrichment(
+        traversal_results = self._card_repository.vector_search_with_enrichment(
             self.index_name, query_embedding, k
         )
         self.last_cypher_query = self._card_repository.last_cypher_query
+
+        # Flatten the validated models back to dicts for the generic,
+        # shape-agnostic result-formatting pipeline (shared by every retriever).
+        results = [result.to_flat_dict() for result in traversal_results]
         return to_retrieved_chunks(self._add_metadata(results, "vector_then_cypher"))

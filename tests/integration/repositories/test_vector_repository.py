@@ -82,5 +82,4 @@ def test_get_retrieved_chunks_uses_only_the_injected_driver(neo4j_driver: Driver
         mock_driver_constructor.assert_not_called()
 
     assert len(chunks) == 1
-    assert chunks[0]["text"] == "a test document chunk"
-    assert "embedding" not in chunks[0]
+    assert chunks[0].text == "a test document chunk"

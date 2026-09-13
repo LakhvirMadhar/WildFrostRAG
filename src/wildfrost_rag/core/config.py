@@ -6,9 +6,10 @@ eliminating magic strings and providing type safety.
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
-from pydantic import SecretStr
+from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from wildfrost_rag.core.embedder_type import EmbedderType
 
 DEFAULT_QUERIES_FILE = "queries/simple_reference_based_queries.csv"
 """Relative path to the project's default query dataset.
@@ -63,6 +64,24 @@ class MlflowSettings(BaseSettings):
     )
 
 
+class EmbedderProviderConfig(BaseModel):
+    """Configuration for one embedding provider (e.g. "hf", "openai", "gemma").
+
+    This is the fixed shape every entry in `EmbeddingSettings.embedding_configs`
+    has - the vendor/model name, the vector dimensionality it produces, and
+    the Neo4j property/index names its embeddings are stored and searched
+    under. Lives here, not in models/, for the same reason EmbedderType lives
+    in core/ - core/config.py constructs instances of it directly, and core
+    can't import from any sibling in its own layer bucket (core | domain |
+    models | main), verified via a real lint-imports run.
+    """
+
+    model: str
+    dimension: int
+    property_name: str
+    index_name: str
+
+
 class EmbeddingSettings(BaseSettings):
     """Embedding model, vector index, and retrieval-fusion configuration."""
 
@@ -71,26 +90,26 @@ class EmbeddingSettings(BaseSettings):
     vector_index_name: str = "document-embeddings"
     similarity_function: str = "cosine"
 
-    # Multi-embedder support: maps embedder name -> configuration
-    embedding_configs: dict[str, dict[str, Any]] = {
-        "hf": {
-            "model": "all-MiniLM-L6-v2",
-            "dimension": 384,
-            "property_name": "hf_embedding",
-            "index_name": "document-embeddings-hf",
-        },
-        "openai": {
-            "model": "text-embedding-3-small",
-            "dimension": 1536,
-            "property_name": "openai_embedding",
-            "index_name": "document-embeddings-openai",
-        },
-        "gemma": {
-            "model": "embeddinggemma",
-            "dimension": 768,
-            "property_name": "gemma_embedding",
-            "index_name": "document-embeddings-gemma",
-        },
+    # Multi-embedder support: maps embedder -> configuration.
+    embedding_configs: dict[EmbedderType, EmbedderProviderConfig] = {
+        EmbedderType.HF: EmbedderProviderConfig(
+            model="all-MiniLM-L6-v2",
+            dimension=384,
+            property_name="hf_embedding",
+            index_name="document-embeddings-hf",
+        ),
+        EmbedderType.OPENAI: EmbedderProviderConfig(
+            model="text-embedding-3-small",
+            dimension=1536,
+            property_name="openai_embedding",
+            index_name="document-embeddings-openai",
+        ),
+        EmbedderType.GEMMA: EmbedderProviderConfig(
+            model="embeddinggemma",
+            dimension=768,
+            property_name="gemma_embedding",
+            index_name="document-embeddings-gemma",
+        ),
     }
 
     fulltext_index_name: str = "document-fulltext"
