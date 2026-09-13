@@ -4,11 +4,11 @@ Parses the Stats wiki page to extract Primary Stats, Buffs, and Debuffs.
 """
 
 import re
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
 from bs4 import BeautifulSoup, Comment, Tag
+from pydantic import BaseModel, Field
 
 from wildfrost_rag.core.logger import logger
 
@@ -21,13 +21,12 @@ class StatCategory(Enum):
     DEBUFF = "debuff"
 
 
-@dataclass
-class StatInfo:
+class StatInfo(BaseModel):
     """Represents a Stat from the game."""
 
-    name: str
+    name: str = Field(min_length=1)
     category: StatCategory
-    description: str
+    description: str = Field(min_length=1)
     additional_info: str | None = None
     url: str | None = None
     stat_html: str | None = None

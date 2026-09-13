@@ -4,27 +4,24 @@ Parses the Bling wiki page (enemy drop values) and shop pages
 (Charm Merchant, The Woolly Snail) for item/charm pricing.
 """
 
-from dataclasses import dataclass
-
 from bs4 import BeautifulSoup
+from pydantic import BaseModel, Field
 
 from wildfrost_rag.core.logger import logger
 
 
-@dataclass
-class EnemyBlingDrop:
+class EnemyBlingDrop(BaseModel):
     """An enemy's base bling drop value."""
 
-    card_name: str
-    amount: int
+    card_name: str = Field(min_length=1)
+    amount: int = Field(ge=0)
 
 
-@dataclass
-class ShopListing:
+class ShopListing(BaseModel):
     """An item or charm listing in a shop."""
 
-    card_name: str
-    base_price: int
+    card_name: str = Field(min_length=1)
+    base_price: int = Field(ge=0)
 
 
 # Boss/miniboss bling values from wiki text (not in the table).

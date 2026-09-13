@@ -4,18 +4,17 @@ Parses the Shades wiki page to extract summoner → shade relationships
 from the "Summon conditions" column.
 """
 
-from dataclasses import dataclass
 from bs4 import BeautifulSoup
+from pydantic import BaseModel, Field
 
 from wildfrost_rag.core.logger import logger
 
 
-@dataclass
-class SummonInfo:
+class SummonInfo(BaseModel):
     """Represents a summoning relationship: summoner_card summons shade_card."""
 
-    summoner_name: str
-    shade_name: str
+    summoner_name: str = Field(min_length=1)
+    shade_name: str = Field(min_length=1)
 
 
 def parse_shades_page(html: str) -> list[SummonInfo]:

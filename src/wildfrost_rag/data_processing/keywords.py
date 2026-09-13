@@ -4,10 +4,10 @@ Parses the Keywords wiki page to extract keyword definitions across categories:
 Targeting, Damaging/Attack, Restriction, Miscellaneous, Enemy-Specific, Special, Hidden.
 """
 
-from dataclasses import dataclass, field
 from enum import Enum
 
 from bs4 import BeautifulSoup, Tag
+from pydantic import BaseModel, Field
 
 from wildfrost_rag.core.logger import logger
 
@@ -24,15 +24,14 @@ class KeywordCategory(Enum):
     HIDDEN = "hidden"
 
 
-@dataclass
-class KeywordInfo:
+class KeywordInfo(BaseModel):
     """Represents a Keyword from the game."""
 
-    name: str
+    name: str = Field(min_length=1)
     category: KeywordCategory
     description_field: str | None = None
     description_items: str | None = None
-    cards_with_keyword: list[str] = field(default_factory=list)
+    cards_with_keyword: list[str] = Field(default_factory=list)
 
 
 # Maps table index to category. The Keywords page has 7 wikitables in order.
