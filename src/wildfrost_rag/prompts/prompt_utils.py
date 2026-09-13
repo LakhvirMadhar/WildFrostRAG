@@ -1,52 +1,47 @@
-"""Prompt utilities for versioned prompt management.
+"""Loading prompts tracked in MLflow's Prompt Registry.
 
-This module provides utilities for managing versioned prompts across the codebase.
+Prompt template text is authored in this package's modules (system_prompts.py,
+text2cypher_prompts.py, taxonomy_prompts.py) and version-controlled in git;
+sync_prompts.py mirrors each one into MLflow so it becomes a real, queryable
+PromptVersion that a run can be linked to. load_prompt resolves a reference
+against that registry, not against the Python constants directly.
 """
 
-from dataclasses import dataclass
+from typing import Any
+
+import mlflow
+import mlflow.genai as genai
+from mlflow.entities.model_registry.prompt_version import PromptVersion
+
+from wildfrost_rag.core.config import get_settings
 
 
-@dataclass
-class VersionedPrompt:
-    """A versioned prompt template with metadata.
+def render_text_prompt(prompt: PromptVersion, **kwargs: Any) -> str:  # noqa: ANN401
+    """Render a text (non-chat) prompt version, asserting it isn't chat-style.
 
-    This class standardizes prompt versioning across the codebase, making it easy
-    to track which prompt version was used for each experiment.
-
-    Attributes:
-        prompt_version_name: Name matching the variable name (e.g., "TEXT2CYPHER_PROMPT_V1")
-        prompt_tuple: Tuple with template string and parameter names
-                     Format: (template_string, param1, param2, ...)
+    PromptVersion.format() also supports chat-style templates (a list of
+    role/content messages), which none of this project's prompts are -
+    the assert catches a prompt being re-registered as chat-style without
+    updating the call site that expects a plain string.
     """
+    rendered = prompt.format(**kwargs)
+    assert isinstance(rendered, str), f"{prompt.name} must be a text prompt, not chat-style"
+    return rendered
 
-    prompt_version_name: str
-    prompt_tuple: tuple[str, ...]
 
+def load_prompt(reference: str) -> PromptVersion:
+    """Load a registered prompt version by "name" or "name:version" reference.
 
-def format_prompt_tuple(prompt_tuple: tuple[str, ...], **kwargs: str) -> str:
-    """Format a prompt tuple with provided keyword arguments.
-
-    Prompt tuples follow the pattern: (template_string, param1, param2, ...)
-    where template_string contains {param1}, {param2}, etc. placeholders.
+    "name" alone resolves to that prompt's latest registered version.
 
     Args:
-        prompt_tuple: Tuple where first element is template string,
-                     remaining elements are expected parameter names
-        **kwargs: Keyword arguments to fill in the template
+        reference: e.g. "system_prompt" (latest) or "system_prompt:2" (pinned).
 
     Returns:
-        Formatted prompt string
-
-    Raises:
-        ValueError: If required parameters are missing
+        The matching PromptVersion, with .format(**kwargs) to render it and
+        .uri to record which exact version was used.
     """
-    template = prompt_tuple[0]
-    expected_params = prompt_tuple[1:]
-
-    # Validate that all expected parameters are provided
-    missing_params = [param for param in expected_params if param not in kwargs]
-    if missing_params:
-        raise ValueError(f"Missing required parameters: {missing_params}")
-
-    # Format the template with provided kwargs
-    return template.format(**kwargs)
+    mlflow.set_tracking_uri(get_settings().mlflow.tracking_uri)
+    name, _, version = reference.partition(":")
+    prompt: PromptVersion = genai.load_prompt(name, version=int(version) if version else None)
+    return prompt

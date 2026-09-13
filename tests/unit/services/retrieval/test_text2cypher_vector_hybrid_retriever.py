@@ -11,10 +11,10 @@ from collections.abc import Iterator
 from unittest.mock import MagicMock
 
 import pytest
+from mlflow.entities.model_registry.prompt_version import PromptVersion
 
 from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.domain.retrieval import RetrievedChunk
-from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
 from wildfrost_rag.services.retrieval.hybrid_retrievers import Text2CypherVectorHybridRetriever
 from wildfrost_rag.services.retrieval.neo4j_vector_search import Neo4jVectorSearch
 from wildfrost_rag.services.retrieval.text2cypher_retriever import Text2CypherRetriever
@@ -35,7 +35,7 @@ class FakeText2CypherRetriever(Text2CypherRetriever):
         """Store either the canned results to return, or the error to raise."""
         super().__init__(
             driver=MagicMock(),
-            text2cypher_prompt=VersionedPrompt(prompt_version_name="FAKE", prompt_tuple=("fake",)),
+            text2cypher_prompt=MagicMock(spec=PromptVersion, uri="prompts:/fake/1"),
         )
         self._results = results or []
         self._error = error
@@ -74,7 +74,7 @@ def _fake_neo4j_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 def _build_retriever() -> Text2CypherVectorHybridRetriever:
-    prompt = VersionedPrompt(prompt_version_name="TEST_PROMPT", prompt_tuple=("test",))
+    prompt = MagicMock(spec=PromptVersion, uri="prompts:/test_prompt/1")
     return Text2CypherVectorHybridRetriever(
         driver=MagicMock(),
         embed_fn=lambda _query: [0.1, 0.2, 0.3],

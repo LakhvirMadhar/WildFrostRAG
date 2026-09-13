@@ -23,7 +23,7 @@ from wildfrost_rag.services.retrieval.neo4j_fulltext_search import Neo4jFullText
 from wildfrost_rag.services.retrieval.text2cypher_retriever import Text2CypherRetriever
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
+from mlflow.entities.model_registry.prompt_version import PromptVersion
 
 
 class RRFScore(BaseModel):
@@ -327,7 +327,7 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
         self,
         driver: Driver,
         embed_fn: Callable[[str], list[float]],
-        text2cypher_prompt: VersionedPrompt,
+        text2cypher_prompt: PromptVersion,
         neo4j_database: str | None = None,
         index_name: str | None = None,
     ) -> None:
@@ -336,7 +336,7 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
         Args:
             driver: Neo4j driver instance
             embed_fn: Query embedding function for vector search
-            text2cypher_prompt: VersionedPrompt for Text2Cypher LLM
+            text2cypher_prompt: The registered prompt version for the Text2Cypher LLM
             neo4j_database: Optional database name
             index_name: Vector index name (default: from settings)
         """
@@ -354,7 +354,7 @@ class Text2CypherVectorHybridRetriever(HybridRetriever):
         )
 
         # Store for config tracking
-        self.text2cypher_prompt_version = text2cypher_prompt.prompt_version_name
+        self.text2cypher_prompt_version = text2cypher_prompt.uri
 
         # Initialize parent HybridRetriever with equal weights
         super().__init__(

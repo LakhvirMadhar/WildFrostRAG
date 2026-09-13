@@ -11,12 +11,11 @@ from pathlib import Path
 
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.prompts.prompt_utils import format_prompt_tuple
+from wildfrost_rag.domain.chat_role import ChatRole
+from wildfrost_rag.domain.prompt_name import PromptName
+from wildfrost_rag.prompts import load_prompt
+from wildfrost_rag.prompts.prompt_utils import render_text_prompt
 from wildfrost_rag.clients.openai_client import call_openai_api
-from wildfrost_rag.prompts.taxonomy_prompts import (
-    TAXONOMY_SYSTEM_PROMPT_V1,
-    TAXONOMY_USER_PROMPT_V1,
-)
 
 
 async def generate_taxonomy(open_codes: list[str]) -> str:
@@ -37,18 +36,20 @@ async def generate_taxonomy(open_codes: list[str]) -> str:
     # Create a numbered list of codes
     codes_text = "\n".join([f"{i + 1}. {code}" for i, code in enumerate(sorted_codes)])
 
-    # Format user message using the versioned prompt
-    user_message = format_prompt_tuple(TAXONOMY_USER_PROMPT_V1.prompt_tuple, codes_text=codes_text)
+    taxonomy_system_prompt = load_prompt(PromptName.TAXONOMY_SYSTEM_PROMPT)
+    taxonomy_user_prompt = load_prompt(PromptName.TAXONOMY_USER_PROMPT)
+    system_message = render_text_prompt(taxonomy_system_prompt)
+    user_message = render_text_prompt(taxonomy_user_prompt, codes_text=codes_text)
 
     try:
         settings = get_settings()
         return await call_openai_api(
             messages=[
                 {
-                    "role": "system",
-                    "content": TAXONOMY_SYSTEM_PROMPT_V1.prompt_tuple[0],
+                    "role": ChatRole.SYSTEM.value,
+                    "content": system_message,
                 },
-                {"role": "user", "content": user_message},
+                {"role": ChatRole.USER.value, "content": user_message},
             ],
             model=settings.openai.taxonomy_model,
             temperature=settings.openai.taxonomy_temperature,

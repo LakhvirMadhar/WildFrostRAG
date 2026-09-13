@@ -9,11 +9,11 @@ This script orchestrates the LLM generation process:
 
 Usage:
     # Zero-shot mode (baseline - no retrieval)
-    python -m wildfrost_rag.cli.run_llm_generation --run-num 1 --zero-shot --system-prompt SYSTEM_PROMPT_V1
+    python -m wildfrost_rag.cli.run_llm_generation --run-num 1 --zero-shot --system-prompt system_prompt
 
     # RAG mode (with retrieval)
     python -m wildfrost_rag.cli.run_llm_generation --run-num 1 --retrieval-reference bm25/001 \
-        --system-prompt SYSTEM_PROMPT_V1 --rag-prompt RAG_PROMPT_V1
+        --system-prompt system_prompt --rag-prompt rag_prompt
 """
 
 import asyncio
@@ -24,10 +24,10 @@ from typing import Any
 
 
 import mlflow
+from mlflow.entities.model_registry.prompt_version import PromptVersion
 
 from wildfrost_rag.domain.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
-from wildfrost_rag.prompts import get_prompt
-from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
+from wildfrost_rag.prompts import load_prompt
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.services.evaluation.mlflow_tracking import get_or_create_run
@@ -52,7 +52,7 @@ def parse_args() -> argparse.Namespace:
         "--system-prompt",
         type=str,
         required=True,
-        help="System prompt name (e.g., SYSTEM_PROMPT_V1)",
+        help="System prompt reference: 'name' (latest) or 'name:version' (e.g., system_prompt:2)",
     )
     parser.add_argument(
         "--description",
@@ -86,7 +86,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--rag-prompt",
         type=str,
-        help="RAG prompt name (required for RAG mode, e.g., RAG_PROMPT_V1)",
+        help="RAG prompt reference (required for RAG mode): 'name' or 'name:version'",
     )
 
     return parser.parse_args()
@@ -176,11 +176,6 @@ def filter_results_by_query_ids(
     return results
 
 
-def load_prompt(prompt_name: str) -> VersionedPrompt:
-    """Load a prompt by name from the registry."""
-    return get_prompt(prompt_name)
-
-
 def extract_context_from_chunks(chunks: list[RetrievedChunk]) -> str:
     """Extract RAG context from retrieved chunks."""
     return "\n\n".join(c.retrieved_text for c in chunks if c.retrieved_text)
@@ -188,8 +183,8 @@ def extract_context_from_chunks(chunks: list[RetrievedChunk]) -> str:
 
 async def run_generation(
     query_results: list[RetrievalQueryResult],
-    system_prompt: VersionedPrompt,
-    rag_prompt: VersionedPrompt | None,
+    system_prompt: PromptVersion,
+    rag_prompt: PromptVersion | None,
     is_zero_shot: bool,
 ) -> tuple[list[dict[str, Any]], int, int]:
     """Run generation for all queries.
@@ -241,8 +236,8 @@ def save_experiment(
     run_num: int,
     generation_id: str,
     retrieval_reference: str | None,
-    system_prompt: VersionedPrompt,
-    rag_prompt: VersionedPrompt | None,
+    system_prompt: PromptVersion,
+    rag_prompt: PromptVersion | None,
     results: list[dict[str, Any]],
     successful: int,
     failed: int,
@@ -254,8 +249,8 @@ def save_experiment(
         run_num=run_num,
         generation_id=f"gen/{generation_id}",
         retrieval_reference=retrieval_reference or "zero-shot",
-        system_prompt_version=system_prompt.prompt_version_name,
-        rag_prompt_version=rag_prompt.prompt_version_name if rag_prompt else None,
+        system_prompt_version=system_prompt.uri,
+        rag_prompt_version=rag_prompt.uri if rag_prompt else None,
         total_queries=len(results),
         successful_queries=successful,
         failed_queries=failed,
@@ -274,8 +269,8 @@ def save_experiment(
         mlflow.log_params(
             {
                 "retrieval_reference": retrieval_reference or "zero-shot",
-                "system_prompt_version": system_prompt.prompt_version_name,
-                "rag_prompt_version": rag_prompt.prompt_version_name if rag_prompt else None,
+                "system_prompt_version": system_prompt.uri,
+                "rag_prompt_version": rag_prompt.uri if rag_prompt else None,
                 "description": description,
                 "is_zero_shot": is_zero_shot,
             }
@@ -328,9 +323,9 @@ async def run(args: argparse.Namespace) -> None:
 
     logger.info(f"Generation experiment directory: {experiment_dir}")
     logger.info(f"Generation ID: gen/{generation_id}")
-    logger.info(f"Using system prompt: {system_prompt.prompt_version_name}")
+    logger.info(f"Using system prompt: {system_prompt.uri}")
     if rag_prompt:
-        logger.info(f"Using RAG prompt: {rag_prompt.prompt_version_name}")
+        logger.info(f"Using RAG prompt: {rag_prompt.uri}")
 
     # Run generation
     results, successful, failed = await run_generation(

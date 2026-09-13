@@ -6,14 +6,16 @@ queries into Cypher queries based on the Neo4j schema.
 
 from typing import Any
 
+from mlflow.entities.model_registry.prompt_version import PromptVersion
 from neo4j import Driver, ManagedTransaction, Record, Session
 
 from wildfrost_rag.core.exceptions import CypherExecutionError
+from wildfrost_rag.domain.chat_role import ChatRole
 from wildfrost_rag.domain.retrieval import RetrievedChunk, to_retrieved_chunks
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.prompts.prompt_utils import format_prompt_tuple, VersionedPrompt
 from wildfrost_rag.clients.openai_client import call_openai_api
+from wildfrost_rag.prompts.prompt_utils import render_text_prompt
 from wildfrost_rag.services.retrieval.base_neo4j_retriever import BaseNeo4jRetriever
 
 
@@ -27,20 +29,20 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
     def __init__(
         self,
         driver: Driver,
-        text2cypher_prompt: VersionedPrompt,
+        text2cypher_prompt: PromptVersion,
         neo4j_database: str | None = None,
     ) -> None:
         """Initialize the Text2Cypher retriever.
 
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
-            text2cypher_prompt: VersionedPrompt containing the prompt template and version name
+            text2cypher_prompt: The registered prompt version to generate Cypher with
             neo4j_database: Optional database name (default: None uses default database)
         """
         super().__init__(driver, neo4j_database)
 
-        self.prompt_version = text2cypher_prompt.prompt_version_name
-        self.prompt_template = text2cypher_prompt.prompt_tuple
+        self.prompt_version_uri = text2cypher_prompt.uri
+        self.prompt = text2cypher_prompt
 
     def _get_schema(self, session: Session) -> dict[str, Any]:
         """Get the schema of the Neo4j database with relationship directions.
@@ -147,11 +149,11 @@ class Text2CypherRetriever(BaseNeo4jRetriever):
         """
         schema_str = self._format_schema_for_prompt(schema)
 
-        prompt = format_prompt_tuple(self.prompt_template, schema=schema_str, query=natural_query)
+        prompt = render_text_prompt(self.prompt, schema=schema_str, query=natural_query)
 
         settings = get_settings()
         response = await call_openai_api(
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": ChatRole.USER.value, "content": prompt}],
             model=settings.openai.text2cypher_model,
             temperature=settings.openai.text2cypher_temperature,
         )

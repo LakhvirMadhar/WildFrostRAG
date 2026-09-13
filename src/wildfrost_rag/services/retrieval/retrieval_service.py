@@ -1,9 +1,4 @@
-"""Runs a retrieval experiment end to end: build a retriever, run every query, save results.
-
-Experiment tracking is dual-written for now: experiment_tracker's registry/
-experiments.yaml (unchanged) and MLflow (new). MLflow will fully replace the
-hand-rolled tracker once Epic 9 finishes.
-"""
+"""Runs a retrieval experiment end to end: build a retriever, run every query, save results."""
 
 import inspect
 import os
@@ -15,6 +10,7 @@ from collections.abc import Callable
 
 import mlflow
 import pandas as pd
+from mlflow.entities.model_registry.prompt_version import PromptVersion
 from neo4j import Driver
 from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
@@ -22,6 +18,7 @@ from tqdm.asyncio import tqdm_asyncio
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.core.logger import logger
+from wildfrost_rag.domain.prompt_name import PromptName
 from wildfrost_rag.domain.retrieval import CypherExecution, QueryResult
 from wildfrost_rag.domain.retriever_type import RetrieverType
 from wildfrost_rag.experiment_tracker.experiment_utils import (
@@ -32,8 +29,7 @@ from wildfrost_rag.experiment_tracker.experiment_utils import (
     save_results,
 )
 from wildfrost_rag.models.experiment_config import RetrievalConfig
-from wildfrost_rag.prompts import get_prompt
-from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
+from wildfrost_rag.prompts import load_prompt
 from wildfrost_rag.repositories.card_repository import CardRepository
 from wildfrost_rag.repositories.document_repository import DocumentRepository
 from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
@@ -349,7 +345,7 @@ class RetrievalService:
         embedder: EmbedderType = EmbedderType.HF,
         sw_query: bool = True,
         sw_docs: bool = True,
-        text2cypher_prompt_name: str = "TEXT2CYPHER_PROMPT_V1",
+        text2cypher_prompt_name: str = PromptName.TEXT2CYPHER_PROMPT,
         queries_json_path: Path | None = None,
     ) -> RetrievalExperimentResult:
         """Build the configured retriever and run a full experiment with it.
@@ -364,7 +360,7 @@ class RetrievalService:
         if retriever_type in (RetrieverType.TEXT2CYPHER, RetrieverType.TEXT2CYPHER_VECTOR):
             prompt = self.load_text2cypher_prompt(text2cypher_prompt_name)
             retriever_kwargs["text2cypher_prompt"] = prompt
-            config_kwargs["text2cypher_prompt_version"] = prompt.prompt_version_name
+            config_kwargs["text2cypher_prompt_version"] = prompt.uri
 
         retriever = self.get_retriever(
             retriever_type,
@@ -490,9 +486,9 @@ class RetrievalService:
 
         return RetrievalExperimentResult(results=results, experiment_dir=experiment_dir)
 
-    def load_text2cypher_prompt(self, prompt_name: str) -> VersionedPrompt:
-        """Load text2cypher prompt by name from the registry."""
-        return get_prompt(prompt_name)
+    def load_text2cypher_prompt(self, prompt_reference: str) -> PromptVersion:
+        """Load a text2cypher prompt version by "name" or "name:version" reference."""
+        return load_prompt(prompt_reference)
 
     def load_and_filter_queries(
         self,

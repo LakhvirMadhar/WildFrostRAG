@@ -17,6 +17,7 @@ from pathlib import Path
 from wildfrost_rag.cli.evaluate_retrievers import run as run_retrieval
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
+from wildfrost_rag.domain.prompt_name import PromptName
 
 
 async def main() -> None:  # noqa: C901
@@ -139,7 +140,7 @@ async def run_retriever_direct(
         retriever=retriever_config["type"],
         chunking="yes" if chunking else "no",
         description=retriever_config.get("description", ""),
-        text2cypher_prompt=retriever_config.get("prompt", "TEXT2CYPHER_PROMPT_V1"),
+        text2cypher_prompt=retriever_config.get("prompt", PromptName.TEXT2CYPHER_PROMPT),
         query_ids=None,
         exclude_query_ids=None,
         k=10,
