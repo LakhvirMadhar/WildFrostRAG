@@ -113,7 +113,7 @@ class PathSettings(BaseSettings):
     PATH_PROJECT_ROOT instead of tracking it.
     """
 
-    project_root: Path = Path(__file__).parent.parent.parent
+    project_root: Path = Path(__file__).parent.parent.parent.parent
 
     model_config = SettingsConfigDict(
         env_prefix="PATH_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
