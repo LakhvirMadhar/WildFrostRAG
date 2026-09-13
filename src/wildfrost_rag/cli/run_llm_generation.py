@@ -42,7 +42,6 @@ from wildfrost_rag.experiment_tracker.experiment_utils import (
     validate_retrieval_reference,
     list_available_retrievals,
 )
-from wildfrost_rag.experiment_tracker import ExperimentRegistry
 
 
 def parse_args() -> argparse.Namespace:
@@ -267,16 +266,13 @@ def save_experiment(
 
     save_config(config, experiment_dir)
 
-    registry = ExperimentRegistry()
-    registry.register_generation(run_num, generation_id, config)
-
     save_results(results, experiment_dir / "results.json")
 
     run_name = f"gen/{generation_id}"
     with get_or_create_run(run_name):
+        mlflow.set_tag("run_number", run_num)
         mlflow.log_params(
             {
-                "run_number": run_num,
                 "retrieval_reference": retrieval_reference or "zero-shot",
                 "system_prompt_version": system_prompt.prompt_version_name,
                 "rag_prompt_version": rag_prompt.prompt_version_name if rag_prompt else None,

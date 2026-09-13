@@ -118,7 +118,7 @@ def search_experiments(
     if chunking is not None:
         clauses.append(f"params.chunking = '{chunking}'")
     if run_number is not None:
-        clauses.append(f"params.run_number = '{run_number}'")
+        clauses.append(f"tags.run_number = '{run_number}'")
 
     return mlflow.search_runs(
         experiment_names=[EXPERIMENT_NAME], filter_string=" and ".join(clauses)
