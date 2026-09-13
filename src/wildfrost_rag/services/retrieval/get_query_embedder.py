@@ -16,6 +16,7 @@ from sentence_transformers import SentenceTransformer
 from wildfrost_rag.core.exceptions import EmbeddingError
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
+from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
 
 
 class _EmbedderCache:
@@ -38,26 +39,22 @@ def get_query_embed_fn(embedder: str) -> Callable[[str], list[float]]:
     Returns:
         A function: (query: str) -> list[float]
     """
-    settings = get_settings()
-    if embedder not in settings.embedding.embedding_configs:
-        raise ValueError(
-            f"Unknown embedder: {embedder}. "
-            f"Available: {list(settings.embedding.embedding_configs.keys())}"
-        )
+    try:
+        embedder_type = EmbedderType(embedder)
+    except ValueError as exc:
+        available = [member.value for member in EmbedderType]
+        raise ValueError(f"Unknown embedder: {embedder}. Available: {available}") from exc
 
-    config = settings.embedding.embedding_configs[embedder]
+    config = get_settings().embedding.embedding_configs[embedder_type.value]
     model_name = config["model"]
 
-    if embedder == "hf":
+    if embedder_type is EmbedderType.HF:
         return _make_hf_embed_fn(model_name)
 
-    if embedder == "gemma":
+    if embedder_type is EmbedderType.GEMMA:
         return _make_ollama_embed_fn(model_name)
 
-    if embedder == "openai":
-        return _make_openai_embed_fn(model_name)
-
-    raise ValueError(f"No query embed function implemented for embedder: {embedder}")
+    return _make_openai_embed_fn(model_name)
 
 
 def _make_hf_embed_fn(model_name: str) -> Callable[[str], list[float]]:

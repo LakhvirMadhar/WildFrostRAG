@@ -133,6 +133,53 @@ class VectorRepository:
             session.run(create_index_query)
             logger.info(f"Vector index '{index_name}' created successfully")
 
+    def documents_missing_property(self, property_name: str) -> list[tuple[str, str]]:
+        """Fetch (text, element_id) for every Document that doesn't yet have this property.
+
+        Args:
+            property_name: Embedding property to check for (e.g. "hf_embedding")
+
+        Returns:
+            List of (text, element_id) tuples for Documents missing the property
+        """
+        with self.driver.session() as session:
+            find_missing_query = f"""
+            MATCH (d:Document)
+            WHERE d.{property_name} IS NULL
+            RETURN d.text as text, elementId(d) as element_id
+            ORDER BY element_id
+            """
+            results = session.run(find_missing_query)
+            return [(record["text"], record["element_id"]) for record in results]
+
+    def set_document_embeddings(
+        self,
+        element_ids: list[str],
+        embeddings: list[list[float]],
+        property_name: str,
+    ) -> int:
+        """Set the embedding property on each Document node.
+
+        Args:
+            element_ids: Neo4j elementId() for each Document to update
+            embeddings: Embedding vector for each corresponding element_id
+            property_name: Property name to set (e.g. "hf_embedding")
+
+        Returns:
+            Number of Document nodes updated
+        """
+        updated = 0
+        with self.driver.session() as session:
+            for element_id, embedding in zip(element_ids, embeddings, strict=False):
+                set_embedding_query = f"""
+                MATCH (d:Document)
+                WHERE elementId(d) = $element_id
+                SET d.{property_name} = $embedding
+                """
+                session.run(set_embedding_query, element_id=element_id, embedding=embedding)
+                updated += 1
+        return updated
+
     def get_retrieved_chunks(
         self,
         query: str,

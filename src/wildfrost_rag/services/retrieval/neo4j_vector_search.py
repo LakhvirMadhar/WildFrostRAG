@@ -32,7 +32,7 @@ class Neo4jVectorSearch(BaseNeo4jRetriever):
         Args:
             driver: Neo4j driver instance (created externally, managed by application)
             embed_fn: Function that encodes a query string into a list of floats.
-                      Use get_query_embed_fn() from embeddings.query_embedders.
+                      Use get_query_embed_fn() from services.retrieval.get_query_embedder.
             document_repository: Repository owning the vector-search Cypher query
             neo4j_database: Optional database name (default: None uses default database)
             index_name: Optional vector index name (default: uses settings.embedding.vector_index_name)
