@@ -17,6 +17,7 @@ from wildfrost_rag.data_processing.keywords import KeywordInfo
 from wildfrost_rag.data_processing.map import FightSlotInfo, MapEventInfo, ZoneInfo
 from wildfrost_rag.data_processing.shades import SummonInfo
 from wildfrost_rag.data_processing.stats import StatInfo
+from wildfrost_rag.domain.scraping_types import FightEnemies, FightPageMapping, PageUrls
 
 
 @dataclass
@@ -40,6 +41,6 @@ class PipelineData:
     zones: list[ZoneInfo] = field(default_factory=list)
     map_events: list[MapEventInfo] = field(default_factory=list)
     fight_slots: list[FightSlotInfo] = field(default_factory=list)
-    fight_page_mapping: dict[str, str] = field(default_factory=dict)
-    fight_enemies: dict[str, list[str]] = field(default_factory=dict)
-    page_urls: dict[str, str] = field(default_factory=dict)  # filename -> wiki URL
+    fight_page_mapping: FightPageMapping = field(default_factory=dict)
+    fight_enemies: FightEnemies = field(default_factory=dict)
+    page_urls: PageUrls = field(default_factory=dict)

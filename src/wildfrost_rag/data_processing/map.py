@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup, Tag
 from bs4.element import ResultSet
 
 from wildfrost_rag.core.logger import logger
+from wildfrost_rag.domain.scraping_types import FightPageMapping
 
 
 # Maps wiki section heading names to canonical zone names
@@ -225,7 +226,7 @@ def _parse_fight_structure(soup: BeautifulSoup) -> list[FightSlotInfo]:
     return fight_slots
 
 
-def get_fight_page_mapping(html: str) -> dict[str, str]:
+def get_fight_page_mapping(html: str) -> FightPageMapping:
     """Extract fight display name → wiki page slug mapping from the Map HTML.
 
     Parses <a> tags in the Fights table name rows to get the href (page slug)

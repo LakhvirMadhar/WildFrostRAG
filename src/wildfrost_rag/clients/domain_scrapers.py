@@ -26,9 +26,7 @@ from wildfrost_rag.clients.wiki_scraper import scrape_wiki_page, load_cached_htm
 from wildfrost_rag.clients.sitemap_scraper import scrape_multiple_links
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
-
-# Type alias: maps HTML filename -> wiki URL
-PageUrls = dict[str, str]
+from wildfrost_rag.domain.scraping_types import FightEnemies, FightPageMapping, PageUrls
 
 
 async def _get_html(page_name: str, output_subdir: str) -> tuple[str | None, PageUrls]:
@@ -192,7 +190,7 @@ async def scrape_shades() -> tuple[list[SummonInfo], PageUrls]:
 
 
 async def scrape_map() -> tuple[
-    list[ZoneInfo], list[MapEventInfo], list[FightSlotInfo], dict[str, str], PageUrls
+    list[ZoneInfo], list[MapEventInfo], list[FightSlotInfo], FightPageMapping, PageUrls
 ]:
     """Parse the Map page (from cache or web)."""
     html, urls = await _get_html("Map", "maps")
@@ -209,8 +207,8 @@ async def scrape_map() -> tuple[
 
 
 async def scrape_fight_pages(
-    fight_page_mapping: dict[str, str],
-) -> tuple[dict[str, list[str]], PageUrls]:
+    fight_page_mapping: FightPageMapping,
+) -> tuple[FightEnemies, PageUrls]:
     """Parse individual fight pages and extract enemy names (from cache or web).
 
     Returns:
