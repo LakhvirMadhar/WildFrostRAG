@@ -29,76 +29,60 @@ poetry shell
     - Correct: `CREATE FULLTEXT INDEX ... FOR (n:Label) ON EACH [n.property]`
     - Old (4.x): `CALL db.index.fulltext.createNodeIndex(...)` ❌
 
-### Data Ingestion Pipeline
+### Pipeline (Dagster - primary path)
+
+Ingestion, embeddings, retrieval, and retrieval metrics are Dagster assets.
+Day-to-day usage is the Dagster UI, not direct script invocation:
+
 ```bash
-# Full ETL pipeline: scrape → process → embed → ingest
-# Default: uses --no-chunking (chunking still needs testing)
-python -m scripts.ingest_data --no-chunking
-
-# Skip web scraping (use cached data)
-python -m scripts.ingest_data --no-chunking --skip-scrape
-
-# Skip graph creation
-python -m scripts.ingest_data --no-chunking --skip-graph
-
-# Skip vector ingestion
-python -m scripts.ingest_data --no-chunking --skip-vectors
-
-# Clear database before running
-python -m scripts.ingest_data --no-chunking --clear-db
-
-# To test chunking (experimental):
-python -m scripts.ingest_data
+# Launch the UI - materialize any asset from there, with config filled in via a form
+poetry run dagster dev -m wildfrost_rag.definitions
 ```
 
-### Experiment Tracking (Recommended - Mini MLflow Interface)
+Asset chain: `scraped_cards` → `enriched_cards` → `neo4j_graph` → `neo4j_documents`
+→ `card_embeddings` → `vector_index` → `retrieval_results` → `retrieval_metrics`.
+`generation_taxonomy` is a standalone asset (parameterized by its own config, no
+upstream asset dependency).
 
-**The unified experiment CLI provides MLflow-like convenience:**
-
+You can also materialize from the CLI, passing config as JSON:
 ```bash
-# Check current run number
-python -m scripts.experiment current
-
-# Run retrieval experiment (uses current run by default)
-python -m scripts.experiment retrieval --retriever bm25 --description "Baseline BM25"
-python -m scripts.experiment retrieval --retriever vector --description "Vector search"
-python -m scripts.experiment retrieval --retriever text2cypher --text2cypher-prompt TEXT2CYPHER_PROMPT_V1
-
-# Run generation with shortcuts
-python -m scripts.experiment generation --retrieval latest/bm25 --prompt SYSTEM_PROMPT_V1
-python -m scripts.experiment generation --retrieval bm25/001 --prompt SYSTEM_PROMPT_V2 --description "Testing V2 prompt"
-
-# List all experiments in current run
-python -m scripts.experiment list
-python -m scripts.experiment list --type retrieval
-python -m scripts.experiment list --type generation
-
-# Search across all runs
-python -m scripts.experiment search --retriever-type bm25
-python -m scripts.experiment search --chunking no
-
-# Start new run (for fresh set of experiments)
-python -m scripts.experiment new-run
+poetry run dagster asset materialize --select retrieval_results \
+  -m wildfrost_rag.definitions \
+  --config '{"ops": {"retrieval_results": {"config": {"retriever_type": "BM25", "run_num": 1}}}}'
 ```
 
-### Direct Script Usage (For Testing/Debugging)
+### Direct CLI Usage (no Dagster asset exists yet, or for debugging)
 
-**Use these when you need full control over parameters:**
+Generation, the mini experiment-tracking CLI, and a few one-off tools don't
+have a Dagster asset (see `docs/migration_plan/` T8.7 for why) - use these
+directly. Ingestion/embeddings/retrieval/metrics also still work this way
+(same service code the Dagster assets call) if you need direct control:
 
 ```bash
-# Retrieval - Direct script
-python -m scripts.evaluate_retrievers --run-num 1 --retriever bm25 --chunking no --description "Baseline"
-python -m scripts.evaluate_retrievers --run-num 1 --retriever text2cypher --chunking no --text2cypher-prompt TEXT2CYPHER_PROMPT_V1
+# Ingestion / embeddings / retrieval / metrics - same services the Dagster assets call
+python -m wildfrost_rag.cli.ingest_data --no-chunking
+python -m wildfrost_rag.cli.add_embeddings --embedder hf
+python -m wildfrost_rag.cli.evaluate_retrievers --run-num 1 --retriever bm25 --chunking no --description "Baseline"
+python -m wildfrost_rag.cli.calculate_retrieval_metrics --experiment-path outputs/run_1/retrievals/bm25/001
 
-# Generation - Direct script
-python -m scripts.run_llm_generation --run-num 1 --retrieval-reference bm25/001 --system-prompt SYSTEM_PROMPT_V1
-python -m scripts.run_llm_generation --run-num 1 --retrieval-reference latest/bm25 --system-prompt SYSTEM_PROMPT_V2
-```
+# Generation - no Dagster asset yet
+python -m wildfrost_rag.cli.run_llm_generation --run-num 1 --retrieval-reference bm25/001 --system-prompt SYSTEM_PROMPT_V1
 
-### Retrieval Metrics Calculation
-```bash
-# Calculate retrieval metrics (NDCG, Hit@k, MRR)
-python -m scripts.calculate_retrieval_metrics --run-num 1
+# Taxonomy generation from manual generation annotations
+python -m wildfrost_rag.cli.generate_taxonomy --experiment outputs/run_1/generation/001
+
+# Mini experiment-tracking CLI (being replaced by real MLflow - see Epic 9)
+python -m wildfrost_rag.cli.experiment current
+python -m wildfrost_rag.cli.experiment retrieval --retriever bm25 --description "Baseline BM25"
+python -m wildfrost_rag.cli.experiment list
+python -m wildfrost_rag.cli.experiment search --retriever-type bm25
+python -m wildfrost_rag.cli.experiment new-run
+
+# One-off tools with no Dagster equivalent planned
+python -m wildfrost_rag.cli.process_queries              # CSV -> annotation-GUI JSON
+python -m wildfrost_rag.cli.compare_retrievers            # cross-experiment comparison report
+python -m wildfrost_rag.cli.auto_annotate                 # batch auto-annotation, standalone
+python -m wildfrost_rag.cli.test_neo4j_retrieval          # ad-hoc manual retriever smoke test
 ```
 
 ### Interactive Notebooks
