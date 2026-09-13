@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 
-from wildfrost_rag.gui.auto_annotator import run_auto_annotation
+from wildfrost_rag.services.evaluation.auto_annotator import run_auto_annotation
 from wildfrost_rag.core.logger import logger
 
 

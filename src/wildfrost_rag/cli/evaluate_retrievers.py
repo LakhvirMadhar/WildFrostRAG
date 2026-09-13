@@ -62,7 +62,7 @@ from wildfrost_rag.experiment_tracker.experiment_utils import (
     save_individual_results,
 )
 from wildfrost_rag.experiment_tracker import ExperimentRegistry
-from wildfrost_rag.gui.auto_annotator import run_auto_annotation
+from wildfrost_rag.services.evaluation.auto_annotator import run_auto_annotation
 
 # Retriever types that support stop word removal
 SW_QUERY_RETRIEVERS = {

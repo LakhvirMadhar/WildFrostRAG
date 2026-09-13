@@ -2,14 +2,14 @@
 
 Matches retrieved chunks against ground truth doc_references using
 bidirectional URL substring matching, then saves relevance annotations
-via the experiment adapter. This decouples auto-annotation from the
-GUI so it can run as a batch step after retrieval.
+via the experiment adapter.
 """
 
+import json
 from pathlib import Path
 from typing import Any
 
-from wildfrost_rag.gui.experiment_adapters import get_adapter
+from wildfrost_rag.services.evaluation.experiment_adapters import get_adapter
 from wildfrost_rag.core.logger import logger
 
 
@@ -19,8 +19,6 @@ def _load_ground_truth(queries_json_path: Path) -> dict[int, list[str]]:
     Returns:
         Dict mapping query_id -> list of doc_reference URLs
     """
-    import json
-
     with open(queries_json_path, encoding="utf-8") as f:
         data = json.load(f)
 
