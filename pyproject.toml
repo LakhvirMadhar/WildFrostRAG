@@ -60,6 +60,8 @@ pytest = "^9.0.2"
 pre-commit = "^4.0.0"
 import-linter = {extras = ["ui"], version = "^2.15"}
 testcontainers = {extras = ["neo4j"], version = "^4.15.0"}
+pydeps = "^3.0.8"
+grimp = "^3.17"
 
 [virtualenvs]
 in-project = true
