@@ -104,7 +104,7 @@ def test_get_retriever_passes_text2cypher_prompt_kwarg() -> None:
 
 def test_run_experiment_resolves_text2cypher_prompt_and_records_its_version() -> None:
     """text2cypher retrievers load their prompt and record its version in saved metadata."""
-    fake_prompt = MagicMock(prompt_version_name="TEXT2CYPHER_PROMPT_V1")
+    fake_prompt = MagicMock(uri="prompts:/text2cypher_prompt/1")
     service = RetrievalService()
 
     with (
@@ -122,12 +122,12 @@ def test_run_experiment_resolves_text2cypher_prompt_and_records_its_version() ->
             )
         )
 
-    fake_load.assert_called_once_with("TEXT2CYPHER_PROMPT_V1")
+    fake_load.assert_called_once_with("text2cypher_prompt")
     fake_get_retriever.assert_called_once()
     assert fake_get_retriever.call_args.kwargs["text2cypher_prompt"] is fake_prompt
     assert (
         fake_run_with_retriever.call_args.kwargs["text2cypher_prompt_version"]
-        == "TEXT2CYPHER_PROMPT_V1"
+        == "prompts:/text2cypher_prompt/1"
     )
 
 

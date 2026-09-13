@@ -1,67 +1,17 @@
-"""Text2Cypher prompt templates for generating Cypher queries from natural language."""
+"""Text2Cypher prompt template for generating Cypher queries from natural language.
 
-from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
+Current content only - history lives in MLflow's Prompt Registry (see
+cli/backfill_prompt_history.py for the pre-migration versions, and
+sync_prompts.py for how edits here become new registered versions).
+"""
 
-
-TEXT2CYPHER_PROMPT_V1 = VersionedPrompt(
-    prompt_version_name="TEXT2CYPHER_PROMPT_V1",
-    prompt_tuple=(
-        """You are an expert Neo4j Cypher query writer.
-
-Convert the following natural language query into a valid Cypher query:
-"{query}"
-
-Database Schema:
-{schema}
-
-Return ONLY the Cypher query, no explanations or markdown formatting.
-
-Cypher query:""",
-        "query",
-        "schema",
-    ),
-)
-
-
-TEXT2CYPHER_PROMPT_V2 = VersionedPrompt(
-    prompt_version_name="TEXT2CYPHER_PROMPT_V2",
-    prompt_tuple=(
-        """You are an expert Neo4j Cypher query writer.
-
-Convert the following natural language query into a valid Cypher query:
-"{query}"
-
-Database Schema:
-{schema}
-
-Rules:
-1. Use the graph structure to identify the relevant entity nodes, then traverse to their Document nodes via the HAS_DOCUMENT relationship.
-2. Always return the Document node as `RETURN d AS node`.
-
-Example:
-Question: "What tribe does Pyra belong to?"
-MATCH (c:Card {{card_name: "Pyra"}})-[:HAS_DOCUMENT]->(d:Document)
-RETURN d AS node
-
-Return ONLY the Cypher query, no explanations or markdown formatting.
-
-Cypher query:""",
-        "query",
-        "schema",
-    ),
-)
-
-
-TEXT2CYPHER_PROMPT_V3 = VersionedPrompt(
-    prompt_version_name="TEXT2CYPHER_PROMPT_V3",
-    prompt_tuple=(
-        """You are an expert Neo4j Cypher query writer for a Wildfrost game knowledge base.
+TEXT2CYPHER_PROMPT = """You are an expert Neo4j Cypher query writer for a Wildfrost game knowledge base.
 
 Convert this natural language query into a Cypher query:
-"{query}"
+"{{query}}"
 
 Database Schema:
-{schema}
+{{schema}}
 
 Rules:
 1. Every answer lives in a Document node. Always traverse to it via HAS_DOCUMENT and return `RETURN d AS node`.
@@ -89,8 +39,4 @@ RETURN d AS node
 
 Return ONLY the Cypher query, no explanations or markdown formatting.
 
-Cypher query:""",
-        "query",
-        "schema",
-    ),
-)
+Cypher query:"""

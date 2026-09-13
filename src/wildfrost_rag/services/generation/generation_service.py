@@ -7,24 +7,27 @@ and delegate the actual API call to the low-level client in
 `wildfrost_rag.clients.openai_client`.
 """
 
+from mlflow.entities.model_registry.prompt_version import PromptVersion
+
 from wildfrost_rag.clients.openai_client import call_openai_api
-from wildfrost_rag.prompts.prompt_utils import VersionedPrompt, format_prompt_tuple
+from wildfrost_rag.domain.chat_role import ChatRole
+from wildfrost_rag.prompts.prompt_utils import render_text_prompt
 
 
-async def generate_zero_shot(query: str, system_prompt: VersionedPrompt) -> str:
+async def generate_zero_shot(query: str, system_prompt: PromptVersion) -> str:
     """Generate a zero-shot response (no context).
 
     Args:
         query: The user query
-        system_prompt: VersionedPrompt containing the system prompt
+        system_prompt: The registered system prompt version
 
     Returns:
         The generated response text
     """
     return await call_openai_api(
         messages=[
-            {"role": "system", "content": system_prompt.prompt_tuple[0]},
-            {"role": "user", "content": query},
+            {"role": ChatRole.SYSTEM.value, "content": render_text_prompt(system_prompt)},
+            {"role": ChatRole.USER.value, "content": query},
         ]
     )
 
@@ -32,24 +35,24 @@ async def generate_zero_shot(query: str, system_prompt: VersionedPrompt) -> str:
 async def generate_rag(
     query: str,
     context: str,
-    system_prompt: VersionedPrompt,
-    rag_prompt: VersionedPrompt,
+    system_prompt: PromptVersion,
+    rag_prompt: PromptVersion,
 ) -> str:
     """Generate a RAG response using provided context.
 
     Args:
         query: The user query
         context: The retrieved context (concatenated chunks)
-        system_prompt: VersionedPrompt containing the system prompt
-        rag_prompt: VersionedPrompt for formatting the user message with context
+        system_prompt: The registered system prompt version
+        rag_prompt: The registered prompt version for formatting the user message with context
 
     Returns:
         The generated response text
     """
-    user_message = format_prompt_tuple(rag_prompt.prompt_tuple, query=query, context=context)
+    user_message = render_text_prompt(rag_prompt, query=query, context=context)
     return await call_openai_api(
         messages=[
-            {"role": "system", "content": system_prompt.prompt_tuple[0]},
-            {"role": "user", "content": user_message},
+            {"role": ChatRole.SYSTEM.value, "content": render_text_prompt(system_prompt)},
+            {"role": ChatRole.USER.value, "content": user_message},
         ]
     )

@@ -10,7 +10,7 @@ Usage:
     python -m wildfrost_rag.cli.experiment retrieval --run 1 --retriever bm25 --description "Baseline BM25"
 
     # Run generation with shortcuts
-    python -m wildfrost_rag.cli.experiment generation --run 1 --retrieval latest/bm25 --prompt SYSTEM_PROMPT_V1
+    python -m wildfrost_rag.cli.experiment generation --run 1 --retrieval latest/bm25 --prompt system_prompt
 
     # List experiments
     python -m wildfrost_rag.cli.experiment list --run 1
@@ -33,6 +33,7 @@ from wildfrost_rag.experiment_tracker.experiment_utils import (
     resolve_retrieval_reference,
 )
 from wildfrost_rag.domain.experiment_type import ExperimentType
+from wildfrost_rag.domain.prompt_name import PromptName
 from wildfrost_rag.domain.retriever_type import RetrieverType
 from wildfrost_rag.services.evaluation.mlflow_tracking import search_experiments
 from wildfrost_rag.cli.evaluate_retrievers import run as run_retrieval
@@ -80,7 +81,7 @@ def cmd_generation(args: argparse.Namespace) -> None:
         system_prompt=args.prompt,
         description=args.description or "",
         zero_shot=False,
-        rag_prompt=getattr(args, "rag_prompt", "RAG_PROMPT_V1"),
+        rag_prompt=getattr(args, "rag_prompt", PromptName.RAG_PROMPT),
         query_ids=getattr(args, "query_ids", None),
         exclude_query_ids=getattr(args, "exclude_query_ids", None),
     )
@@ -174,8 +175,8 @@ def main() -> None:
     retrieval_parser.add_argument("--description", default="", help="Experiment description")
     retrieval_parser.add_argument(
         "--text2cypher-prompt",
-        default="TEXT2CYPHER_PROMPT_V1",
-        help="Text2Cypher prompt (for text2cypher retriever)",
+        default=PromptName.TEXT2CYPHER_PROMPT,
+        help="Text2Cypher prompt reference: 'name' or 'name:version' (for text2cypher retriever)",
     )
     retrieval_parser.add_argument(
         "--query-ids", help="Comma-separated query IDs to include (e.g., '1,5,10')"

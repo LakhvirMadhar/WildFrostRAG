@@ -14,11 +14,11 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from mlflow.entities.model_registry.prompt_version import PromptVersion
 
 from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.repositories.card_repository import CardRepository
 from wildfrost_rag.repositories.document_repository import DocumentRepository
-from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
 from wildfrost_rag.services.retrieval.bm25_retriever import BM25Retriever
 from wildfrost_rag.services.retrieval.fulltext_then_cypher_retriever import (
     FulltextThenCypherRetriever,
@@ -206,11 +206,10 @@ def test_fulltext_then_cypher_preprocesses_query_when_stopwords_enabled() -> Non
     assert "foxee" in query_text
 
 
-def _make_versioned_prompt() -> VersionedPrompt:
-    return VersionedPrompt(
-        prompt_version_name="TEST_TEXT2CYPHER_PROMPT",
-        prompt_tuple=("Schema: {schema}\nQuery: {query}", "schema", "query"),
-    )
+def _make_versioned_prompt() -> PromptVersion:
+    prompt = MagicMock(spec=PromptVersion, uri="prompts:/test_text2cypher_prompt/1")
+    prompt.format.side_effect = lambda **kw: f"Schema: {kw['schema']}\nQuery: {kw['query']}"
+    return prompt
 
 
 @patch("wildfrost_rag.services.retrieval.text2cypher_retriever.call_openai_api")

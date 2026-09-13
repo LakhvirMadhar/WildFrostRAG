@@ -20,6 +20,7 @@ from pathlib import Path
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.clients.neo4j_driver import neo4j_driver
+from wildfrost_rag.domain.prompt_name import PromptName
 from wildfrost_rag.domain.retriever_type import RetrieverType
 from wildfrost_rag.services.embeddings.embedder_type import EmbedderType
 from wildfrost_rag.services.retrieval.retrieval_service import RetrievalService
@@ -52,8 +53,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--text2cypher-prompt",
         type=str,
-        default="TEXT2CYPHER_PROMPT_V1",
-        help="Text2cypher prompt name (e.g., TEXT2CYPHER_PROMPT_V1)",
+        default=PromptName.TEXT2CYPHER_PROMPT,
+        help="Text2cypher prompt reference: 'name' (latest) or 'name:version'",
     )
     parser.add_argument(
         "--query-ids",

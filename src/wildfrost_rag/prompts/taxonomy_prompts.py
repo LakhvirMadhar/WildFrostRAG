@@ -1,12 +1,11 @@
-"""Taxonomy prompt templates for generating axial codes from open codes."""
+"""Taxonomy prompt templates for generating axial codes from open codes.
 
-from wildfrost_rag.prompts.prompt_utils import VersionedPrompt
+Current content only - history lives in MLflow's Prompt Registry (see
+cli/backfill_prompt_history.py for the pre-migration versions, and
+sync_prompts.py for how edits here become new registered versions).
+"""
 
-
-TAXONOMY_SYSTEM_PROMPT_V1 = VersionedPrompt(
-    prompt_version_name="TAXONOMY_SYSTEM_PROMPT_V1",
-    prompt_tuple=(
-        """You are an expert at qualitative coding analysis, specifically creating axial codes from open codes.
+TAXONOMY_SYSTEM_PROMPT = """You are an expert at qualitative coding analysis, specifically creating axial codes from open codes.
 
 You will be given a numbered list of open codes that describe various failure modes from an LLM evaluation.
 
@@ -27,19 +26,11 @@ Format your response as a well-structured markdown document with:
 - List the relevant open code numbers that fall under each axial code
 - A summary section with key insights
 
-Be comprehensive but concise. Make the taxonomy useful for understanding and addressing these failure modes.""",
-    ),
-)
+Be comprehensive but concise. Make the taxonomy useful for understanding and addressing these failure modes."""
 
 
-TAXONOMY_USER_PROMPT_V1 = VersionedPrompt(
-    prompt_version_name="TAXONOMY_USER_PROMPT_V1",
-    prompt_tuple=(
-        """Here are the open codes from the failure analysis:
+TAXONOMY_USER_PROMPT = """Here are the open codes from the failure analysis:
 
-{codes_text}
+{{codes_text}}
 
-Please create axial codes that group these open codes into higher-level categories. Reference the open codes by their numbers.""",
-        "codes_text",
-    ),
-)
+Please create axial codes that group these open codes into higher-level categories. Reference the open codes by their numbers."""

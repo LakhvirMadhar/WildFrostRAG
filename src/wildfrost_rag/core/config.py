@@ -44,6 +44,17 @@ class OpenAISettings(BaseSettings):
     )
 
 
+class MlflowSettings(BaseSettings):
+    """MLflow tracking backend configuration."""
+
+    tracking_uri: str = "sqlite:///mlflow.db"
+    experiment_name: str = "wildfrost_rag"
+
+    model_config = SettingsConfigDict(
+        env_prefix="MLFLOW_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+
 class EmbeddingSettings(BaseSettings):
     """Embedding model, vector index, and retrieval-fusion configuration."""
 
@@ -156,6 +167,7 @@ class Settings:
         """Instantiate each sub-settings, each loading its own env vars."""
         self.neo4j = Neo4jSettings()  # type: ignore[call-arg]
         self.openai = OpenAISettings()
+        self.mlflow = MlflowSettings()
         self.embedding = EmbeddingSettings()
         self.scraping = ScrapingSettings()
         self.paths = PathSettings()

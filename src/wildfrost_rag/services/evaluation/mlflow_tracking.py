@@ -17,10 +17,11 @@ from git import InvalidGitRepositoryError, NoSuchPathError, Repo
 from mlflow import ActiveRun
 from mlflow.utils.mlflow_tags import MLFLOW_GIT_COMMIT
 
+from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.domain.experiment_type import ExperimentType
 
-TRACKING_URI = "sqlite:///mlflow.db"
-EXPERIMENT_NAME = "wildfrost_rag"
+TRACKING_URI = get_settings().mlflow.tracking_uri
+EXPERIMENT_NAME = get_settings().mlflow.experiment_name
 
 
 def _get_git_commit_sha() -> str | None:
