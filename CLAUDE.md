@@ -292,6 +292,8 @@ def my_function():
 
 **Default settings**: Use `--no-chunking` by default since chunking still needs testing and can produce irrelevant chunks.
 
+**Avoid primitive obsession**: before typing something as `str`, `dict[str, str]`, or another bare primitive, ask whether it has real domain meaning (a URL, a filename, an ID, a slug) rather than being genuinely generic. If it does, name it — a type alias at minimum (`type WikiUrl = str`), `NewType` if two similarly-shaped values could be swapped by mistake, or a Pydantic model if it's crossing a real boundary (see the `pydantic-boundaries` skill). `dict[str, str]` that could mean a thousand different things is a code smell, not a neutral choice — see the `primitive-obsession` skill for the full decision guide.
+
 ### Experiment Tracking Structure
 
 The project follows a **metadata-driven approach** inspired by MLflow and Weights & Biases:
