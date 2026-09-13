@@ -10,12 +10,13 @@ from collections.abc import Callable
 
 import mlflow
 import pandas as pd
+from mlflow.data.pandas_dataset import from_pandas as mlflow_dataset_from_pandas
 from mlflow.entities.model_registry.prompt_version import PromptVersion
 from neo4j import Driver
 from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
 
-from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
 from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.prompt_name import PromptName
@@ -284,6 +285,8 @@ class RetrievalService:
         retriever: Any,  # noqa: ANN401
         retriever_type: RetrieverType,
         experiment_id: str,
+        df: pd.DataFrame,
+        dataset_path: str,
     ) -> None:
         """Save config.json, results.json, and (for hybrid retrievers) individual_results.json.
 
@@ -298,6 +301,10 @@ class RetrievalService:
         run_name = f"{retriever_type.value}/{experiment_id}"
         with get_or_create_run(run_name):
             mlflow.set_tag("run_number", config.run_number)
+            query_dataset = mlflow_dataset_from_pandas(
+                df, source=dataset_path, name="query_dataset"
+            )
+            mlflow.log_input(query_dataset, context="retrieval")
             mlflow.log_params(
                 {
                     "retriever_type": config.retriever_type,
@@ -347,6 +354,7 @@ class RetrievalService:
         sw_docs: bool = True,
         text2cypher_prompt_name: str = PromptName.TEXT2CYPHER_PROMPT,
         queries_json_path: Path | None = None,
+        dataset_path: str = DEFAULT_QUERIES_FILE,
     ) -> RetrievalExperimentResult:
         """Build the configured retriever and run a full experiment with it.
 
@@ -389,6 +397,7 @@ class RetrievalService:
             description=description,
             embedder=embedder,
             queries_json_path=queries_json_path,
+            dataset_path=dataset_path,
             **config_kwargs,
         )
 
@@ -403,6 +412,7 @@ class RetrievalService:
         description: str = "",
         embedder: EmbedderType = EmbedderType.HF,
         queries_json_path: Path | None = None,
+        dataset_path: str = DEFAULT_QUERIES_FILE,
         **kwargs: Any,  # noqa: ANN401
     ) -> RetrievalExperimentResult:
         """Run an already-built retriever on the provided dataset and save raw results.
@@ -417,6 +427,10 @@ class RetrievalService:
             description: Human-readable description of this experiment
             embedder: Embedding provider (for vector-based retrievers)
             queries_json_path: Path to queries JSON with doc_references for auto-annotation
+            dataset_path: Path the query CSV was actually loaded from, recorded as
+                this experiment's dataset (both in config.json and as an MLflow
+                dataset input, so two runs can be proven to have used the same
+                or a different query set)
             **kwargs: Additional metadata (e.g., text2cypher_prompt_version)
 
         Returns:
@@ -464,6 +478,7 @@ class RetrievalService:
             embedding_provider=embedding_provider,
             embedding_model=embedding_model,
             vector_index_name=vector_index_name,
+            dataset=dataset_path,
             **kwargs,
         )
 
@@ -475,6 +490,8 @@ class RetrievalService:
             retriever,
             retriever_type,
             experiment_id,
+            df,
+            dataset_path,
         )
 
         annotation_summary = run_auto_annotation(experiment_dir, queries_json_path)

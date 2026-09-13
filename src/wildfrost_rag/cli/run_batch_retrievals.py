@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 from wildfrost_rag.cli.evaluate_retrievers import run as run_retrieval
-from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.prompt_name import PromptName
 
@@ -144,7 +144,7 @@ async def run_retriever_direct(
         query_ids=None,
         exclude_query_ids=None,
         k=10,
-        file="queries/simple_reference_based_queries.csv",
+        file=DEFAULT_QUERIES_FILE,
         embedder=retriever_config.get("embedder", "hf"),
         queries_json=None,
         sw_query="yes",

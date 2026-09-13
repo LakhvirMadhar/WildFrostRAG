@@ -12,7 +12,7 @@ import pandas as pd
 import re
 from wildfrost_rag.data_processing.cards import CardType, CardInfo
 from wildfrost_rag.data_processing.generate_schemas import generate_card_type_html_schema
-from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
 
 
 def clean_name_for_url(name: str) -> str:
@@ -29,7 +29,7 @@ def clean_name_for_url(name: str) -> str:
 
 def sample_queries(
     k: int = 100,
-    output_filepath: str = "queries/simple_reference_based_queries.csv",
+    output_filepath: str = DEFAULT_QUERIES_FILE,
     overwrite: bool = False,
 ) -> pd.DataFrame:
     """Sample k random URLs from the Wildfrost Wiki card set and generate a query CSV.

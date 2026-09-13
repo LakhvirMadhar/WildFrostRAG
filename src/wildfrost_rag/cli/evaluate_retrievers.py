@@ -18,7 +18,7 @@ import argparse
 from pathlib import Path
 
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
 from wildfrost_rag.clients.neo4j_driver import neo4j_driver
 from wildfrost_rag.domain.prompt_name import PromptName
 from wildfrost_rag.domain.retriever_type import RetrieverType
@@ -75,7 +75,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--file",
         type=str,
-        default="queries/simple_reference_based_queries.csv",
+        default=DEFAULT_QUERIES_FILE,
         help="Path to input CSV file with queries",
     )
     parser.add_argument(
@@ -144,6 +144,7 @@ async def run(args: argparse.Namespace) -> None:
             sw_docs=args.sw_docs == "yes",
             text2cypher_prompt_name=args.text2cypher_prompt,
             queries_json_path=queries_json,
+            dataset_path=args.file,
         )
 
         if experiment.results:

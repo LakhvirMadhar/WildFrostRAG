@@ -19,6 +19,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE
 from wildfrost_rag.core.logger import logger
 
 
@@ -102,7 +103,7 @@ def main() -> int:
         "--input",
         "-i",
         type=str,
-        default="queries/simple_reference_based_queries.csv",
+        default=DEFAULT_QUERIES_FILE,
         help="Input CSV file path",
     )
     parser.add_argument(

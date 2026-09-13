@@ -10,6 +10,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+# Mirrors core.config.DEFAULT_QUERIES_FILE - models/ can't import core/ (they're
+# independent siblings in the layers contract), and every real caller
+# (create_retrieval_config/create_generation_config) always passes dataset=
+# explicitly anyway, so this only ever matters as a last-resort fallback.
+_DEFAULT_QUERIES_FILE_FALLBACK = "queries/simple_reference_based_queries.csv"
+
 
 class QueryStats(BaseModel):
     """Query counts for an experiment run."""
@@ -48,7 +54,7 @@ class RetrievalConfig(BaseModel):
     chunking: bool
     k: int = 10
     description: str = ""
-    dataset: str = "simple_reference_based_queries.csv"
+    dataset: str = _DEFAULT_QUERIES_FILE_FALLBACK
     query_stats: QueryStats
     embedding: EmbeddingConfig
     text2cypher: Text2CypherConfig | None = None
@@ -76,6 +82,6 @@ class GenerationConfig(BaseModel):
     prompts: PromptVersions
     is_zero_shot: bool = False
     description: str = ""
-    dataset: str = "simple_reference_based_queries.csv"
+    dataset: str = _DEFAULT_QUERIES_FILE_FALLBACK
     query_stats: QueryStats
     additional_metadata: dict[str, Any] = Field(default_factory=dict)

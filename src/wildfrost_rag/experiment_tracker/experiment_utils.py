@@ -17,7 +17,7 @@ from wildfrost_rag.models.experiment_config import (
     RetrievalConfig,
     Text2CypherConfig,
 )
-from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.retriever_type import RetrieverType
 
@@ -53,6 +53,7 @@ def create_retrieval_config(
     failed_queries: int = 0,
     description: str = "",
     k: int = 10,
+    dataset: str = DEFAULT_QUERIES_FILE,
     embedding_model: str | None = None,
     embedding_provider: str | None = None,
     vector_index_name: str | None = None,
@@ -75,6 +76,7 @@ def create_retrieval_config(
         failed_queries: Number of failed queries
         description: Human-readable description
         k: Number of chunks retrieved per query
+        dataset: Path/name of the query CSV actually used for this experiment
         embedding_model: Embedding model name (vector-based retrievers only)
         embedding_provider: Embedding provider name (vector-based retrievers only)
         vector_index_name: Vector index name (vector-based retrievers only)
@@ -111,6 +113,7 @@ def create_retrieval_config(
         retriever_type=retriever_type.value,
         chunking=chunking,
         k=k,
+        dataset=dataset,
         description=description,
         query_stats=QueryStats(
             total=total_queries, successful=successful_queries, failed=failed_queries
