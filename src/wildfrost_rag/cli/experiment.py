@@ -1,31 +1,25 @@
 #!/usr/bin/env python3
-"""Unified experiment CLI - MLflow-like interface for WildFrostRAG.
+"""Unified experiment CLI for WildFrostRAG.
 
-This provides convenient shortcuts and automation for running experiments:
-- Auto-manages run numbers
+Convenience wrapper around the retrieval/generation scripts that:
 - Resolves shortcuts like "latest/bm25"
-- Lists and searches experiments
-- Wraps the underlying scripts with convenience features
+- Lists and searches experiments tracked in MLflow
 
 Usage:
     # Run retrieval
-    python -m wildfrost_rag.cli.experiment retrieval --retriever bm25 --description "Baseline BM25"
+    python -m wildfrost_rag.cli.experiment retrieval --run 1 --retriever bm25 --description "Baseline BM25"
 
     # Run generation with shortcuts
-    python -m wildfrost_rag.cli.experiment generation --retrieval latest/bm25 --prompt SYSTEM_PROMPT_V1
+    python -m wildfrost_rag.cli.experiment generation --run 1 --retrieval latest/bm25 --prompt SYSTEM_PROMPT_V1
 
     # List experiments
-    python -m wildfrost_rag.cli.experiment list
-    python -m wildfrost_rag.cli.experiment list --type retrieval
     python -m wildfrost_rag.cli.experiment list --run 1
+    python -m wildfrost_rag.cli.experiment list --run 1 --type retrieval
 
     # Search experiments
     python -m wildfrost_rag.cli.experiment search --retriever-type bm25
     python -m wildfrost_rag.cli.experiment search --chunking no
 
-    # Manage runs
-    python -m wildfrost_rag.cli.experiment new-run  # Increment to next run number
-    python -m wildfrost_rag.cli.experiment current  # Show current run number
 """
 
 import argparse
@@ -34,7 +28,10 @@ import sys
 
 import pandas as pd
 
-from wildfrost_rag.experiment_tracker import ExperimentRegistry
+from wildfrost_rag.experiment_tracker.experiment_utils import (
+    list_available_retrievals,
+    resolve_retrieval_reference,
+)
 from wildfrost_rag.domain.experiment_type import ExperimentType
 from wildfrost_rag.domain.retriever_type import RetrieverType
 from wildfrost_rag.services.evaluation.mlflow_tracking import search_experiments
@@ -45,11 +42,8 @@ from wildfrost_rag.core.logger import logger
 
 def cmd_retrieval(args: argparse.Namespace) -> None:
     """Run a retrieval experiment."""
-    registry = ExperimentRegistry()
-    run_num = args.run if args.run != "current" else registry.get_current_run()
-
     retrieval_args = argparse.Namespace(
-        run_num=run_num,
+        run_num=args.run,
         retriever=args.retriever,
         chunking=args.chunking,
         description=args.description or "",
@@ -64,22 +58,20 @@ def cmd_retrieval(args: argparse.Namespace) -> None:
         sw_docs="yes",
     )
 
-    logger.info(f"Running retrieval: {args.retriever} (run {run_num})")
+    logger.info(f"Running retrieval: {args.retriever} (run {args.run})")
     asyncio.run(run_retrieval(retrieval_args))
 
 
 def cmd_generation(args: argparse.Namespace) -> None:
     """Run a generation experiment."""
-    registry = ExperimentRegistry()
-    run_num = args.run if args.run != "current" else registry.get_current_run()
+    run_num = args.run
 
-    # Resolve retrieval reference
-    retrieval_ref = registry.resolve_retrieval_reference(run_num, args.retrieval)
+    retrieval_ref = resolve_retrieval_reference(run_num, args.retrieval)
     if not retrieval_ref:
         logger.error(f"Could not resolve retrieval reference: {args.retrieval}")
         logger.info(f"Available retrievals for run {run_num}:")
-        for ret in registry.list_retrievals(run_num):
-            logger.info(f"  - {ret.reference}: {ret.description}")
+        for ref in list_available_retrievals(run_num):
+            logger.info(f"  - {ref}")
         sys.exit(1)
 
     generation_args = argparse.Namespace(
@@ -117,14 +109,12 @@ def _print_run_row(row: pd.Series) -> None:
 
 def cmd_list(args: argparse.Namespace) -> None:
     """List experiments for one run number, from MLflow."""
-    registry = ExperimentRegistry()
-    run_num = args.run if args.run != "current" else registry.get_current_run()
     experiment_type = ExperimentType(args.type) if args.type else None
 
-    runs = search_experiments(experiment_type=experiment_type, run_number=run_num)
+    runs = search_experiments(experiment_type=experiment_type, run_number=args.run)
 
     print(f"\n{'=' * 80}")
-    print(f"Experiments for Run {run_num}")
+    print(f"Experiments for Run {args.run}")
     print(f"{'=' * 80}\n")
 
     if runs.empty:
@@ -155,23 +145,9 @@ def cmd_search(args: argparse.Namespace) -> None:
         return
 
     for _, row in runs.iterrows():
-        run_num = row.get("params.run_number", "?")
+        run_num = row.get("tags.run_number", "?")
         print(f"  Run {run_num}")
         _print_run_row(row)
-
-
-def cmd_new_run(args: argparse.Namespace) -> None:
-    """Increment to new run number."""
-    registry = ExperimentRegistry()
-    new_run = registry.increment_run()
-    print(f"\nIncremented to run {new_run}\n")
-
-
-def cmd_current(args: argparse.Namespace) -> None:
-    """Show current run number."""
-    registry = ExperimentRegistry()
-    current = registry.get_current_run()
-    print(f"\nCurrent run: {current}\n")
 
 
 def main() -> None:
@@ -185,7 +161,7 @@ def main() -> None:
 
     # Retrieval command
     retrieval_parser = subparsers.add_parser("retrieval", help="Run retrieval experiment")
-    retrieval_parser.add_argument("--run", default="current", help="Run number (default: current)")
+    retrieval_parser.add_argument("--run", type=int, required=True, help="Run number")
     retrieval_parser.add_argument(
         "--retriever",
         required=True,
@@ -216,7 +192,7 @@ def main() -> None:
 
     # Generation command
     generation_parser = subparsers.add_parser("generation", help="Run generation experiment")
-    generation_parser.add_argument("--run", default="current", help="Run number (default: current)")
+    generation_parser.add_argument("--run", type=int, required=True, help="Run number")
     generation_parser.add_argument(
         "--retrieval",
         required=True,
@@ -232,7 +208,7 @@ def main() -> None:
 
     # List command
     list_parser = subparsers.add_parser("list", help="List experiments")
-    list_parser.add_argument("--run", default="current", help="Run number (default: current)")
+    list_parser.add_argument("--run", type=int, required=True, help="Run number")
     list_parser.add_argument(
         "--type", choices=[member.value for member in ExperimentType], help="Filter by type"
     )
@@ -244,12 +220,6 @@ def main() -> None:
     )
     search_parser.add_argument("--retriever-type", help="Filter by retriever type")
     search_parser.add_argument("--chunking", choices=["yes", "no"], help="Filter by chunking")
-
-    # New run command
-    subparsers.add_parser("new-run", help="Increment to next run number")
-
-    # Current run command
-    subparsers.add_parser("current", help="Show current run number")
 
     args = parser.parse_args()
 
@@ -263,8 +233,6 @@ def main() -> None:
         "generation": cmd_generation,
         "list": cmd_list,
         "search": cmd_search,
-        "new-run": cmd_new_run,
-        "current": cmd_current,
     }
 
     handler = command_handlers.get(args.command)

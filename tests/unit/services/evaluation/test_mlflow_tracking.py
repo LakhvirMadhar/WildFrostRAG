@@ -104,12 +104,14 @@ def test_get_or_create_run_skips_the_tag_when_not_in_a_git_repo() -> None:
 
 def _log_retrieval_run(run_name: str, run_number: int, retriever_type: str) -> None:
     with mlflow.start_run(run_name=run_name):
-        mlflow.log_params({"run_number": run_number, "retriever_type": retriever_type})
+        mlflow.set_tag("run_number", run_number)
+        mlflow.log_params({"retriever_type": retriever_type})
 
 
 def _log_generation_run(run_name: str, run_number: int) -> None:
     with mlflow.start_run(run_name=run_name):
-        mlflow.log_params({"run_number": run_number, "retrieval_reference": "bm25/001"})
+        mlflow.set_tag("run_number", run_number)
+        mlflow.log_params({"retrieval_reference": "bm25/001"})
 
 
 def test_search_experiments_filters_by_retriever_type() -> None:

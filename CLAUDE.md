@@ -71,12 +71,10 @@ python -m wildfrost_rag.cli.run_llm_generation --run-num 1 --retrieval-reference
 # Taxonomy generation from manual generation annotations
 python -m wildfrost_rag.cli.generate_taxonomy --experiment outputs/run_1/generation/001
 
-# Mini experiment-tracking CLI (being replaced by real MLflow - see Epic 9)
-python -m wildfrost_rag.cli.experiment current
-python -m wildfrost_rag.cli.experiment retrieval --retriever bm25 --description "Baseline BM25"
-python -m wildfrost_rag.cli.experiment list
+# Unified experiment CLI (shortcuts + search over MLflow-tracked runs)
+python -m wildfrost_rag.cli.experiment retrieval --run 1 --retriever bm25 --description "Baseline BM25"
+python -m wildfrost_rag.cli.experiment list --run 1
 python -m wildfrost_rag.cli.experiment search --retriever-type bm25
-python -m wildfrost_rag.cli.experiment new-run
 
 # One-off tools with no Dagster equivalent planned
 python -m wildfrost_rag.cli.process_queries              # CSV -> annotation-GUI JSON

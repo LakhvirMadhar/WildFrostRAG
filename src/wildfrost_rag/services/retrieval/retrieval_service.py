@@ -24,7 +24,6 @@ from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.retrieval import CypherExecution, QueryResult
 from wildfrost_rag.domain.retriever_type import RetrieverType
-from wildfrost_rag.experiment_tracker import ExperimentRegistry
 from wildfrost_rag.experiment_tracker.experiment_utils import (
     create_retrieval_config,
     get_next_experiment_id,
@@ -289,7 +288,6 @@ class RetrievalService:
         retriever: Any,  # noqa: ANN401
         retriever_type: RetrieverType,
         experiment_id: str,
-        run_num: int,
     ) -> None:
         """Save config.json, results.json, and (for hybrid retrievers) individual_results.json.
 
@@ -298,17 +296,14 @@ class RetrievalService:
         """
         save_config(config, experiment_dir)
 
-        registry = ExperimentRegistry()
-        registry.register_retrieval(run_num, retriever_type.value, experiment_id, config)
-
         results_dicts = [r.to_dict() for r in results]
         save_results(results_dicts, experiment_dir / "results.json")
 
         run_name = f"{retriever_type.value}/{experiment_id}"
         with get_or_create_run(run_name):
+            mlflow.set_tag("run_number", config.run_number)
             mlflow.log_params(
                 {
-                    "run_number": config.run_number,
                     "retriever_type": config.retriever_type,
                     "chunking": config.chunking,
                     "k": config.k,
@@ -484,7 +479,6 @@ class RetrievalService:
             retriever,
             retriever_type,
             experiment_id,
-            run_num,
         )
 
         annotation_summary = run_auto_annotation(experiment_dir, queries_json_path)

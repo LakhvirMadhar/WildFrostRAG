@@ -262,6 +262,29 @@ def list_available_retrievals(run_num: int) -> list[str]:
     return sorted(available)
 
 
+def resolve_retrieval_reference(run_num: int, reference: str) -> str | None:
+    """Resolve a retrieval reference, handling the "latest/<type>" shortcut.
+
+    Experiment IDs are zero-padded and monotonically increasing (001, 002, ...),
+    so the alphabetically-last match is also the most recently created one.
+
+    Args:
+        run_num: Run number
+        reference: Reference string (e.g., "bm25/001", "latest/bm25")
+
+    Returns:
+        Resolved reference (e.g., "bm25/003"), or None if no match exists
+    """
+    if not reference.startswith("latest/"):
+        return reference
+
+    retriever_type = reference.split("/", 1)[1]
+    matching = sorted(
+        ref for ref in list_available_retrievals(run_num) if ref.startswith(f"{retriever_type}/")
+    )
+    return matching[-1] if matching else None
+
+
 def save_results(results: list[dict[str, Any]], output_path: Path) -> None:
     """Save results to JSON file.
 

@@ -176,17 +176,15 @@ def test_save_experiment_artifacts_logs_to_real_mlflow_with_none_embedding_field
     )
     service = RetrievalService()
 
-    with patch(f"{_MODULE}.ExperimentRegistry"):
-        service._save_experiment_artifacts(
-            experiment_dir=tmp_path,
-            config=config,
-            results=[],
-            individual_results=[],
-            retriever=MagicMock(),
-            retriever_type=RetrieverType.BM25,
-            experiment_id="001",
-            run_num=1,
-        )
+    service._save_experiment_artifacts(
+        experiment_dir=tmp_path,
+        config=config,
+        results=[],
+        individual_results=[],
+        retriever=MagicMock(),
+        retriever_type=RetrieverType.BM25,
+        experiment_id="001",
+    )
 
     with mlflow_tracking.get_or_create_run("bm25/001") as run:
         run_id = run.info.run_id
