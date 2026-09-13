@@ -6,6 +6,7 @@ Launch locally with:
 
 from dagster import Definitions
 
+from wildfrost_rag.defs.embeddings.assets import card_embeddings, vector_index
 from wildfrost_rag.defs.ingestion.assets import (
     enriched_cards,
     neo4j_documents,
@@ -15,7 +16,14 @@ from wildfrost_rag.defs.ingestion.assets import (
 from wildfrost_rag.defs.resources import Neo4jResource, OpenAIResource
 
 defs = Definitions(
-    assets=[scraped_cards, enriched_cards, neo4j_graph, neo4j_documents],
+    assets=[
+        scraped_cards,
+        enriched_cards,
+        neo4j_graph,
+        neo4j_documents,
+        card_embeddings,
+        vector_index,
+    ],
     resources={
         "neo4j": Neo4jResource(),
         "openai": OpenAIResource(),
