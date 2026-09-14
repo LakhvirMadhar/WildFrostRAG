@@ -8,11 +8,15 @@ here.
 """
 
 import asyncio
+from collections.abc import Generator
+from contextlib import contextmanager
 
 from openai import APIError, AsyncOpenAI, AuthenticationError, RateLimitError
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
 
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.embedder_type import EmbedderType
 from wildfrost_rag.core.exceptions import (
     EmbeddingError,
     LLMAuthenticationError,
@@ -20,8 +24,6 @@ from wildfrost_rag.core.exceptions import (
     LLMMalformedResponseError,
     LLMRateLimitError,
 )
-from wildfrost_rag.core.config import get_settings
-from wildfrost_rag.core.embedder_type import EmbedderType
 from wildfrost_rag.core.logger import logger
 
 # =============================================================================
@@ -38,7 +40,9 @@ def _get_client() -> AsyncOpenAI:
     if _client is None:
         settings = get_settings()
         if settings.openai.api_key is None:
-            raise ValueError("OPENAI_API_KEY not configured")
+            raise LLMAuthenticationError(
+                "OPENAI_API_KEY not configured", model=settings.openai.model_name
+            )
         _client = AsyncOpenAI(api_key=settings.openai.api_key.get_secret_value())
     return _client
 
@@ -49,6 +53,27 @@ def _get_semaphore() -> asyncio.Semaphore:
     if _semaphore is None:
         _semaphore = asyncio.Semaphore(get_settings().openai.llm_semaphore_limit)
     return _semaphore
+
+
+@contextmanager
+def _translate_chat_errors(*, model: str, caller: str) -> Generator[None]:
+    """Map OpenAI SDK exceptions raised by a chat call into this project's LLM exceptions.
+
+    Shared by call_openai_api and call_openai_api_structured, which both map
+    the same three OpenAI exception types the same way - kept in one place
+    so that mapping can't drift out of sync between the two call sites.
+    """
+    try:
+        yield
+    except RateLimitError as e:
+        logger.error(f"OpenAI rate limit exceeded in {caller}: {e}")
+        raise LLMRateLimitError(str(e), model=model) from e
+    except AuthenticationError as e:
+        logger.error(f"OpenAI authentication failed in {caller}: {e}")
+        raise LLMAuthenticationError(str(e), model=model) from e
+    except APIError as e:
+        logger.error(f"OpenAI API error in {caller}: {e}")
+        raise LLMError(str(e), model=model) from e
 
 
 # =============================================================================
@@ -77,22 +102,14 @@ async def call_openai_api(
         client = _get_client()
         settings = get_settings()
         resolved_model = model or settings.openai.model_name
-        try:
+
+        with _translate_chat_errors(model=resolved_model, caller="call_openai_api"):
             response = await client.chat.completions.create(
                 model=resolved_model,
                 messages=messages,
                 temperature=temperature if temperature is not None else settings.openai.temperature,
                 seed=seed if seed is not None else settings.openai.seed,
             )
-        except RateLimitError as e:
-            logger.error(f"OpenAI rate limit exceeded in call_openai_api: {e}")
-            raise LLMRateLimitError(str(e), model=resolved_model) from e
-        except AuthenticationError as e:
-            logger.error(f"OpenAI authentication failed in call_openai_api: {e}")
-            raise LLMAuthenticationError(str(e), model=resolved_model) from e
-        except APIError as e:
-            logger.error(f"OpenAI API error in call_openai_api: {e}")
-            raise LLMError(str(e), model=resolved_model) from e
 
         content = response.choices[0].message.content
         if content is None:
@@ -125,7 +142,8 @@ async def call_openai_api_structured[T: BaseModel](
         client = _get_client()
         settings = get_settings()
         resolved_model = model or settings.openai.model_name
-        try:
+
+        with _translate_chat_errors(model=resolved_model, caller="call_openai_api_structured"):
             response = await client.beta.chat.completions.parse(
                 model=resolved_model,
                 messages=messages,
@@ -133,15 +151,6 @@ async def call_openai_api_structured[T: BaseModel](
                 temperature=temperature if temperature is not None else settings.openai.temperature,
                 seed=seed if seed is not None else settings.openai.seed,
             )
-        except RateLimitError as e:
-            logger.error(f"OpenAI rate limit exceeded in call_openai_api_structured: {e}")
-            raise LLMRateLimitError(str(e), model=resolved_model) from e
-        except AuthenticationError as e:
-            logger.error(f"OpenAI authentication failed in call_openai_api_structured: {e}")
-            raise LLMAuthenticationError(str(e), model=resolved_model) from e
-        except APIError as e:
-            logger.error(f"OpenAI API error in call_openai_api_structured: {e}")
-            raise LLMError(str(e), model=resolved_model) from e
 
         parsed = response.choices[0].message.parsed
         if parsed is None:
@@ -173,6 +182,6 @@ async def call_openai_embeddings(
         try:
             response = await client.embeddings.create(input=texts, model=resolved_model)
             return [item.embedding for item in response.data]
-        except APIError as e:
-            logger.error(f"OpenAI API error in call_openai_embeddings: {e}")
-            raise EmbeddingError(provider="openai", reason=str(e)) from e
+        except (RateLimitError, AuthenticationError, APIError) as e:
+            logger.error(f"OpenAI {type(e).__name__} in call_openai_embeddings: {e}")
+            raise EmbeddingError(provider="openai", reason=f"{type(e).__name__}: {e}") from e
