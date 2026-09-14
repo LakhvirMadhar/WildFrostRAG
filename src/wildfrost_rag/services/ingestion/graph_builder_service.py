@@ -20,11 +20,11 @@ callers (the CLI, and this file's own test suite).
 import aiohttp
 from neo4j import Driver
 
+from wildfrost_rag.clients.http_client import scraping_session
 from wildfrost_rag.core.config import create_settings_directories, get_settings
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.cards import CardInfo
 from wildfrost_rag.repositories.graph_builder import clear_database
-from wildfrost_rag.clients.http_client import scraping_session
 from wildfrost_rag.services.ingestion.document_ingestion_service import (
     DocumentIngestionService,
 )

@@ -10,8 +10,8 @@ from pathlib import Path
 from bs4 import BeautifulSoup, Comment, Tag
 from pydantic import BaseModel, Field
 
-from wildfrost_rag.data_processing.text_utils import clean_element_text
 from wildfrost_rag.core.logger import logger
+from wildfrost_rag.data_processing.text_utils import clean_element_text
 
 _clean_text = clean_element_text
 

@@ -3,9 +3,9 @@ from typing import Any
 
 import neo4j
 
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.stats import StatInfo
 from wildfrost_rag.repositories.query_utils import single_value
-from wildfrost_rag.core.logger import logger
 
 
 def parse_other_stats(other_stats_str: str) -> list[tuple[str, int]]:

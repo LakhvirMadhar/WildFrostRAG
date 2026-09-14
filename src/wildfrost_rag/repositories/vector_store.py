@@ -8,12 +8,14 @@ injection — the caller (ingest_data.py) manages driver lifecycle.
 """
 
 from pathlib import Path
-from neo4j import Driver, Session
+
 from langchain_core.documents import Document
+from neo4j import Driver, Session
 from sentence_transformers import SentenceTransformer
+
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.repository_results import DocumentSearchResult, MissingEmbeddingDocument
 from wildfrost_rag.repositories.query_utils import single_value
-from wildfrost_rag.core.logger import logger
 
 
 def ingest_documents_into_neo4j(

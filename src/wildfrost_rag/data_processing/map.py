@@ -3,13 +3,12 @@
 Parses the Map wiki page to extract Zones, Map Events, and Fight structure.
 """
 
-from pydantic import BaseModel, Field
 from bs4 import BeautifulSoup, Tag
 from bs4.element import ResultSet
+from pydantic import BaseModel, Field
 
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.scraping_types import FightPageMapping
-
 
 # Maps wiki section heading names to canonical zone names
 SECTION_TO_ZONE_NAME = {

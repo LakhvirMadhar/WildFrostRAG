@@ -16,12 +16,12 @@ for this pass.
 
 from dagster import asset
 
-from wildfrost_rag.defs.resources import Neo4jResource
 from wildfrost_rag.clients.http_client import scraping_session
+from wildfrost_rag.defs.resources import Neo4jResource
 from wildfrost_rag.services.ingestion.document_ingestion_service import DocumentIngestionService
 from wildfrost_rag.services.ingestion.enrichment_service import EnrichmentService
-from wildfrost_rag.services.ingestion.pipeline_data import PipelineData
 from wildfrost_rag.services.ingestion.graph_population_service import GraphPopulationService
+from wildfrost_rag.services.ingestion.pipeline_data import PipelineData
 from wildfrost_rag.services.ingestion.scraping_service import ScrapingService
 
 

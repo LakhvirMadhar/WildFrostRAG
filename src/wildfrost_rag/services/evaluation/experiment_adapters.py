@@ -16,15 +16,16 @@ Usage:
 """
 
 import json
-import yaml
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from wildfrost_rag.core.logger import logger
+import yaml
+
 from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 
 
 @dataclass

@@ -27,7 +27,6 @@ from typing import Any
 
 from nltk.corpus import stopwords as nltk_stopwords
 
-
 from wildfrost_rag.core.config import get_settings
 
 

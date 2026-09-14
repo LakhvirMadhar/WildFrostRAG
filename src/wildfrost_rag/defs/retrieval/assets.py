@@ -5,12 +5,12 @@ from pathlib import Path
 from dagster import Config, asset
 
 from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE
+from wildfrost_rag.core.embedder_type import EmbedderType
 from wildfrost_rag.defs.embeddings.assets import vector_index
 from wildfrost_rag.defs.ingestion.assets import neo4j_documents
 from wildfrost_rag.defs.resources import Neo4jResource
 from wildfrost_rag.domain.prompt_name import PromptName
 from wildfrost_rag.domain.retriever_type import RetrieverType
-from wildfrost_rag.core.embedder_type import EmbedderType
 from wildfrost_rag.services.retrieval.retrieval_service import RetrievalService
 
 

@@ -20,11 +20,11 @@ from pathlib import Path
 from typing import Any
 
 import ipywidgets as widgets
-from IPython.display import display, clear_output
+from IPython.display import clear_output, display
 
-from wildfrost_rag.services.evaluation.experiment_adapters import ExperimentRegistry, get_adapter
-from wildfrost_rag.gui.unified_annotation_gui import UnifiedAnnotationGUI
 from wildfrost_rag.core.logger import logger
+from wildfrost_rag.gui.unified_annotation_gui import UnifiedAnnotationGUI
+from wildfrost_rag.services.evaluation.experiment_adapters import ExperimentRegistry, get_adapter
 
 
 class ExperimentBrowserGUI:

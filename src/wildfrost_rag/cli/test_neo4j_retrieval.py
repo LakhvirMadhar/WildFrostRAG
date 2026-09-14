@@ -19,20 +19,20 @@ Usage:
 
 import argparse
 from typing import Any
+
 from neo4j import Driver
 
-
+from wildfrost_rag.clients.neo4j_driver import neo4j_driver
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.services.retrieval import (
-    Neo4jVectorSearch,
-    Neo4jFullTextSearch,
+    BM25FulltextVectorHybridRetriever,
     BM25Retriever,
     BM25VectorHybridRetriever,
     FulltextVectorHybridRetriever,
-    BM25FulltextVectorHybridRetriever,
+    Neo4jFullTextSearch,
+    Neo4jVectorSearch,
     Text2CypherRetriever,
 )
-from wildfrost_rag.clients.neo4j_driver import neo4j_driver
-from wildfrost_rag.core.logger import logger
 
 
 def get_retriever(retriever_type: str, driver: Driver) -> Any:  # noqa: ANN401

@@ -17,8 +17,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from wildfrost_rag.core.config import get_settings
-from wildfrost_rag.domain.repository_results import MissingEmbeddingDocument
 from wildfrost_rag.core.embedder_type import EmbedderType
+from wildfrost_rag.domain.repository_results import MissingEmbeddingDocument
 from wildfrost_rag.services.embeddings.embedding_service import EmbeddingService
 
 _MODULE = "wildfrost_rag.services.embeddings.embedding_service"

@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from mlflow.entities.model_registry.prompt_version import PromptVersion
 
+from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.domain.repository_results import DocumentProperties, GraphTraversalResult
 from wildfrost_rag.repositories.card_repository import CardRepository
@@ -33,7 +34,6 @@ from wildfrost_rag.services.retrieval.text2cypher_retriever import Text2CypherRe
 from wildfrost_rag.services.retrieval.vector_then_cypher_retriever import (
     VectorThenCypherRetriever,
 )
-from wildfrost_rag.core.config import get_settings
 
 
 @pytest.fixture(autouse=True)

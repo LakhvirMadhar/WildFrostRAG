@@ -12,8 +12,11 @@ from collections.abc import Awaitable
 import aiohttp
 from tqdm import tqdm
 
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.cards import CardInfo, CardType
 from wildfrost_rag.data_processing.generate_schemas import parse_card_type_html_schema
+from wildfrost_rag.domain.scraping_types import FightEnemies, PageUrls
 from wildfrost_rag.scraping.pages.bells import scrape_bells, scrape_individual_bell_pages
 from wildfrost_rag.scraping.pages.bling import scrape_bling, scrape_clunker_prices, scrape_shop
 from wildfrost_rag.scraping.pages.charms import scrape_charms, scrape_individual_charm_pages
@@ -26,13 +29,9 @@ from wildfrost_rag.scraping.pages.misc_pages import (
     scrape_shades,
 )
 from wildfrost_rag.scraping.pages.stats import scrape_individual_stat_pages, scrape_stats
-from wildfrost_rag.scraping.wiki_scraper import clean_name_for_url
-from wildfrost_rag.core.config import get_settings
-from wildfrost_rag.core.logger import logger
 from wildfrost_rag.scraping.sitemap_scraper import scrape_multiple_links
-from wildfrost_rag.domain.scraping_types import FightEnemies, PageUrls
+from wildfrost_rag.scraping.wiki_scraper import clean_name_for_url
 from wildfrost_rag.services.ingestion.pipeline_data import PipelineData
-
 
 _SCHEMA_URL = "https://wildfrostwiki.com/index.php?title=Baby_Snowbo"
 

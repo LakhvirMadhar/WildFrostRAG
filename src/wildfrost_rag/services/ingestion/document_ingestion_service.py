@@ -13,6 +13,8 @@ from typing import ClassVar
 
 from neo4j import Driver, Session
 
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.html_splitter import process_html_files
 from wildfrost_rag.repositories.neo4j_indexes import (
     create_fulltext_index,
@@ -31,8 +33,6 @@ from wildfrost_rag.repositories.vector_store import (
     link_documents_to_shops,
     link_documents_to_stats,
 )
-from wildfrost_rag.core.config import get_settings
-from wildfrost_rag.core.logger import logger
 from wildfrost_rag.services.ingestion.pipeline_data import PipelineData
 
 

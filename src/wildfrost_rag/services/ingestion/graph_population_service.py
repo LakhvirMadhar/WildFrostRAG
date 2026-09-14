@@ -11,6 +11,8 @@ from typing import Any
 
 from neo4j import Driver, Session
 
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.repositories.bells import create_bell_relationships, create_bells_from_parsed
 from wildfrost_rag.repositories.bling import (
     create_bling_and_shops,
@@ -31,8 +33,6 @@ from wildfrost_rag.repositories.keywords import (
 from wildfrost_rag.repositories.map import create_map_graph
 from wildfrost_rag.repositories.shades import create_summon_relationships
 from wildfrost_rag.repositories.stats import add_keyword_label_to_stats, create_stats_from_parsed
-from wildfrost_rag.core.config import get_settings
-from wildfrost_rag.core.logger import logger
 from wildfrost_rag.services.ingestion.pipeline_data import PipelineData
 
 

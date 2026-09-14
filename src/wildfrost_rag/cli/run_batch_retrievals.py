@@ -8,11 +8,11 @@ Usage:
     poetry run python -m wildfrost_rag.cli.run_batch_retrievals --config experiments_config.yaml
 """
 
-import asyncio
 import argparse
-import yaml
+import asyncio
 from pathlib import Path
 
+import yaml
 
 from wildfrost_rag.cli.evaluate_retrievers import run as run_retrieval
 from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings

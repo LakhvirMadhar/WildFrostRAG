@@ -6,10 +6,12 @@ This module provides various retrieval strategies using Neo4j:
 """
 
 from collections.abc import Callable
+
 from neo4j import Driver
+
+from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.domain.retrieval import RetrievedChunk, to_retrieved_chunks
 from wildfrost_rag.repositories.document_repository import DocumentRepository
-from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.services.retrieval.base_neo4j_retriever import BaseNeo4jRetriever
 
 

@@ -5,8 +5,7 @@ from typing import Any
 
 import pytest
 
-from wildfrost_rag.domain.retrieval import RetrievedChunk, QueryResult, CypherExecution
-
+from wildfrost_rag.domain.retrieval import CypherExecution, QueryResult, RetrievedChunk
 
 # ---------------------------------------------------------------------------
 # Fixtures: representative raw dicts from each retriever type

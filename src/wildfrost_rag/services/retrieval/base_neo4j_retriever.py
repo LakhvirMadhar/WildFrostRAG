@@ -5,14 +5,16 @@ This module provides a common base for different retrieval strategies using Neo4
 
 from typing import Any
 from urllib.parse import urlparse
+
 from neo4j import Driver, Record
+
+from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.repositories.record_utils import (
     Neo4jValue,
     SerializedValue,
     record_to_dict,
     serialize_value,
 )
-from wildfrost_rag.core.config import get_settings
 
 
 class BaseNeo4jRetriever:

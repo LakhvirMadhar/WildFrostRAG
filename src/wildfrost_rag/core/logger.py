@@ -1,6 +1,5 @@
-import os
 import logging
-
+import os
 
 # Define the log directory path and the log file path separately
 log_dir_path = "logging"

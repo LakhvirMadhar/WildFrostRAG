@@ -6,9 +6,9 @@ Extracted from GraphBuilderService so enrichment is unit-testable and reusable
 
 import aiohttp
 
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.cards import CardInfo
 from wildfrost_rag.data_processing.enrichment import enrich_cards_with_tribes
-from wildfrost_rag.core.logger import logger
 from wildfrost_rag.scraping.page_fetching import get_html
 
 _COMPANIONS_PAGE_NAME = "Companions"

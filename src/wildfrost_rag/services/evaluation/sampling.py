@@ -5,15 +5,17 @@ It samples random card URLs from the Wildfrost Wiki and creates a structured
 CSV file ready for LLM evaluation.
 """
 
-import os
 import json
+import os
 import random
-import pandas as pd
 import re
+
+import pandas as pd
 import requests
-from wildfrost_rag.data_processing.cards import CardType, CardInfo
-from wildfrost_rag.data_processing.generate_schemas import parse_card_type_html_schema
+
 from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
+from wildfrost_rag.data_processing.cards import CardInfo, CardType
+from wildfrost_rag.data_processing.generate_schemas import parse_card_type_html_schema
 
 _SCHEMA_URL = "https://wildfrostwiki.com/index.php?title=Baby_Snowbo"
 

@@ -1,15 +1,15 @@
-import re
-from enum import Enum
-from typing import Any
-from pathlib import Path
-from urllib.parse import unquote
-from bs4 import BeautifulSoup, Comment, Tag
 import logging
+import re
 from collections import defaultdict
+from enum import Enum
+from pathlib import Path
+from typing import Any
+from urllib.parse import unquote
 
+from bs4 import BeautifulSoup, Comment, Tag
 from pydantic import BaseModel
 
-from wildfrost_rag.data_processing.phase_config import VARIANT_CARDS, PHASE_ORDER_OVERRIDES
+from wildfrost_rag.data_processing.phase_config import PHASE_ORDER_OVERRIDES, VARIANT_CARDS
 from wildfrost_rag.data_processing.tribes import TribeExclusivity
 
 logger = logging.getLogger(__name__)

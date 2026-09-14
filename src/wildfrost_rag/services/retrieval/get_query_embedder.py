@@ -13,10 +13,10 @@ import ollama
 from openai import APIError, OpenAI
 from sentence_transformers import SentenceTransformer
 
-from wildfrost_rag.core.exceptions import EmbeddingError
 from wildfrost_rag.core.config import get_settings
-from wildfrost_rag.core.logger import logger
 from wildfrost_rag.core.embedder_type import EmbedderType
+from wildfrost_rag.core.exceptions import EmbeddingError
+from wildfrost_rag.core.logger import logger
 
 
 class _EmbedderCache:
