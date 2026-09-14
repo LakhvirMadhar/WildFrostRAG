@@ -18,7 +18,11 @@ import argparse
 from pathlib import Path
 
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
+from wildfrost_rag.core.config import (
+    DEFAULT_QUERIES_FILE,
+    create_settings_directories,
+    get_settings,
+)
 from wildfrost_rag.clients.neo4j_driver import neo4j_driver
 from wildfrost_rag.domain.prompt_name import PromptName
 from wildfrost_rag.domain.retriever_type import RetrieverType
@@ -117,7 +121,7 @@ def _parse_id_list(raw: str | None) -> list[int] | None:
 async def run(args: argparse.Namespace) -> None:
     """Run a retrieval experiment from a parsed Namespace."""
     settings = get_settings()
-    settings.create_directories()
+    create_settings_directories(settings)
 
     service = RetrievalService()
     retriever_type = RetrieverType(args.retriever)
