@@ -34,6 +34,10 @@ class CharmInfo(BaseModel):
         """Generate the save path for this charm's HTML."""
         return f"data/structured_outputs/charms/{self.sanitized_name()}.html"
 
+    def set_html(self, html: str) -> None:
+        """Set the raw HTML to be written by a later save_html() call."""
+        self.charm_html = html
+
     def save_html(self) -> bool:
         """Save the charm's HTML to file (same pattern as CardInfo.save_html)."""
         if self.charm_html is None:

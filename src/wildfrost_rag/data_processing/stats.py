@@ -39,6 +39,10 @@ class StatInfo(BaseModel):
         """Generate the save path for this stat's HTML."""
         return f"data/structured_outputs/stats/{self.sanitized_name()}.html"
 
+    def set_html(self, html: str) -> None:
+        """Set the raw HTML to be written by a later save_html() call."""
+        self.stat_html = html
+
     def save_html(self) -> bool:
         """Save the stat's HTML to file."""
         if self.stat_html is None:
