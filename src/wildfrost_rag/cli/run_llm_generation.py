@@ -29,7 +29,11 @@ from mlflow.entities.model_registry.prompt_version import PromptVersion
 from wildfrost_rag.domain.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
 from wildfrost_rag.prompts import load_prompt
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
+from wildfrost_rag.core.config import (
+    DEFAULT_QUERIES_FILE,
+    create_settings_directories,
+    get_settings,
+)
 from wildfrost_rag.services.evaluation.mlflow_tracking import get_or_create_run
 from wildfrost_rag.services.generation.generation_service import generate_rag, generate_zero_shot
 from wildfrost_rag.experiment_tracker.experiment_utils import (
@@ -292,7 +296,7 @@ async def run(args: argparse.Namespace) -> None:
     """Run LLM generation experiment from a parsed Namespace."""
     validate_args(args)
     settings = get_settings()
-    settings.create_directories()
+    create_settings_directories(settings)
 
     is_zero_shot = args.zero_shot
 

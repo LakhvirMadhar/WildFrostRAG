@@ -16,7 +16,8 @@ from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 from wildfrost_rag.clients.openai_client import call_openai_embeddings
-from wildfrost_rag.core.config import EmbedderProviderConfig, get_settings
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.configs.embedding import EmbedderProviderConfig
 from wildfrost_rag.core.exceptions import EmbeddingError
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.repositories.vector_store import VectorRepository

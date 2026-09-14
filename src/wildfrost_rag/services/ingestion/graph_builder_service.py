@@ -19,7 +19,7 @@ callers (the CLI, and this file's own test suite).
 
 from neo4j import Driver
 
-from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.config import create_settings_directories, get_settings
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.cards import CardInfo
 from wildfrost_rag.repositories.graph_builder import clear_database
@@ -91,7 +91,7 @@ class GraphBuilderService:
                 session.execute_write(clear_database)
             logger.info("✅ Database cleared successfully")
 
-        settings.create_directories()
+        create_settings_directories(settings)
 
         pipeline_data = await self.stage_1_scrape_cards(skip_scrape=skip_scrape)
 
