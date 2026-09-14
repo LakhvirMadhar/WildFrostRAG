@@ -14,24 +14,18 @@ from tqdm import tqdm
 
 from wildfrost_rag.data_processing.cards import CardInfo, CardType
 from wildfrost_rag.data_processing.generate_schemas import generate_card_type_html_schema
-from wildfrost_rag.scraping.domain_scrapers import (
-    scrape_bells,
-    scrape_bling,
-    scrape_charms,
-    scrape_clunker_prices,
+from wildfrost_rag.scraping.pages.bells import scrape_bells, scrape_individual_bell_pages
+from wildfrost_rag.scraping.pages.bling import scrape_bling, scrape_clunker_prices, scrape_shop
+from wildfrost_rag.scraping.pages.charms import scrape_charms, scrape_individual_charm_pages
+from wildfrost_rag.scraping.pages.leaders import scrape_leaders
+from wildfrost_rag.scraping.pages.map_pages import scrape_fight_pages, scrape_map
+from wildfrost_rag.scraping.pages.misc_pages import (
     scrape_crowns,
-    scrape_fight_pages,
     scrape_getting_started,
-    scrape_individual_bell_pages,
-    scrape_individual_charm_pages,
-    scrape_individual_stat_pages,
     scrape_keywords,
-    scrape_leaders,
-    scrape_map,
     scrape_shades,
-    scrape_shop,
-    scrape_stats,
 )
+from wildfrost_rag.scraping.pages.stats import scrape_individual_stat_pages, scrape_stats
 from wildfrost_rag.scraping.wiki_scraper import clean_name_for_url
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger

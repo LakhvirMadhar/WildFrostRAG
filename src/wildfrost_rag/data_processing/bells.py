@@ -43,6 +43,10 @@ class BellInfo(BaseModel):
         """Generate the save path for this bell's HTML."""
         return f"data/structured_outputs/bells/{self.sanitized_name()}.html"
 
+    def set_html(self, html: str) -> None:
+        """Set the raw HTML to be written by a later save_html() call."""
+        self.bell_html = html
+
     def save_html(self) -> bool:
         """Save the bell's HTML to file."""
         if self.bell_html is None:
