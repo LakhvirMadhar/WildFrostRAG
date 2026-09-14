@@ -1,18 +1,24 @@
-import requests
+"""Card type schema parsing for WildFrostRAG.
+
+Pure parsing only - no network access. See enrichment.py's module docstring
+for why (data_processing/ can't import scraping/'s fetch helpers).
+"""
+
 from bs4 import BeautifulSoup
 
+from wildfrost_rag.core.logger import logger
 
-def generate_card_type_html_schema(
-    schema_url: str = "https://wildfrostwiki.com/index.php?title=Baby_Snowbo",
-) -> dict[str, list[str]]:
-    """Given a base schema url, take the cards, break them down into their schema, and save accordingly.
 
-    schema_url (str): A base url to extract the card type schema. Default link is provided
+def parse_card_type_html_schema(html: str) -> dict[str, list[str]]:
+    """Parse the card type schema page HTML into a card_type -> [card_names] mapping.
+
+    Args:
+        html: Raw HTML of the schema page
+
+    Returns:
+        Dict mapping category name (e.g. "companions") to a list of card names
     """
-    response = requests.get(schema_url, timeout=30)
-    response.raise_for_status()
-
-    soup = BeautifulSoup(response.text, "html.parser")
+    soup = BeautifulSoup(html, "html.parser")
 
     card_schema = soup.find("table", {"class": "wikitable", "id": "navbox"})
 
@@ -33,11 +39,10 @@ def generate_card_type_html_schema(
 
         category_name = card_type.get_text().strip().lower().replace(" ", "_")
 
-        print(f"Schema Text: {category_name}")
+        logger.debug(f"Schema category: {category_name}")
 
         for n in card_names:
             card_name = n.get_text().strip()
-            # print(f'{card_name}')
             card_list.append(card_name)
 
         card_data[category_name] = card_list

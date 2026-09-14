@@ -17,6 +17,7 @@ for this pass.
 from dagster import asset
 
 from wildfrost_rag.defs.resources import Neo4jResource
+from wildfrost_rag.clients.http_client import scraping_session
 from wildfrost_rag.services.ingestion.document_ingestion_service import DocumentIngestionService
 from wildfrost_rag.services.ingestion.enrichment_service import EnrichmentService
 from wildfrost_rag.services.ingestion.pipeline_data import PipelineData
@@ -27,13 +28,15 @@ from wildfrost_rag.services.ingestion.scraping_service import ScrapingService
 @asset
 async def scraped_cards() -> PipelineData:
     """Stage 1: scrape/parse card and domain page data from the Wildfrost Wiki."""
-    return await ScrapingService().scrape()
+    async with scraping_session() as session:
+        return await ScrapingService().scrape(session)
 
 
 @asset
-def enriched_cards(scraped_cards: PipelineData) -> PipelineData:
+async def enriched_cards(scraped_cards: PipelineData) -> PipelineData:
     """Stage 2: enrich cards with tribe-exclusivity info."""
-    EnrichmentService().enrich(scraped_cards.cards)
+    async with scraping_session() as session:
+        await EnrichmentService().enrich(session, scraped_cards.cards)
     return scraped_cards
 
 

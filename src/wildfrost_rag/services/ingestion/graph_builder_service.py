@@ -17,12 +17,14 @@ composes them and keeps its stage_N method names/signatures stable for existing
 callers (the CLI, and this file's own test suite).
 """
 
+import aiohttp
 from neo4j import Driver
 
 from wildfrost_rag.core.config import create_settings_directories, get_settings
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.cards import CardInfo
 from wildfrost_rag.repositories.graph_builder import clear_database
+from wildfrost_rag.clients.http_client import scraping_session
 from wildfrost_rag.services.ingestion.document_ingestion_service import (
     DocumentIngestionService,
 )
@@ -93,9 +95,9 @@ class GraphBuilderService:
 
         create_settings_directories(settings)
 
-        pipeline_data = await self.stage_1_scrape_cards(skip_scrape=skip_scrape)
-
-        self.stage_2_enrich_data(pipeline_data.cards)
+        async with scraping_session() as session:
+            pipeline_data = await self.stage_1_scrape_cards(session, skip_scrape=skip_scrape)
+            await self.stage_2_enrich_data(session, pipeline_data.cards)
 
         if not skip_graph:
             self.stage_3_populate_graph(pipeline_data)
@@ -113,24 +115,30 @@ class GraphBuilderService:
         logger.info("PIPELINE COMPLETE")
         logger.info("=" * 60)
 
-    async def stage_1_scrape_cards(self, skip_scrape: bool = False) -> PipelineData:
+    async def stage_1_scrape_cards(
+        self, session: aiohttp.ClientSession, skip_scrape: bool = False
+    ) -> PipelineData:
         """Stage 1: Data Collection. Delegates to ScrapingService.
 
         Args:
+            session: Shared HTTP session (constructed and owned by the caller).
             skip_scrape: If True, only use cached HTML files (no web requests)
 
         Returns:
             PipelineData containing all scraped and parsed data
         """
-        return await self._scraping_service.scrape(skip_scrape)
+        return await self._scraping_service.scrape(session, skip_scrape)
 
-    def stage_2_enrich_data(self, card_infos: list[CardInfo]) -> None:
+    async def stage_2_enrich_data(
+        self, session: aiohttp.ClientSession, card_infos: list[CardInfo]
+    ) -> None:
         """Stage 2: Data Enrichment. Delegates to EnrichmentService.
 
         Args:
+            session: Shared HTTP session (constructed and owned by the caller).
             card_infos: List of CardInfo objects to enrich (modified in-place)
         """
-        self._enrichment_service.enrich(card_infos)
+        await self._enrichment_service.enrich(session, card_infos)
 
     def stage_3_populate_graph(self, data: PipelineData) -> None:
         """Stage 3: Neo4j Graph Population. Delegates to GraphPopulationService.

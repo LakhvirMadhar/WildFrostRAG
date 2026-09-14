@@ -12,7 +12,7 @@ from wildfrost_rag.data_processing.bling import (
     parse_shop_page,
 )
 from wildfrost_rag.domain.scraping_types import PageUrls
-from wildfrost_rag.scraping._page_fetching import scrape_page
+from wildfrost_rag.scraping.page_fetching import scrape_page
 
 _BLING_PAGE_NAME = "Bling"
 _BLING_CACHE_SUBDIR = "bling"

@@ -10,9 +10,12 @@ import json
 import random
 import pandas as pd
 import re
+import requests
 from wildfrost_rag.data_processing.cards import CardType, CardInfo
-from wildfrost_rag.data_processing.generate_schemas import generate_card_type_html_schema
+from wildfrost_rag.data_processing.generate_schemas import parse_card_type_html_schema
 from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
+
+_SCHEMA_URL = "https://wildfrostwiki.com/index.php?title=Baby_Snowbo"
 
 
 def clean_name_for_url(name: str) -> str:
@@ -56,7 +59,9 @@ def sample_queries(
         return pd.read_csv(output_filepath)
 
     # Generate card type schema
-    card_type_schema = generate_card_type_html_schema()
+    response = requests.get(_SCHEMA_URL, timeout=30)
+    response.raise_for_status()
+    card_type_schema = parse_card_type_html_schema(response.text)
 
     # Save schema to file (using settings for path)
     settings = get_settings()
