@@ -1,6 +1,6 @@
 import neo4j
 
-from wildfrost_rag.data_processing.crowns import CROWNS, CROWNABLE_CARD_TYPES
+from wildfrost_rag.data_processing.crowns import CROWNABLE_CARD_TYPES, CROWNS
 from wildfrost_rag.repositories.query_utils import single_value
 
 

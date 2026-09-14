@@ -9,6 +9,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
+from wildfrost_rag.core.logger import logger
+from wildfrost_rag.domain.retriever_type import RetrieverType
 from wildfrost_rag.models.experiment_config import (
     EmbeddingConfig,
     GenerationConfig,
@@ -17,9 +20,6 @@ from wildfrost_rag.models.experiment_config import (
     RetrievalConfig,
     Text2CypherConfig,
 )
-from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
-from wildfrost_rag.core.logger import logger
-from wildfrost_rag.domain.retriever_type import RetrieverType
 
 
 def get_next_experiment_id(base_path: Path) -> str:

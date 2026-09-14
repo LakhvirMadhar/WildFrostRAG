@@ -12,10 +12,9 @@ HTML is the caller's job (EnrichmentService, in services/ingestion/).
 
 from bs4 import BeautifulSoup, Comment
 
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.cards import CardInfo
 from wildfrost_rag.data_processing.tribes import TribeExclusivity
-from wildfrost_rag.core.logger import logger
-
 
 # ===== Tribe Exclusivity Parsing =====
 

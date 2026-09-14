@@ -5,6 +5,7 @@ knowledge graph structure to find relevant information for a query.
 """
 
 from neo4j import Driver
+
 from wildfrost_rag.domain.retrieval import RetrievedChunk
 from wildfrost_rag.services.retrieval.base_neo4j_retriever import BaseNeo4jRetriever
 

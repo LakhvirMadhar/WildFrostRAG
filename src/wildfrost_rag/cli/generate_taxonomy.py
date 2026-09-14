@@ -14,9 +14,8 @@ import asyncio
 import sys
 from pathlib import Path
 
-
-from wildfrost_rag.services.evaluation.taxonomy import generate_taxonomy_from_annotations
 from wildfrost_rag.core.logger import logger
+from wildfrost_rag.services.evaluation.taxonomy import generate_taxonomy_from_annotations
 
 
 async def main() -> None:

@@ -2,11 +2,11 @@
 
 import inspect
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
 import mlflow
 import pandas as pd
@@ -17,6 +17,7 @@ from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
 
 from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
+from wildfrost_rag.core.embedder_type import EmbedderType
 from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.prompt_name import PromptName
@@ -33,9 +34,8 @@ from wildfrost_rag.models.experiment_config import RetrievalConfig
 from wildfrost_rag.prompts import load_prompt
 from wildfrost_rag.repositories.card_repository import CardRepository
 from wildfrost_rag.repositories.document_repository import DocumentRepository
-from wildfrost_rag.core.embedder_type import EmbedderType
-from wildfrost_rag.services.evaluation.mlflow_tracking import get_or_create_run
 from wildfrost_rag.services.evaluation.auto_annotator import run_auto_annotation
+from wildfrost_rag.services.evaluation.mlflow_tracking import get_or_create_run
 from wildfrost_rag.services.retrieval import (
     BM25FulltextVectorHybridRetriever,
     BM25Retriever,

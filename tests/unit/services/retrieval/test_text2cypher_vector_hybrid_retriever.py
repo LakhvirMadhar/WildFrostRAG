@@ -13,12 +13,12 @@ from unittest.mock import MagicMock
 import pytest
 from mlflow.entities.model_registry.prompt_version import PromptVersion
 
+from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.exceptions import CypherExecutionError
 from wildfrost_rag.domain.retrieval import RetrievedChunk
 from wildfrost_rag.services.retrieval.hybrid_retrievers import Text2CypherVectorHybridRetriever
 from wildfrost_rag.services.retrieval.neo4j_vector_search import Neo4jVectorSearch
 from wildfrost_rag.services.retrieval.text2cypher_retriever import Text2CypherRetriever
-from wildfrost_rag.core.config import get_settings
 
 
 class FakeText2CypherRetriever(Text2CypherRetriever):

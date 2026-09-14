@@ -4,10 +4,10 @@ This module provides reusable widgets for displaying retrieved chunks
 across both retrieval and generation annotation GUIs.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
 import ipywidgets as widgets
 

@@ -9,13 +9,13 @@ of failure modes and patterns.
 import json
 from pathlib import Path
 
+from wildfrost_rag.clients.openai_client import call_openai_api
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.chat_role import ChatRole
 from wildfrost_rag.domain.prompt_name import PromptName
 from wildfrost_rag.prompts import load_prompt
 from wildfrost_rag.prompts.prompt_utils import render_text_prompt
-from wildfrost_rag.clients.openai_client import call_openai_api
 
 
 async def generate_taxonomy(open_codes: list[str]) -> str:

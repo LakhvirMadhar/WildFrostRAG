@@ -16,36 +16,36 @@ Usage:
         --system-prompt system_prompt --rag-prompt rag_prompt
 """
 
-import asyncio
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 from typing import Any
 
-
 import mlflow
 from mlflow.entities.model_registry.prompt_version import PromptVersion
 
-from wildfrost_rag.domain.retrieval import QueryResult as RetrievalQueryResult, RetrievedChunk
-from wildfrost_rag.prompts import load_prompt
-from wildfrost_rag.core.logger import logger
 from wildfrost_rag.core.config import (
     DEFAULT_QUERIES_FILE,
     create_settings_directories,
     get_settings,
 )
-from wildfrost_rag.services.evaluation.mlflow_tracking import get_or_create_run
-from wildfrost_rag.services.generation.generation_service import generate_rag, generate_zero_shot
+from wildfrost_rag.core.logger import logger
+from wildfrost_rag.domain.retrieval import QueryResult as RetrievalQueryResult
+from wildfrost_rag.domain.retrieval import RetrievedChunk
 from wildfrost_rag.experiment_tracker.experiment_utils import (
-    get_next_experiment_id,
     create_generation_config,
-    save_config,
-    save_results,
+    get_next_experiment_id,
+    list_available_retrievals,
     load_config,
     load_results,
+    save_config,
+    save_results,
     validate_retrieval_reference,
-    list_available_retrievals,
 )
+from wildfrost_rag.prompts import load_prompt
+from wildfrost_rag.services.evaluation.mlflow_tracking import get_or_create_run
+from wildfrost_rag.services.generation.generation_service import generate_rag, generate_zero_shot
 
 
 def parse_args() -> argparse.Namespace:

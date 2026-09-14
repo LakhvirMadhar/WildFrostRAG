@@ -9,15 +9,15 @@ Usage:
     browser = browse_experiments()
 """
 
+from wildfrost_rag.gui.experiment_browser_gui import ExperimentBrowserGUI, browse_experiments
+from wildfrost_rag.gui.unified_annotation_gui import UnifiedAnnotationGUI, create_unified_gui
 from wildfrost_rag.services.evaluation.experiment_adapters import (
     ExperimentDataAdapter,
+    ExperimentMetadata,
     ExperimentRegistry,
     QueryResult,
-    ExperimentMetadata,
     get_adapter,
 )
-from wildfrost_rag.gui.unified_annotation_gui import UnifiedAnnotationGUI, create_unified_gui
-from wildfrost_rag.gui.experiment_browser_gui import ExperimentBrowserGUI, browse_experiments
 
 __all__ = [
     # Adapters

@@ -2,9 +2,9 @@
 
 import neo4j
 
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.bling import EnemyBlingDrop, ShopListing
 from wildfrost_rag.repositories.query_utils import single_value
-from wildfrost_rag.core.logger import logger
 
 
 def create_bling_and_shops(tx: neo4j.ManagedTransaction, urls: dict[str, str] | None = None) -> int:

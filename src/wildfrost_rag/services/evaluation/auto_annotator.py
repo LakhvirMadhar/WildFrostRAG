@@ -9,8 +9,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from wildfrost_rag.services.evaluation.experiment_adapters import get_adapter
 from wildfrost_rag.core.logger import logger
+from wildfrost_rag.services.evaluation.experiment_adapters import get_adapter
 
 
 def _load_ground_truth(queries_json_path: Path) -> dict[int, list[str]]:

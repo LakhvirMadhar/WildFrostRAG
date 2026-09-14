@@ -1,8 +1,8 @@
 import neo4j
 
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.shades import SummonInfo
 from wildfrost_rag.repositories.query_utils import single_value
-from wildfrost_rag.core.logger import logger
 
 
 def create_summon_relationships(tx: neo4j.ManagedTransaction, summons: list[SummonInfo]) -> int:

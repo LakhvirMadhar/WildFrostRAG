@@ -9,6 +9,7 @@ import time
 
 import neo4j
 from neo4j import GraphDatabase
+
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
 

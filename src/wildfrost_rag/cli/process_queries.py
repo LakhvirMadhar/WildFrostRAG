@@ -13,10 +13,10 @@ Usage:
 """
 
 import argparse
-import json
 import csv
-from pathlib import Path
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE

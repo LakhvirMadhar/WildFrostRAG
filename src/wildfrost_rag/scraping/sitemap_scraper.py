@@ -1,11 +1,13 @@
+import asyncio
 import os
 import re
-import asyncio
 from asyncio import Semaphore
-from bs4 import BeautifulSoup, Comment
+from typing import Any
+
 import aiohttp
 import requests
-from typing import Any
+from bs4 import BeautifulSoup, Comment
+
 from wildfrost_rag.core.logger import logger
 
 

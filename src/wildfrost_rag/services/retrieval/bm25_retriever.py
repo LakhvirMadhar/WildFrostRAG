@@ -6,16 +6,18 @@ It retrieves documents from Neo4j, processes them with BM25, and returns ranked 
 
 import warnings
 from typing import Any
+
 import nltk
+from neo4j import Driver
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from neo4j import Driver
 from rank_bm25 import BM25Okapi
+
+from wildfrost_rag.core.config import get_settings
+from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.repository_results import DocumentProperties
 from wildfrost_rag.domain.retrieval import RetrievedChunk, to_retrieved_chunks
 from wildfrost_rag.repositories.document_repository import DocumentRepository
-from wildfrost_rag.core.config import get_settings
-from wildfrost_rag.core.logger import logger
 from wildfrost_rag.services.retrieval.base_neo4j_retriever import BaseNeo4jRetriever
 
 
