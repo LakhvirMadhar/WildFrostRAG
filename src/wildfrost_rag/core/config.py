@@ -192,7 +192,7 @@ class Settings:
 
     def __init__(self) -> None:
         """Instantiate each sub-settings, each loading its own env vars."""
-        self.neo4j = Neo4jSettings()  # type: ignore[call-arg]
+        self.neo4j = Neo4jSettings()
         self.openai = OpenAISettings()
         self.mlflow = MlflowSettings()
         self.embedding = EmbeddingSettings()
