@@ -13,7 +13,7 @@ import aiohttp
 from tqdm import tqdm
 
 from wildfrost_rag.data_processing.cards import CardInfo, CardType
-from wildfrost_rag.data_processing.generate_schemas import generate_card_type_html_schema
+from wildfrost_rag.data_processing.generate_schemas import parse_card_type_html_schema
 from wildfrost_rag.scraping.pages.bells import scrape_bells, scrape_individual_bell_pages
 from wildfrost_rag.scraping.pages.bling import scrape_bling, scrape_clunker_prices, scrape_shop
 from wildfrost_rag.scraping.pages.charms import scrape_charms, scrape_individual_charm_pages
@@ -34,13 +34,18 @@ from wildfrost_rag.domain.scraping_types import FightEnemies, PageUrls
 from wildfrost_rag.services.ingestion.pipeline_data import PipelineData
 
 
+_SCHEMA_URL = "https://wildfrostwiki.com/index.php?title=Baby_Snowbo"
+
+
 class ScrapingService:
     """Stage 1: scrape and parse card and domain page data from the Wildfrost Wiki."""
 
-    def _generate_schema(self) -> dict[str, list[str]]:
+    async def _generate_schema(self, session: aiohttp.ClientSession) -> dict[str, list[str]]:
         """Generate and save card type schema from wiki."""
         logger.info("Generating card type schema...")
-        card_type_schema = generate_card_type_html_schema()
+        html_list = await scrape_multiple_links(session, [_SCHEMA_URL], max_concurrent=1)
+        html = html_list[0] if html_list else None
+        card_type_schema = parse_card_type_html_schema(html) if html else {}
 
         settings = get_settings()
         schema_path = settings.paths.schemas_dir / "card_type_schema.json"
@@ -142,7 +147,7 @@ class ScrapingService:
         Returns:
             Tuple of (all parsed CardInfo objects, card_type_schema dict).
         """
-        card_type_schema = self._generate_schema()
+        card_type_schema = await self._generate_schema(session)
         card_infos = self._create_card_infos(card_type_schema)
         all_cards, cards_to_scrape, successful_pages = self._load_cached_cards(card_infos)
 
@@ -251,13 +256,16 @@ class ScrapingService:
             page_urls=page_urls,
         )
 
-    async def scrape(self, skip_scrape: bool = False) -> PipelineData:
+    async def scrape(
+        self, session: aiohttp.ClientSession, skip_scrape: bool = False
+    ) -> PipelineData:
         """Stage 1: Data Collection.
 
         Loads card data from cache if available, otherwise scrapes from wiki.
         When skip_scrape=True, only loads from cache (no network requests).
 
         Args:
+            session: Shared HTTP session (constructed and owned by the caller).
             skip_scrape: If True, only use cached HTML files (no web requests)
 
         Returns:
@@ -270,11 +278,10 @@ class ScrapingService:
             logger.info("STAGE 1: WEB SCRAPING")
         logger.info("=" * 60)
 
-        async with aiohttp.ClientSession() as session:
-            all_cards, card_type_schema = await self._load_card_pages(session, skip_scrape)
+        all_cards, card_type_schema = await self._load_card_pages(session, skip_scrape)
 
-            # Domain pages (leaders, stats, keywords, shops, etc.)
-            pipeline_data = await self._scrape_domain_pages(session, card_type_schema)
+        # Domain pages (leaders, stats, keywords, shops, etc.)
+        pipeline_data = await self._scrape_domain_pages(session, card_type_schema)
 
         # Merge card pages into pipeline data
         # Leader cards come from _scrape_domain_pages, all other cards from _load_card_pages

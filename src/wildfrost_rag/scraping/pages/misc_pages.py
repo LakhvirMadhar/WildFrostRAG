@@ -10,7 +10,7 @@ import aiohttp
 from wildfrost_rag.data_processing.keywords import KeywordInfo, parse_keywords_page
 from wildfrost_rag.data_processing.shades import SummonInfo, parse_shades_page
 from wildfrost_rag.domain.scraping_types import PageUrls
-from wildfrost_rag.scraping._page_fetching import prefetch_page, scrape_page
+from wildfrost_rag.scraping.page_fetching import prefetch_page, scrape_page
 
 _KEYWORDS_PAGE_NAME = "Keywords"
 _KEYWORDS_CACHE_SUBDIR = "keywords"

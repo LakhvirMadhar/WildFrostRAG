@@ -144,10 +144,11 @@ class CardInfo(BaseModel):
 
             with open(save_path, "w", encoding="utf-8") as f:
                 f.write(soup.prettify())
+            return True
 
         except Exception as e:
             logger.error(f"Failed to save HTML for {self.card_name}: {e}")
-        return False
+            return False
 
     def _extract_description(self, soup: BeautifulSoup) -> None:
         """Extract card description from meta tag."""

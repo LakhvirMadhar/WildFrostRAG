@@ -14,7 +14,7 @@ asyncio.run() from an ordinary (synchronous) test function.
 import asyncio
 from dataclasses import dataclass
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 from neo4j import Driver, Session
@@ -44,7 +44,7 @@ class _ServiceWithMocks:
 
     service: GraphBuilderService
     stage_1: AsyncMock
-    stage_2: MagicMock
+    stage_2: AsyncMock
     stage_3: MagicMock
     stage_4: MagicMock
 
@@ -55,7 +55,7 @@ def _make_service(monkeypatch: pytest.MonkeyPatch, session: Session) -> _Service
     service = GraphBuilderService(driver=driver)
 
     stage_1 = AsyncMock(return_value=PipelineData(page_urls={}))
-    stage_2 = MagicMock()
+    stage_2 = AsyncMock()
     stage_3 = MagicMock()
     stage_4 = MagicMock()
     monkeypatch.setattr(service, "stage_1_scrape_cards", stage_1)
@@ -100,8 +100,8 @@ def test_run_always_calls_stage_1_and_stage_2(monkeypatch: pytest.MonkeyPatch) -
         no_chunking=False,
     )
 
-    built.stage_1.assert_awaited_once_with(skip_scrape=True)
-    built.stage_2.assert_called_once()
+    built.stage_1.assert_awaited_once_with(ANY, skip_scrape=True)
+    built.stage_2.assert_awaited_once()
 
 
 def test_run_calls_stage_3_when_skip_graph_is_false(monkeypatch: pytest.MonkeyPatch) -> None:

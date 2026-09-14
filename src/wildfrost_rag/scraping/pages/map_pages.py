@@ -12,7 +12,7 @@ from wildfrost_rag.data_processing.map import (
     parse_map_page,
 )
 from wildfrost_rag.domain.scraping_types import FightEnemies, FightPageMapping, PageUrls
-from wildfrost_rag.scraping._page_fetching import get_html, get_html_many
+from wildfrost_rag.scraping.page_fetching import get_html, get_html_many
 
 _MAP_PAGE_NAME = "Map"
 _MAP_CACHE_SUBDIR = "maps"
