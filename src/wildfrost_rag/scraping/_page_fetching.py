@@ -5,6 +5,7 @@ These carry no game-specific knowledge - they only know how to get HTML
 knowledge (what a Stat or Charm is) lives entirely in scraping/pages/.
 """
 
+import asyncio
 import os
 from collections.abc import Callable
 
@@ -56,6 +57,24 @@ async def prefetch_page(
     """Warm the HTML cache for a page with no structured parser."""
     _, urls = await get_html(session, page_name, output_subdir)
     return None, urls
+
+
+async def get_html_many(
+    session: aiohttp.ClientSession, page_names: list[str], output_subdir: str
+) -> list[tuple[str | None, PageUrls]]:
+    """Fetch multiple pages' HTML (cache-or-web) concurrently, preserving order.
+
+    Bounded by the same max_concurrent_requests setting scrape_multiple_links
+    uses, so a page list can't fire off more simultaneous requests than the
+    rest of the scraper does.
+    """
+    semaphore = asyncio.Semaphore(get_settings().scraping.max_concurrent_requests)
+
+    async def _fetch(page_name: str) -> tuple[str | None, PageUrls]:
+        async with semaphore:
+            return await get_html(session, page_name, output_subdir)
+
+    return await asyncio.gather(*(_fetch(page_name) for page_name in page_names))
 
 
 def _partition_by_cache[T: HasWikiPage](entities: list[T]) -> tuple[PageUrls, list[T]]:

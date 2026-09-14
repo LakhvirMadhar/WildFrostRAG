@@ -12,14 +12,18 @@ from wildfrost_rag.data_processing.map import (
     parse_map_page,
 )
 from wildfrost_rag.domain.scraping_types import FightEnemies, FightPageMapping, PageUrls
-from wildfrost_rag.scraping._page_fetching import get_html
+from wildfrost_rag.scraping._page_fetching import get_html, get_html_many
+
+_MAP_PAGE_NAME = "Map"
+_MAP_CACHE_SUBDIR = "maps"
+_FIGHT_PAGES_CACHE_SUBDIR = "fights"
 
 
 async def scrape_map(
     session: aiohttp.ClientSession,
 ) -> tuple[list[ZoneInfo], list[MapEventInfo], list[FightSlotInfo], FightPageMapping, PageUrls]:
     """Parse the Map page (from cache or web)."""
-    html, urls = await get_html(session, "Map", "maps")
+    html, urls = await get_html(session, _MAP_PAGE_NAME, _MAP_CACHE_SUBDIR)
     if not html:
         return [], [], [], {}, urls
 
@@ -35,7 +39,7 @@ async def scrape_map(
 async def scrape_fight_pages(
     session: aiohttp.ClientSession, fight_page_mapping: FightPageMapping
 ) -> tuple[FightEnemies, PageUrls]:
-    """Parse individual fight pages and extract enemy names (from cache or web).
+    """Parse individual fight pages and extract enemy names (from cache or web, in parallel).
 
     Returns:
         Tuple of (fight_enemies dict, page_urls dict mapping filename -> URL)
@@ -43,10 +47,11 @@ async def scrape_fight_pages(
     page_slugs = list(set(fight_page_mapping.values()))
     logger.info(f"Processing {len(page_slugs)} fight pages...")
 
-    fight_enemies = {}
+    results = await get_html_many(session, page_slugs, _FIGHT_PAGES_CACHE_SUBDIR)
+
+    fight_enemies: FightEnemies = {}
     page_urls: PageUrls = {}
-    for page_slug in page_slugs:
-        html, slug_urls = await get_html(session, page_slug, "fights")
+    for page_slug, (html, slug_urls) in zip(page_slugs, results, strict=True):
         if html:
             enemies = parse_fight_enemies(html)
             fight_enemies[page_slug] = enemies
