@@ -4,9 +4,9 @@ Analyzes Python files for common code smells and complexity metrics.
 """
 
 import ast
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from collections.abc import Generator
 
 # Thresholds for code quality analysis
 LONG_FUNCTION = 50  # lines
