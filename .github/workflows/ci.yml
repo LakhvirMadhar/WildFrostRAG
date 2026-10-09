@@ -35,7 +35,7 @@ jobs:
         id: nltk-cache
         with:
           path: ~/nltk_data
-          key: nltk-stopwords-v1
+          key: nltk-stopwords-punkt-tab-v2
       - if: steps.nltk-cache.outputs.cache-hit != 'true'
-        run: poetry run python -m nltk.downloader stopwords
+        run: poetry run python -m nltk.downloader stopwords punkt_tab
       - run: poetry run pytest --doctest-modules src/ tests/
