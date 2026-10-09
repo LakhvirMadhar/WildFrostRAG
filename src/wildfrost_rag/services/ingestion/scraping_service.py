@@ -15,7 +15,7 @@ from tqdm import tqdm
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.cards import CardInfo, CardType
-from wildfrost_rag.data_processing.generate_schemas import parse_card_type_html_schema
+from wildfrost_rag.data_processing.pages.card_types.parser import parse_card_type_html_schema
 from wildfrost_rag.domain.scraping_types import FightEnemies, PageUrls
 from wildfrost_rag.scraping.pages.bells import scrape_bells, scrape_individual_bell_pages
 from wildfrost_rag.scraping.pages.bling import scrape_bling, scrape_clunker_prices, scrape_shop

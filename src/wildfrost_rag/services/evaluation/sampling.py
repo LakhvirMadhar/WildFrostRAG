@@ -15,7 +15,7 @@ import requests
 
 from wildfrost_rag.core.config import DEFAULT_QUERIES_FILE, get_settings
 from wildfrost_rag.data_processing.cards import CardInfo, CardType
-from wildfrost_rag.data_processing.generate_schemas import parse_card_type_html_schema
+from wildfrost_rag.data_processing.pages.card_types.parser import parse_card_type_html_schema
 
 _SCHEMA_URL = "https://wildfrostwiki.com/index.php?title=Baby_Snowbo"
 

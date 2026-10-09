@@ -1,8 +1,4 @@
-"""Card type schema parsing for WildFrostRAG.
-
-Pure parsing only - no network access. See enrichment.py's module docstring
-for why (data_processing/ can't import scraping/'s fetch helpers).
-"""
+"""Parses the wiki's card navbox into a card type -> [card names] schema."""
 
 from bs4 import BeautifulSoup
 
