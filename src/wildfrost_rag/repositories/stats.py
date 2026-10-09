@@ -5,6 +5,7 @@ import neo4j
 
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.stats import StatInfo
+from wildfrost_rag.domain.wiki_files import wiki_page_filename
 from wildfrost_rag.repositories.query_utils import single_value
 
 
@@ -203,7 +204,7 @@ def create_stats_from_parsed(tx: neo4j.ManagedTransaction, stats: list[StatInfo]
             "description": stat.description,
             "additional_info": stat.additional_info,
             "url": stat.url,
-            "filename": f"{stat.sanitized_name()}.html",
+            "filename": wiki_page_filename(stat.name),
         }
         for stat in stats
     ]

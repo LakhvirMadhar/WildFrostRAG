@@ -28,4 +28,4 @@ async def scrape_individual_bell_pages(
 
     Only bells with real wiki pages (not red links) get scraped.
     """
-    return await scrape_individual_pages(session, bells, "bell")
+    return await scrape_individual_pages(session, bells, "bell", _CACHE_SUBDIR)

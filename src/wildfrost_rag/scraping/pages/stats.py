@@ -25,4 +25,4 @@ async def scrape_individual_stat_pages(
     session: aiohttp.ClientSession, stats: list[StatInfo]
 ) -> PageUrls:
     """Scrape individual stat wiki pages for per-stat Document content."""
-    return await scrape_individual_pages(session, stats, "stat")
+    return await scrape_individual_pages(session, stats, "stat", _CACHE_SUBDIR)

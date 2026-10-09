@@ -6,7 +6,6 @@ knowledge (what a Stat or Charm is) lives entirely in scraping/pages/.
 """
 
 import asyncio
-import os
 from collections.abc import Callable
 
 import aiohttp
@@ -14,6 +13,8 @@ import aiohttp
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.domain.scraping_types import HasWikiPage, PageUrls
+from wildfrost_rag.domain.wiki_files import wiki_page_filename
+from wildfrost_rag.scraping.html_cache import cache_path, write_html
 from wildfrost_rag.scraping.sitemap_scraper import scrape_multiple_links
 from wildfrost_rag.scraping.wiki_scraper import load_cached_html, scrape_wiki_page
 
@@ -77,7 +78,7 @@ async def get_html_many(
     return await asyncio.gather(*(_fetch(page_name) for page_name in page_names))
 
 
-def _partition_by_cache[T: HasWikiPage](entities: list[T]) -> tuple[PageUrls, list[T]]:
+def _partition_by_cache[T: HasWikiPage](entities: list[T], subdir: str) -> tuple[PageUrls, list[T]]:
     """Split entities into their known page_urls and the ones missing a cached page."""
     page_urls: PageUrls = {}
     to_scrape: list[T] = []
@@ -85,17 +86,21 @@ def _partition_by_cache[T: HasWikiPage](entities: list[T]) -> tuple[PageUrls, li
     for entity in entities:
         if not entity.url:
             continue
-        page_urls[f"{entity.sanitized_name()}.html"] = entity.url
-        if not os.path.exists(entity.save_path()):
+        page_urls[wiki_page_filename(entity.name)] = entity.url
+        if not cache_path(entity.name, subdir).exists():
             to_scrape.append(entity)
 
     return page_urls, to_scrape
 
 
 async def _scrape_and_save[T: HasWikiPage](
-    session: aiohttp.ClientSession, entities: list[T], entity_label: str
+    session: aiohttp.ClientSession, entities: list[T], entity_label: str, subdir: str
 ) -> None:
-    """Fetch HTML for entities missing a cached page, then save each one."""
+    """Fetch HTML for entities missing a cached page, then save each one.
+
+    A page that fails to download or save is logged and skipped, so one bad
+    page doesn't stop the rest of the scrape.
+    """
     urls = [e.url for e in entities if e.url is not None]
     htmls = await scrape_multiple_links(
         session, urls, max_concurrent=get_settings().scraping.max_concurrent_requests
@@ -104,12 +109,14 @@ async def _scrape_and_save[T: HasWikiPage](
         if html is None:
             logger.warning(f"Failed to scrape individual page for {entity_label} '{entity.name}'")
             continue
-        entity.set_html(html)
-        entity.save_html()
+        try:
+            write_html(html, cache_path(entity.name, subdir))
+        except OSError as e:
+            logger.error(f"Failed to save HTML for {entity_label} '{entity.name}': {e}")
 
 
 async def scrape_individual_pages[T: HasWikiPage](
-    session: aiohttp.ClientSession, entities: list[T], entity_label: str
+    session: aiohttp.ClientSession, entities: list[T], entity_label: str, subdir: str
 ) -> PageUrls:
     """Scrape+cache per-entity wiki pages for any entity with its own wiki page.
 
@@ -117,17 +124,18 @@ async def scrape_individual_pages[T: HasWikiPage](
         session: Shared HTTP session (constructed and owned by the caller).
         entities: Entities already parsed from a summary page, with url set.
         entity_label: Singular noun for log messages (e.g. "stat", "charm", "bell").
+        subdir: Folder under structured_outputs the pages are cached in (e.g. "stats").
 
     Returns:
         PageUrls dict mapping filename -> wiki URL for each entity with a page.
     """
-    page_urls, to_scrape = _partition_by_cache(entities)
+    page_urls, to_scrape = _partition_by_cache(entities, subdir)
     logger.info(
         f"Individual {entity_label} pages: {len(entities) - len(to_scrape)} cached, "
         f"{len(to_scrape)} to scrape"
     )
 
     if to_scrape:
-        await _scrape_and_save(session, to_scrape, entity_label)
+        await _scrape_and_save(session, to_scrape, entity_label, subdir)
 
     return page_urls

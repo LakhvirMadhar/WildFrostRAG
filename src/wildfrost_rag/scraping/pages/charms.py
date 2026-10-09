@@ -25,4 +25,4 @@ async def scrape_individual_charm_pages(
     session: aiohttp.ClientSession, charms: list[CharmInfo]
 ) -> PageUrls:
     """Scrape individual charm wiki pages for per-charm Document content."""
-    return await scrape_individual_pages(session, charms, "charm")
+    return await scrape_individual_pages(session, charms, "charm", _CACHE_SUBDIR)
