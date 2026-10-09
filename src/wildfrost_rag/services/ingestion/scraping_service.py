@@ -121,7 +121,7 @@ class ScrapingService:
         new_cards: list[CardInfo] = []
         successful = 0
         for card_info, html in tqdm(
-            zip(cards_to_scrape, html_outputs, strict=False),
+            zip(cards_to_scrape, html_outputs, strict=True),
             total=len(cards_to_scrape),
             desc="Parsing HTML",
             unit="page",
