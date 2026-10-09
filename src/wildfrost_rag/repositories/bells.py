@@ -78,7 +78,7 @@ def create_bells_from_parsed(tx: neo4j.ManagedTransaction, bells: list[BellInfo]
 
     Args:
         tx: Neo4j transaction
-        bells: List of BellInfo objects from parse_bells_page()
+        bells: List of BellInfo objects from pages/bells/parser.parse_bells_page()
 
     Returns:
         Number of Bell nodes created
