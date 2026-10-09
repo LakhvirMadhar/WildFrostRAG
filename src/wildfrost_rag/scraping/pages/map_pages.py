@@ -3,7 +3,6 @@
 import aiohttp
 
 from wildfrost_rag.core.logger import logger
-from wildfrost_rag.data_processing.fights import parse_fight_enemies
 from wildfrost_rag.data_processing.map import (
     FightSlotInfo,
     MapEventInfo,
@@ -11,6 +10,7 @@ from wildfrost_rag.data_processing.map import (
     get_fight_page_mapping,
     parse_map_page,
 )
+from wildfrost_rag.data_processing.pages.fights.parser import parse_fight_enemies
 from wildfrost_rag.domain.scraping_types import FightEnemies, FightPageMapping, PageUrls
 from wildfrost_rag.scraping.page_fetching import get_html, get_html_many
 
