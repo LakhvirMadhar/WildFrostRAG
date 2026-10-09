@@ -203,8 +203,10 @@ class GraphPopulationService:
             cards_dict_data = self._populate_cards_and_core(session, data, urls)
             self._populate_keyword_relationships(session, data, cards_dict_data)
             self._populate_map_and_fights(session, data, urls)
-            self._populate_bells(session, data)
+            # Bling before bells: bell linking MATCHes the Bling node, and MERGE-based
+            # linking silently creates nothing if that node doesn't exist yet.
             self._populate_bling_economy(session, data, urls)
+            self._populate_bells(session, data)
 
             url_link_count = session.execute_write(create_url_nodes)
             logger.info(f"Created URL nodes with {url_link_count} HAS_LINK relationships")

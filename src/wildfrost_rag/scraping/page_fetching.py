@@ -105,7 +105,7 @@ async def _scrape_and_save[T: HasWikiPage](
     htmls = await scrape_multiple_links(
         session, urls, max_concurrent=get_settings().scraping.max_concurrent_requests
     )
-    for entity, html in zip(entities, htmls, strict=False):
+    for entity, html in zip(entities, htmls, strict=True):
         if html is None:
             logger.warning(f"Failed to scrape individual page for {entity_label} '{entity.name}'")
             continue

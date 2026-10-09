@@ -118,7 +118,7 @@ async def scrape_single_link(
 
 async def scrape_multiple_links(
     session: aiohttp.ClientSession, urls: list[str], max_concurrent: int = 5
-) -> list[str]:
+) -> list[str | None]:
     """Scrape multiple URLs asynchronously with concurrent request limiting.
 
     Args:
@@ -128,8 +128,9 @@ async def scrape_multiple_links(
         max_concurrent: Maximum number of simultaneous requests (default: 5)
 
     Returns:
-        List[str]: List of HTML content from scraped pages. Failed requests
-                   return None in their respective positions.
+        One entry per URL, in the same order: the page's HTML, or None where
+        that request failed. Callers pair results with their inputs by
+        position, so failures must not be dropped.
     """
     logger.info(f"Starting batch scrape of {len(urls)} URLs with max_concurrent={max_concurrent}")
 
@@ -145,4 +146,4 @@ async def scrape_multiple_links(
     successful_scrapes = sum(1 for result in results if result is not None)
     logger.info(f"Batch scrape completed: {successful_scrapes}/{len(urls)} URLs successful")
 
-    return [r for r in results if r is not None]
+    return results

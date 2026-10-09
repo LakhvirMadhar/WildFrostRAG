@@ -26,7 +26,7 @@ def _enrich_cards_with_parent_types(
     """Add all ancestor CardType names to each card dict so the Cypher can link them."""
     ancestor_cache = {ct.value: _get_all_ancestors(ct.value) for ct in CardType}
     for card in cards_data:
-        card["parent_types"] = ancestor_cache.get(card.get("card_type"), [])
+        card["parent_types"] = ancestor_cache.get(card["card_type"], [])
     return cards_data
 
 
