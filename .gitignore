@@ -102,3 +102,6 @@ data/
 temp/
 tmp/
 *.tmp
+# Dagster instance storage: the persistent home, and the temp homes Dagster creates when DAGSTER_HOME is unset
+.dagster_home/
+.tmp_dagster_home_*/
