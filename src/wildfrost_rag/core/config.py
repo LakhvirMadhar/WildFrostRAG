@@ -6,7 +6,7 @@ live in core/configs/ (one file per external system) - this module is only
 the composition root, building one Settings instance holding all of them.
 """
 
-from functools import lru_cache
+from functools import cached_property, lru_cache
 
 from wildfrost_rag.core.configs.embedding import EmbeddingSettings
 from wildfrost_rag.core.configs.mlflow import MlflowSettings
@@ -27,19 +27,41 @@ deployment the way Neo4j credentials or the OpenAI key do.
 class Settings:
     """Composed application settings - one instance per typed concern.
 
-    Holds each concern as a typed sub-settings instance. Each sub-settings
-    loads its own env vars independently (see each class's env_prefix, in
-    core/configs/). Construction only - no other behavior belongs here.
+    Each sub-settings is built on first access, not up front, so code that
+    only needs one concern (e.g. mlflow) never requires another concern's
+    env vars (e.g. Neo4j credentials) to be present. Each loads its own env
+    vars independently (see each class's env_prefix, in core/configs/).
     """
 
-    def __init__(self) -> None:
-        """Instantiate each sub-settings, each loading its own env vars."""
-        self.neo4j = Neo4jSettings()
-        self.openai = OpenAISettings()
-        self.mlflow = MlflowSettings()
-        self.embedding = EmbeddingSettings()
-        self.scraping = ScrapingSettings()
-        self.paths = PathSettings()
+    @cached_property
+    def neo4j(self) -> Neo4jSettings:
+        """Neo4j connection settings."""
+        return Neo4jSettings()
+
+    @cached_property
+    def openai(self) -> OpenAISettings:
+        """OpenAI API settings."""
+        return OpenAISettings()
+
+    @cached_property
+    def mlflow(self) -> MlflowSettings:
+        """MLflow tracking settings."""
+        return MlflowSettings()
+
+    @cached_property
+    def embedding(self) -> EmbeddingSettings:
+        """Embedding model and index settings."""
+        return EmbeddingSettings()
+
+    @cached_property
+    def scraping(self) -> ScrapingSettings:
+        """Wiki scraping settings."""
+        return ScrapingSettings()
+
+    @cached_property
+    def paths(self) -> PathSettings:
+        """Data and output directory settings."""
+        return PathSettings()
 
 
 def create_settings_directories(settings: Settings) -> None:
