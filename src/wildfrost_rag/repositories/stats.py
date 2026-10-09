@@ -192,7 +192,7 @@ def create_stats_from_parsed(tx: neo4j.ManagedTransaction, stats: list[StatInfo]
 
     Args:
         tx: Neo4j transaction
-        stats: List of StatInfo objects from parse_stats_page()
+        stats: List of StatInfo objects from pages/stats/parser.parse_stats_page()
 
     Returns:
         Number of Stat nodes created
