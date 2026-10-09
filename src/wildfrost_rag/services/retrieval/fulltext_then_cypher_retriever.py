@@ -56,9 +56,9 @@ class FulltextThenCypherRetriever(BaseNeo4jRetriever):
     def _initialize_nltk(self) -> None:
         """Initialize NLTK resources for stop word removal."""
         try:
-            nltk.data.find("tokenizers/punkt")
+            nltk.data.find("tokenizers/punkt_tab")
         except LookupError:
-            nltk.download("punkt")
+            nltk.download("punkt_tab")
         try:
             nltk.data.find("corpora/stopwords")
         except LookupError:
