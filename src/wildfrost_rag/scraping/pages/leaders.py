@@ -4,7 +4,7 @@ import aiohttp
 
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.cards import CardInfo
-from wildfrost_rag.data_processing.leaders import parse_leaders_page
+from wildfrost_rag.data_processing.pages.leaders.parser import parse_leaders_page
 from wildfrost_rag.domain.scraping_types import PageUrls
 from wildfrost_rag.scraping.page_fetching import get_html
 
