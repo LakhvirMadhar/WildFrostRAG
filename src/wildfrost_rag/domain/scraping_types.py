@@ -27,24 +27,10 @@ class HasWikiPage(Protocol):
     """Structural shape of an entity that has its own individual wiki page.
 
     StatInfo, CharmInfo, and BellInfo all satisfy this without inheriting
-    from it - Protocol matching is structural, not nominal.
+    from it - Protocol matching is structural, not nominal. Only identity is
+    needed: where its HTML is cached and how it's written are decided by
+    scraping/html_cache.py, not by the entity.
     """
 
     name: str
     url: str | None
-
-    def sanitized_name(self) -> str:
-        """Return the entity's name, sanitized for use in a filename."""
-        ...
-
-    def save_path(self) -> str:
-        """Return the on-disk path this entity's HTML is cached at."""
-        ...
-
-    def set_html(self, html: str) -> None:
-        """Set the raw HTML to be written by a later save_html() call."""
-        ...
-
-    def save_html(self) -> bool:
-        """Write the entity's HTML to save_path(), returning success."""
-        ...

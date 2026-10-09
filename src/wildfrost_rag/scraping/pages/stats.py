@@ -5,7 +5,8 @@ from functools import partial
 import aiohttp
 
 from wildfrost_rag.core.config import get_settings
-from wildfrost_rag.data_processing.stats import StatInfo, parse_stats_page
+from wildfrost_rag.data_processing.pages.stats.parser import parse_stats_page
+from wildfrost_rag.data_processing.stats import StatInfo
 from wildfrost_rag.domain.scraping_types import PageUrls
 from wildfrost_rag.scraping.page_fetching import scrape_individual_pages, scrape_page
 
@@ -25,4 +26,4 @@ async def scrape_individual_stat_pages(
     session: aiohttp.ClientSession, stats: list[StatInfo]
 ) -> PageUrls:
     """Scrape individual stat wiki pages for per-stat Document content."""
-    return await scrape_individual_pages(session, stats, "stat")
+    return await scrape_individual_pages(session, stats, "stat", _CACHE_SUBDIR)

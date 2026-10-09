@@ -1,12 +1,10 @@
 import asyncio
-import os
-import re
 from asyncio import Semaphore
 from typing import Any
 
 import aiohttp
 import requests
-from bs4 import BeautifulSoup, Comment
+from bs4 import BeautifulSoup
 
 from wildfrost_rag.core.logger import logger
 
@@ -148,64 +146,3 @@ async def scrape_multiple_links(
     logger.info(f"Batch scrape completed: {successful_scrapes}/{len(urls)} URLs successful")
 
     return [r for r in results if r is not None]
-
-
-def process_raw_html_output(html_output: str, sub_directory: str = "raw_htmls") -> str | None:
-    """Processes HTML content by cleaning it and saving it to a file.
-
-    Args:
-        html_output (str): Raw HTML content to process.
-        sub_directory (str): Subdirectory within data/ to save the file.
-
-    Returns:
-        Optional[str]: The filename where the HTML was saved, or None if processing failed.
-    """
-    soup = BeautifulSoup(html_output, "html.parser")
-
-    # Remove the comments from the HTML
-    comments = soup.find_all(string=lambda text: isinstance(text, Comment))
-    for comment in comments:
-        comment.extract()
-
-    # Extract title & remove characters that are invalid in filenames
-    title_tag = soup.find("title")
-    title = title_tag.text if title_tag else "untitled"
-    sanitized_title = re.sub(r'[\\/:*?"<>|]', "", title)
-
-    if not sanitized_title:
-        sanitized_title = "output"
-
-    # Sanitize sub_directory to prevent path traversal
-    safe_sub_directory = (
-        os.path.normpath(sub_directory).replace("..", "").replace("/", "_").replace("\\", "_")
-    )
-    filename = f"data/{safe_sub_directory}/{sanitized_title}.html"
-
-    # Ensure the filename is within the expected directory
-    full_path = os.path.abspath(filename)
-    expected_prefix = os.path.abspath("data")
-    if not full_path.startswith(expected_prefix):
-        logger.error(f"Invalid path detected: {filename}")
-        return None
-
-    # save the html
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(soup.prettify())
-
-    return None
-
-
-def save_raw_html_outputs(html_outputs: list[str | None], sub_directory: str) -> None:
-    """Processes and saves multiple HTML outputs to individual files.
-
-    Args:
-        html_outputs: List of HTML content strings from scraping results
-        sub_directory: Subdirectory within data/ to save the files.
-
-    Returns:
-        None: This function performs file I/O operations but doesn't return a value.
-    """
-    logger.info(f"Starting to process {len(html_outputs)} HTML outputs")
-    for html_output in html_outputs:
-        if html_output is not None:
-            process_raw_html_output(html_output, sub_directory)

@@ -4,6 +4,7 @@ import neo4j
 
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.bells import BellCategory, BellInfo
+from wildfrost_rag.domain.wiki_files import wiki_page_filename
 from wildfrost_rag.repositories.query_utils import single_value
 
 # Maps BellCategory enum values to BellType node names
@@ -77,7 +78,7 @@ def create_bells_from_parsed(tx: neo4j.ManagedTransaction, bells: list[BellInfo]
 
     Args:
         tx: Neo4j transaction
-        bells: List of BellInfo objects from parse_bells_page()
+        bells: List of BellInfo objects from pages/bells/parser.parse_bells_page()
 
     Returns:
         Number of Bell nodes created
@@ -91,7 +92,7 @@ def create_bells_from_parsed(tx: neo4j.ManagedTransaction, bells: list[BellInfo]
             "notes": b.notes,
             "storm_strength": b.storm_strength,
             "url": b.url,
-            "filename": f"{b.sanitized_name()}.html" if b.url else None,
+            "filename": wiki_page_filename(b.name) if b.url else None,
         }
         for b in bells
     ]

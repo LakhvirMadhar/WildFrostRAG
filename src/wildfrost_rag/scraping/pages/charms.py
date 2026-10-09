@@ -5,7 +5,8 @@ from functools import partial
 import aiohttp
 
 from wildfrost_rag.core.config import get_settings
-from wildfrost_rag.data_processing.charms import CharmInfo, parse_charms_page
+from wildfrost_rag.data_processing.charms import CharmInfo
+from wildfrost_rag.data_processing.pages.charms.parser import parse_charms_page
 from wildfrost_rag.domain.scraping_types import PageUrls
 from wildfrost_rag.scraping.page_fetching import scrape_individual_pages, scrape_page
 
@@ -25,4 +26,4 @@ async def scrape_individual_charm_pages(
     session: aiohttp.ClientSession, charms: list[CharmInfo]
 ) -> PageUrls:
     """Scrape individual charm wiki pages for per-charm Document content."""
-    return await scrape_individual_pages(session, charms, "charm")
+    return await scrape_individual_pages(session, charms, "charm", _CACHE_SUBDIR)

@@ -1,13 +1,23 @@
+from typing import Any
+
 import neo4j
 
 from wildfrost_rag.data_processing.charms import CharmInfo
 from wildfrost_rag.data_processing.tribes import TribeExclusivity
+from wildfrost_rag.domain.wiki_files import wiki_page_filename
 from wildfrost_rag.repositories.query_utils import single_value
+
+
+def _to_neo4j_params(charm: CharmInfo) -> dict[str, Any]:
+    """Flatten a charm into Cypher parameters: set fields only, plus its cached page filename."""
+    params = charm.model_dump(mode="json", exclude_none=True)
+    params["filename"] = wiki_page_filename(charm.name)
+    return params
 
 
 def create_charms_from_parsed(tx: neo4j.ManagedTransaction, charms: list[CharmInfo]) -> int:
     """Create Charm nodes from parsed CharmInfo objects."""
-    charm_data = [charm.to_dict() for charm in charms]
+    charm_data = [_to_neo4j_params(charm) for charm in charms]
 
     query = """
     UNWIND $charms AS charm

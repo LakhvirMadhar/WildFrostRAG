@@ -15,7 +15,8 @@ from tqdm import tqdm
 from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.cards import CardInfo, CardType
-from wildfrost_rag.data_processing.generate_schemas import parse_card_type_html_schema
+from wildfrost_rag.data_processing.pages.card_types.parser import parse_card_type_html_schema
+from wildfrost_rag.data_processing.pages.cards.parser import parse_card_page
 from wildfrost_rag.domain.scraping_types import FightEnemies, PageUrls
 from wildfrost_rag.scraping.pages.bells import scrape_bells, scrape_individual_bell_pages
 from wildfrost_rag.scraping.pages.bling import scrape_bling, scrape_clunker_prices, scrape_shop
@@ -91,7 +92,7 @@ class ScrapingService:
             if os.path.exists(html_path):
                 with open(html_path, encoding="utf-8") as f:
                     html = f.read()
-                parsed_cards = CardInfo.parse_html_multi_phase(
+                parsed_cards = parse_card_page(
                     html=html, card_type=card_info.card_type, url=card_info.url
                 )
                 if parsed_cards:
@@ -127,7 +128,7 @@ class ScrapingService:
         ):
             if html is None:
                 continue
-            parsed_cards = CardInfo.parse_html_multi_phase(
+            parsed_cards = parse_card_page(
                 html=html, card_type=card_info.card_type, url=card_info.url
             )
             if parsed_cards:
@@ -286,7 +287,7 @@ class ScrapingService:
         # Leader cards come from _scrape_domain_pages, all other cards from _load_card_pages
         pipeline_data.cards = all_cards + pipeline_data.cards
 
-        # Card page URLs — built from all_cards (includes variants from parse_html_multi_phase)
+        # Card page URLs — built from all_cards (includes variants from parse_card_page)
         card_page_urls = {f"{card.sanitized_name()}.html": card.url for card in all_cards}
         pipeline_data.page_urls.update(card_page_urls)
 

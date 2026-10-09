@@ -1,84 +1,16 @@
-"""Data enrichment module for WildFrostRAG.
+"""Enriches CardInfo objects with data not on their own card pages.
 
-This module handles enrichment of CardInfo objects with additional data
-that isn't available in the individual card pages, such as tribe exclusivity
-information that must be scraped from aggregate pages.
-
-Pure parsing only - no network access. data_processing/ sits below scraping/
-in the layer hierarchy (see pyproject.toml's import-linter contract) and
-can't import its async fetch/cache helpers, so fetching the Companions/Items
-HTML is the caller's job (EnrichmentService, in services/ingestion/).
+Currently: tribe exclusivity, looked up from the Companions/Items pages'
+tribe tables (parsed by data_processing/pages/tribes/parser.py). Pure, no
+network access - fetching those pages is EnrichmentService's job
+(services/ingestion/), since data_processing/ sits below scraping/ in the
+import-linter layers contract.
 """
-
-from bs4 import BeautifulSoup, Comment
 
 from wildfrost_rag.core.logger import logger
 from wildfrost_rag.data_processing.cards import CardInfo
+from wildfrost_rag.data_processing.pages.tribes.parser import parse_tribe_exclusivity_table
 from wildfrost_rag.data_processing.tribes import TribeExclusivity
-
-# ===== Tribe Exclusivity Parsing =====
-
-
-def parse_tribe_exclusivity_table(html: str, table_index: int = 1) -> dict[str, str]:
-    """Parse tribe exclusivity information from a wiki page table.
-
-    Args:
-        html: Raw HTML of the wiki page containing the tribe table
-        table_index: Index of the table to parse (0-based). Default is 1 for
-                    the second table, which is typical for Companions page.
-
-    Returns:
-        Dictionary mapping card names to tribe names (e.g., "Snowdwellers", "All")
-
-    Raises:
-        ValueError: If the expected table structure is not found
-    """
-    soup = BeautifulSoup(html, "html.parser")
-
-    # Remove HTML comments
-    comments = soup.find_all(string=lambda text: isinstance(text, Comment))
-    for comment in comments:
-        comment.extract()
-
-    # Find all sortable wiki tables
-    tables = soup.find_all("table", {"class": "wikitable sortable"})
-
-    if not tables:
-        raise ValueError("No sortable wikitable found")
-
-    if table_index >= len(tables):
-        raise ValueError(f"Table index {table_index} out of range. Found {len(tables)} tables")
-
-    target_table = tables[table_index]
-
-    # Extract headers
-    first_row = target_table.find("tr")
-    if first_row is None:
-        raise ValueError("No rows found in table")
-    headers = [th.text.strip() for th in first_row.find_all("th")]
-    logger.debug(f"Found table headers: {headers}")
-
-    # Find the indices of required columns
-    try:
-        card_name_index = headers.index("Card Name")
-        tribe_exclusive_index = headers.index("Tribe-exclusive?")
-    except ValueError as e:
-        raise ValueError(f"Required column not found in table headers: {e}") from e
-
-    # Parse table rows
-    tribe_lookup = {}
-
-    for row in target_table.find_all("tr")[1:]:  # Skip header row
-        cells = row.find_all(["th", "td"])
-
-        if len(cells) > max(card_name_index, tribe_exclusive_index):
-            card_name = cells[card_name_index].get_text(strip=True)
-            tribe_name = cells[tribe_exclusive_index].get_text(strip=True)
-
-            tribe_lookup[card_name] = tribe_name
-
-    logger.info(f"Parsed {len(tribe_lookup)} card-tribe mappings")
-    return tribe_lookup
 
 
 def enrich_card_with_tribe(card_info: CardInfo, tribe_lookup: dict[str, str]) -> bool:

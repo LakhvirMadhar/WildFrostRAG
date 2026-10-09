@@ -4,9 +4,8 @@ from functools import partial
 
 import aiohttp
 
-from wildfrost_rag.data_processing.bling import (
-    EnemyBlingDrop,
-    ShopListing,
+from wildfrost_rag.data_processing.bling import EnemyBlingDrop, ShopListing
+from wildfrost_rag.data_processing.pages.bling.parser import (
     parse_bling_page,
     parse_clunker_prices,
     parse_shop_page,
