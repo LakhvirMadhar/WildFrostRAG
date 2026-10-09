@@ -4,11 +4,9 @@ This module provides a common base for different retrieval strategies using Neo4
 """
 
 from typing import Any
-from urllib.parse import urlparse
 
 from neo4j import Driver, Record
 
-from wildfrost_rag.core.config import get_settings
 from wildfrost_rag.repositories.record_utils import (
     Neo4jValue,
     SerializedValue,
@@ -37,12 +35,6 @@ class BaseNeo4jRetriever:
         self.driver = driver
         self.neo4j_database = neo4j_database
         self.last_cypher_query: str | None = None
-
-        # Extract port for logging (security: don't log full URI/host)
-        # Note: We can't get URI directly from driver, so we'll get it from settings for logging
-        uri = get_settings().neo4j.uri.get_secret_value()
-        parsed_uri = urlparse(uri)
-        self.port = parsed_uri.port or 7687  # Default Neo4j port
 
     @staticmethod
     def _serialize_value(value: Neo4jValue) -> SerializedValue:
