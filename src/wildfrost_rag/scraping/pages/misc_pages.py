@@ -7,8 +7,10 @@ domain - grouped here deliberately, rather than given one file each.
 
 import aiohttp
 
-from wildfrost_rag.data_processing.keywords import KeywordInfo, parse_keywords_page
-from wildfrost_rag.data_processing.shades import SummonInfo, parse_shades_page
+from wildfrost_rag.data_processing.keywords import KeywordInfo
+from wildfrost_rag.data_processing.pages.keywords.parser import parse_keywords_page
+from wildfrost_rag.data_processing.pages.shades.parser import parse_shades_page
+from wildfrost_rag.data_processing.shades import SummonInfo
 from wildfrost_rag.domain.scraping_types import PageUrls
 from wildfrost_rag.scraping.page_fetching import prefetch_page, scrape_page
 
